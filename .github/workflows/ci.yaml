@@ -134,6 +134,9 @@ jobs:
           components: rustc-codegen-cranelift-preview
           toolchain: ${{ env.toolchain }}
 
+      - name: Set LD_LIBRARY_PATH
+        run: echo "LD_LIBRARY_PATH=$(rustc --print target-libdir)" >> $GITHUB_ENV
+
       - name: Activate CI cargo config
         run: mv .cargo/config_ci.toml .cargo/config.toml
 
