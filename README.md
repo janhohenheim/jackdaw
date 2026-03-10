@@ -2,7 +2,7 @@
 
 ## Usage
 
-Add [`jackdaw::EditorPlugin`](https://github.com/Freyja-moth/bevy_scene_editor/blob/a68bdac0c1479b0900bf55dc8b34f2d9cc5f06d5/src/lib.rs#L62) to your app.
+Add [`jackdaw::EditorPlugin`](src/lib.rs#L62) to your app.
 
 ```rust
 use bevy::prelude::*;
@@ -16,7 +16,7 @@ fn main() -> AppExit {
 }
 ```
 
-Or have a look at the [examples](https://github.com/jbuehler23/jackdaw/tree/main/examples) for more advanced useages.
+Or have a look at the [examples](examples/) for more advanced useages.
 
 ## Keyboard Shortcuts
 
