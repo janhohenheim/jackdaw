@@ -211,6 +211,10 @@ fn populate_menu(world: &mut World) {
                     ("---", ""),
                     ("edit.delete", "Delete"),
                     ("edit.duplicate", "Duplicate"),
+                    ("---", ""),
+                    ("edit.join", "Join (Convex Merge)"),
+                    ("edit.csg_subtract", "CSG Subtract"),
+                    ("edit.csg_intersect", "CSG Intersect"),
                 ],
             ),
             (
@@ -303,6 +307,15 @@ fn handle_menu_action(event: On<MenuAction>, mut commands: Commands) {
             commands.queue(|world: &mut World| {
                 entity_ops::duplicate_selected(world);
             });
+        }
+        "edit.join" => {
+            commands.queue(draw_brush::join_selected_brushes_impl);
+        }
+        "edit.csg_subtract" => {
+            commands.queue(draw_brush::csg_subtract_selected_impl);
+        }
+        "edit.csg_intersect" => {
+            commands.queue(draw_brush::csg_intersect_selected_impl);
         }
         "view.wireframe" => {
             commands.queue(|world: &mut World| {

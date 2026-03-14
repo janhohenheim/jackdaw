@@ -520,6 +520,14 @@ fn spawn_keybind_help_content(parent: &mut ChildSpawnerCommands) {
             ],
         ),
         (
+            "CSG",
+            &[
+                ("J", "Join (convex merge)"),
+                ("Ctrl+K", "CSG Subtract"),
+                ("Ctrl+Shift+K", "CSG Intersect"),
+            ],
+        ),
+        (
             "Brush Draw",
             &[
                 ("B", "Draw brush (add)"),

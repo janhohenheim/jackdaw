@@ -21,7 +21,8 @@ use crate::{
 };
 use jackdaw_geometry::{
     brush_planes_to_world, brushes_intersect, clean_degenerate_faces, compute_brush_geometry,
-    compute_face_tangent_axes, compute_face_uvs, subtract_brush, triangulate_face,
+    compute_face_tangent_axes, compute_face_uvs, intersect_brushes, subtract_brush,
+    triangulate_face,
 };
 use jackdaw_jsn::{Brush, BrushFaceData, BrushPlane};
 
@@ -135,6 +136,8 @@ impl Plugin for DrawBrushPlugin {
                     draw_brush_preview,
                     manage_draw_preview_mesh.after(crate::brush::mesh::regenerate_brush_meshes),
                     join_selected_brushes,
+                    csg_subtract_selected,
+                    csg_intersect_selected,
                 )
                     .chain()
                     .run_if(in_state(crate::AppState::Editor)),
@@ -1823,8 +1826,6 @@ fn join_selected_brushes(
     input_focus: Res<InputFocus>,
     modal: Res<crate::modal_transform::ModalTransformState>,
     draw_state: Res<DrawBrushState>,
-    selection: Res<Selection>,
-    brush_query: Query<(&Brush, &GlobalTransform)>,
     mut commands: Commands,
 ) {
     if !keyboard.just_pressed(KeyCode::KeyJ) {
@@ -1834,12 +1835,16 @@ fn join_selected_brushes(
         return;
     }
 
-    // Collect selected brush entities (need at least 2)
-    let selected_brushes: Vec<Entity> = selection
-        .entities
-        .iter()
-        .copied()
-        .filter(|&e| brush_query.contains(e))
+    commands.queue(join_selected_brushes_impl);
+}
+
+/// Core logic for Join (convex merge) — callable from both keyboard shortcut and menu.
+pub fn join_selected_brushes_impl(world: &mut World) {
+    let candidates: Vec<Entity> = world.resource::<Selection>().entities.clone();
+    let mut brush_query = world.query::<&Brush>();
+    let selected_brushes: Vec<Entity> = candidates
+        .into_iter()
+        .filter(|&e| brush_query.get(world, e).is_ok())
         .collect();
     if selected_brushes.len() < 2 {
         return;
@@ -1848,7 +1853,7 @@ fn join_selected_brushes(
     let primary_entity = selected_brushes[0];
     let others: Vec<Entity> = selected_brushes[1..].to_vec();
 
-    commands.queue(move |world: &mut World| {
+    {
         use avian3d::parry::math::Point as ParryPoint;
         use avian3d::parry::transformation::convex_hull;
 
@@ -2042,5 +2047,347 @@ fn join_selected_brushes(
             label: "Join brushes".to_string(),
         }));
         history.redo_stack.clear();
-    });
+    }
+}
+
+fn csg_subtract_selected(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    input_focus: Res<InputFocus>,
+    modal: Res<crate::modal_transform::ModalTransformState>,
+    draw_state: Res<DrawBrushState>,
+    mut commands: Commands,
+) {
+    if !keyboard.just_pressed(KeyCode::KeyK) {
+        return;
+    }
+    if !keyboard.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight]) {
+        return;
+    }
+    // Ctrl+Shift+K is intersect, not subtract
+    if keyboard.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]) {
+        return;
+    }
+    if input_focus.0.is_some() || modal.active.is_some() || draw_state.active.is_some() {
+        return;
+    }
+
+    commands.queue(csg_subtract_selected_impl);
+}
+
+/// Core logic for CSG Subtract — selected brushes are cutters, non-selected are targets.
+pub fn csg_subtract_selected_impl(world: &mut World) {
+    let selection = world.resource::<Selection>();
+    let selected_set: Vec<Entity> = selection.entities.clone();
+
+    let mut brush_query = world.query::<(Entity, &Brush, &GlobalTransform)>();
+    let all_brushes: Vec<(Entity, Brush, GlobalTransform)> = brush_query
+        .iter(world)
+        .map(|(e, b, gt)| (e, b.clone(), *gt))
+        .collect();
+
+    // Cutters = selected brushes, targets = non-selected brushes
+    let cutters: Vec<&(Entity, Brush, GlobalTransform)> = all_brushes
+        .iter()
+        .filter(|(e, _, _)| selected_set.contains(e))
+        .collect();
+    let targets: Vec<&(Entity, Brush, GlobalTransform)> = all_brushes
+        .iter()
+        .filter(|(e, _, _)| !selected_set.contains(e))
+        .collect();
+
+    if cutters.is_empty() || targets.is_empty() {
+        return;
+    }
+
+    // Transform cutter faces to world space
+    let cutter_world_faces: Vec<Vec<BrushFaceData>> = cutters
+        .iter()
+        .map(|(_, brush, gt)| {
+            let (_, rotation, translation) = gt.to_scale_rotation_translation();
+            brush_planes_to_world(&brush.faces, rotation, translation)
+        })
+        .collect();
+
+    // For each target, check intersection with each cutter and subtract
+    struct SubtractionResult {
+        original_entity: Entity,
+        fragments: Vec<(Brush, Transform)>,
+    }
+
+    let mut results: Vec<SubtractionResult> = Vec::new();
+
+    for (entity, brush, global_transform) in &targets {
+        let entity = *entity;
+        let (_, rotation, translation) = global_transform.to_scale_rotation_translation();
+        let world_target = brush_planes_to_world(&brush.faces, rotation, translation);
+
+        // Iteratively subtract each cutter from the target fragments
+        let mut current_fragments: Vec<Vec<BrushFaceData>> = vec![world_target];
+
+        for cutter_faces in &cutter_world_faces {
+            let mut next_fragments = Vec::new();
+            for fragment in &current_fragments {
+                if brushes_intersect(fragment, cutter_faces) {
+                    let pieces = subtract_brush(fragment, cutter_faces);
+                    next_fragments.extend(pieces);
+                } else {
+                    next_fragments.push(fragment.clone());
+                }
+            }
+            current_fragments = next_fragments;
+        }
+
+        // Check if anything was actually cut (same number of fragments with same face count = no cut)
+        if current_fragments.len() == 1 && current_fragments[0].len() == brush.faces.len() {
+            let orig_world = brush_planes_to_world(&brush.faces, rotation, translation);
+            if current_fragments[0].len() == orig_world.len() {
+                let all_same = current_fragments[0]
+                    .iter()
+                    .zip(orig_world.iter())
+                    .all(|(a, b)| {
+                        (a.plane.normal - b.plane.normal).length() < 1e-3
+                            && (a.plane.distance - b.plane.distance).abs() < 1e-3
+                    });
+                if all_same {
+                    continue;
+                }
+            }
+        }
+
+        // Convert world-space fragments to local-space brushes
+        let mut fragment_data: Vec<(Brush, Transform)> = Vec::new();
+        for fragment_faces in &current_fragments {
+            let (world_verts, _) = compute_brush_geometry(fragment_faces);
+            if world_verts.len() < 4 {
+                continue;
+            }
+            let centroid: Vec3 = world_verts.iter().sum::<Vec3>() / world_verts.len() as f32;
+
+            let local_faces: Vec<BrushFaceData> = fragment_faces
+                .iter()
+                .map(|f| BrushFaceData {
+                    plane: BrushPlane {
+                        normal: f.plane.normal,
+                        distance: f.plane.distance - f.plane.normal.dot(centroid),
+                    },
+                    ..f.clone()
+                })
+                .collect();
+
+            let clean = clean_degenerate_faces(&local_faces);
+            if clean.len() < 4 {
+                continue;
+            }
+
+            fragment_data.push((
+                Brush { faces: clean },
+                Transform::from_translation(centroid),
+            ));
+        }
+
+        results.push(SubtractionResult {
+            original_entity: entity,
+            fragments: fragment_data,
+        });
+    }
+
+    if results.is_empty() {
+        return;
+    }
+
+    // Snapshot originals
+    let mut original_snapshots: Vec<(Entity, DynamicScene)> = Vec::new();
+    for result in &results {
+        let snapshot = DynamicSceneBuilder::from_world(world)
+            .extract_entities(std::iter::once(result.original_entity))
+            .build();
+        original_snapshots.push((result.original_entity, snapshot));
+    }
+
+    // Clean up selection: remove targets about to be despawned
+    {
+        let despawning: Vec<Entity> = original_snapshots.iter().map(|(e, _)| *e).collect();
+        let mut selection = world.resource_mut::<Selection>();
+        selection.entities.retain(|e| !despawning.contains(e));
+    }
+    for (entity, _) in &original_snapshots {
+        if let Ok(mut e) = world.get_entity_mut(*entity) {
+            e.remove::<Selected>();
+        }
+    }
+
+    // Despawn originals
+    for (entity, _) in &original_snapshots {
+        if let Ok(e) = world.get_entity_mut(*entity) {
+            e.despawn();
+        }
+    }
+
+    // Spawn fragments
+    let mut fragment_snapshots: Vec<(Entity, DynamicScene)> = Vec::new();
+    for result in &results {
+        for (brush, transform) in &result.fragments {
+            let entity = world
+                .spawn((
+                    Name::new("Brush"),
+                    brush.clone(),
+                    *transform,
+                    Visibility::default(),
+                ))
+                .id();
+            let snapshot = DynamicSceneBuilder::from_world(world)
+                .extract_entities(std::iter::once(entity))
+                .build();
+            fragment_snapshots.push((entity, snapshot));
+        }
+    }
+
+    // Push undo command
+    let cmd = SubtractBrushCommand {
+        originals: original_snapshots,
+        fragments: fragment_snapshots,
+    };
+    let mut history = world.resource_mut::<CommandHistory>();
+    history.undo_stack.push(Box::new(cmd));
+    history.redo_stack.clear();
+}
+
+fn csg_intersect_selected(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    input_focus: Res<InputFocus>,
+    modal: Res<crate::modal_transform::ModalTransformState>,
+    draw_state: Res<DrawBrushState>,
+    mut commands: Commands,
+) {
+    if !keyboard.just_pressed(KeyCode::KeyK) {
+        return;
+    }
+    if !keyboard.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight]) {
+        return;
+    }
+    if !keyboard.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]) {
+        return;
+    }
+    if input_focus.0.is_some() || modal.active.is_some() || draw_state.active.is_some() {
+        return;
+    }
+
+    commands.queue(csg_intersect_selected_impl);
+}
+
+/// Core logic for CSG Intersect — replaces all selected brushes with their intersection.
+pub fn csg_intersect_selected_impl(world: &mut World) {
+    let selection = world.resource::<Selection>();
+    let selected_set: Vec<Entity> = selection.entities.clone();
+
+    let mut brush_query = world.query::<(Entity, &Brush, &GlobalTransform)>();
+    let selected_brushes: Vec<(Entity, Brush, GlobalTransform)> = brush_query
+        .iter(world)
+        .filter(|(e, _, _)| selected_set.contains(e))
+        .map(|(e, b, gt)| (e, b.clone(), *gt))
+        .collect();
+
+    if selected_brushes.len() < 2 {
+        return;
+    }
+
+    // Transform all faces to world space
+    let world_face_sets: Vec<Vec<BrushFaceData>> = selected_brushes
+        .iter()
+        .map(|(_, brush, gt)| {
+            let (_, rotation, translation) = gt.to_scale_rotation_translation();
+            brush_planes_to_world(&brush.faces, rotation, translation)
+        })
+        .collect();
+
+    let face_refs: Vec<&[BrushFaceData]> = world_face_sets.iter().map(|v| v.as_slice()).collect();
+    let Some(intersection_faces) = intersect_brushes(&face_refs) else {
+        return;
+    };
+    if intersection_faces.len() < 4 {
+        return;
+    }
+
+    // Compute centroid for the result
+    let (world_verts, _) = compute_brush_geometry(&intersection_faces);
+    if world_verts.len() < 4 {
+        return;
+    }
+    let centroid: Vec3 = world_verts.iter().sum::<Vec3>() / world_verts.len() as f32;
+
+    // Convert to local space around centroid
+    let local_faces: Vec<BrushFaceData> = intersection_faces
+        .iter()
+        .map(|f| BrushFaceData {
+            plane: BrushPlane {
+                normal: f.plane.normal,
+                distance: f.plane.distance - f.plane.normal.dot(centroid),
+            },
+            ..f.clone()
+        })
+        .collect();
+    let clean = clean_degenerate_faces(&local_faces);
+    if clean.len() < 4 {
+        return;
+    }
+
+    // Snapshot originals
+    let mut original_snapshots: Vec<(Entity, DynamicScene)> = Vec::new();
+    for (entity, _, _) in &selected_brushes {
+        let snapshot = DynamicSceneBuilder::from_world(world)
+            .extract_entities(std::iter::once(*entity))
+            .build();
+        original_snapshots.push((*entity, snapshot));
+    }
+
+    // Clean up selection
+    {
+        let despawning: Vec<Entity> = selected_brushes.iter().map(|(e, _, _)| *e).collect();
+        let mut selection = world.resource_mut::<Selection>();
+        selection.entities.retain(|e| !despawning.contains(e));
+    }
+    for (entity, _, _) in &selected_brushes {
+        if let Ok(mut e) = world.get_entity_mut(*entity) {
+            e.remove::<Selected>();
+        }
+    }
+
+    // Despawn originals
+    for (entity, _, _) in &selected_brushes {
+        if let Ok(e) = world.get_entity_mut(*entity) {
+            e.despawn();
+        }
+    }
+
+    // Spawn the intersection brush
+    let new_brush = Brush { faces: clean };
+    let entity = world
+        .spawn((
+            Name::new("Brush"),
+            new_brush,
+            Transform::from_translation(centroid),
+            Visibility::default(),
+        ))
+        .id();
+
+    // Select the new brush
+    {
+        let mut selection = world.resource_mut::<Selection>();
+        selection.entities.push(entity);
+    }
+    world.entity_mut(entity).insert(Selected);
+
+    let fragment_snapshot = DynamicSceneBuilder::from_world(world)
+        .extract_entities(std::iter::once(entity))
+        .build();
+    let fragment_snapshots = vec![(entity, fragment_snapshot)];
+
+    // Push undo command (reuses SubtractBrushCommand — same undo/redo pattern)
+    let cmd = SubtractBrushCommand {
+        originals: original_snapshots,
+        fragments: fragment_snapshots,
+    };
+    let mut history = world.resource_mut::<CommandHistory>();
+    history.undo_stack.push(Box::new(cmd));
+    history.redo_stack.clear();
 }

@@ -316,6 +316,26 @@ pub fn subtract_brush(
     result_fragments
 }
 
+/// Compute the intersection of multiple convex brush volumes.
+///
+/// Collects all face planes from every input brush into one combined set.
+/// Because the intersection of convex half-spaces is itself convex, running
+/// `compute_brush_geometry` on the merged planes directly yields the result.
+/// Returns `None` if the intersection is empty (fewer than 4 vertices).
+pub fn intersect_brushes(brush_face_sets: &[&[BrushFaceData]]) -> Option<Vec<BrushFaceData>> {
+    let mut combined: Vec<BrushFaceData> = Vec::new();
+    for faces in brush_face_sets {
+        combined.extend(faces.iter().cloned());
+    }
+
+    let (verts, _) = compute_brush_geometry(&combined);
+    if verts.len() < 4 {
+        return None;
+    }
+
+    Some(clean_degenerate_faces(&combined))
+}
+
 /// Remove faces that produce no vertices (degenerate) from a face set.
 pub fn clean_degenerate_faces(faces: &[BrushFaceData]) -> Vec<BrushFaceData> {
     let (_, polys) = compute_brush_geometry(faces);
