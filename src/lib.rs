@@ -20,6 +20,7 @@ pub mod navmesh;
 pub mod prefab_picker;
 pub mod project;
 pub mod project_select;
+pub mod remote;
 pub mod scene_io;
 pub mod selection;
 pub mod snapping;
@@ -111,8 +112,10 @@ impl Plugin for EditorPlugin {
                 navmesh::NavmeshPlugin,
                 terrain::TerrainPlugin,
                 prefab_picker::PrefabPickerPlugin,
+                remote::RemoteConnectionPlugin,
             ))
             .insert_resource(UiTheme(create_dark_theme()))
+            .init_resource::<layout::ActiveWorkspace>()
             .init_resource::<layout::KeybindHelpPopover>()
             .init_resource::<asset_catalog::AssetCatalog>()
             .add_systems(
@@ -126,6 +129,8 @@ impl Plugin for EditorPlugin {
                     layout::update_toolbar_highlights,
                     layout::update_space_toggle_label,
                     layout::update_edit_tool_highlights,
+                    layout::update_workspace_visibility,
+                    layout::update_tab_highlights,
                     auto_hide_internal_entities,
                 )
                     .run_if(in_state(AppState::Editor)),

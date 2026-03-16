@@ -1,9 +1,9 @@
 mod brush_display;
-mod component_display;
+pub(crate) mod component_display;
 mod component_picker;
 mod custom_props_display;
 mod material_display;
-mod reflect_fields;
+pub(crate) mod reflect_fields;
 
 use crate::EditorEntity;
 use std::any::TypeId;

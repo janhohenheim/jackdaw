@@ -467,6 +467,7 @@ fn on_tree_node_expanded(
         &Children,
     )>,
     tree_row_children_marker: Query<Entity, With<TreeRowChildren>>,
+    remote_check: Query<(), With<crate::remote::entity_browser::RemoteEntityProxy>>,
 ) {
     let entity = trigger.event_target();
     let Ok((expanded, populated, tree_node, children)) = tree_query.get(entity) else {
@@ -479,6 +480,12 @@ fn on_tree_node_expanded(
     }
 
     let source = tree_node.0;
+
+    // Skip remote entity proxies — handled by entity_browser observer
+    if remote_check.contains(source) {
+        return;
+    }
+
     let Some(container) = children
         .iter()
         .find(|c| tree_row_children_marker.contains(*c))
@@ -547,7 +554,13 @@ fn on_tree_row_clicked(
     keyboard: Res<ButtonInput<KeyCode>>,
     parent_query: Query<&ChildOf>,
     tree_nodes: Query<Entity, With<TreeNode>>,
+    remote_check: Query<(), With<crate::remote::entity_browser::RemoteEntityProxy>>,
 ) {
+    // Skip remote entity proxies — handled by entity_browser observer
+    if remote_check.contains(event.source_entity) {
+        return;
+    }
+
     let ctrl = keyboard.any_pressed([KeyCode::ControlLeft, KeyCode::ControlRight]);
 
     if ctrl {

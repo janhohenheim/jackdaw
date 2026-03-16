@@ -4307,6 +4307,7 @@ dependencies = [
  "jackdaw_feathers",
  "jackdaw_geometry",
  "jackdaw_jsn",
+ "jackdaw_remote",
  "jackdaw_terrain",
  "jackdaw_widgets",
  "notify",
@@ -4359,6 +4360,15 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "jackdaw_remote"
+version = "0.1.5"
+dependencies = [
+ "bevy",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

@@ -66,6 +66,7 @@ pub(crate) fn add_component_displays(
         &names,
         &icon_font,
         &editor_font,
+        false,
     );
 
     // Set up monitoring: watch the selected entity for InspectorDirty
@@ -77,7 +78,7 @@ pub(crate) fn add_component_displays(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn build_inspector_displays(
+pub(crate) fn build_inspector_displays(
     commands: &mut Commands,
     components: &Components,
     type_registry: &Res<AppTypeRegistry>,
@@ -89,6 +90,7 @@ fn build_inspector_displays(
     names: &Query<&Name>,
     icon_font: &IconFont,
     editor_font: &EditorFont,
+    read_only: bool,
 ) {
     // Show multi-selection header when multiple entities are selected
     if selection_count > 1 {
@@ -387,7 +389,7 @@ fn build_inspector_displays(
             commands,
             name,
             source_entity,
-            component_id,
+            Some(component_id),
             &icon_font.0,
             &editor_font.0,
             is_overridden,
@@ -483,13 +485,15 @@ fn build_inspector_displays(
         ));
     }
 
-    commands.spawn((
-        AddComponentButton,
-        jackdaw_feathers::button::button(jackdaw_feathers::button::ButtonProps::new(
-            "+ Add Component",
-        )),
-        ChildOf(inspector_entity),
-    ));
+    if !read_only {
+        commands.spawn((
+            AddComponentButton,
+            jackdaw_feathers::button::button(jackdaw_feathers::button::ButtonProps::new(
+                "+ Add Component",
+            )),
+            ChildOf(inspector_entity),
+        ));
+    }
 }
 
 pub(crate) fn remove_component_displays(
@@ -580,14 +584,15 @@ pub(crate) fn on_inspector_dirty(
         &names,
         &icon_font,
         &editor_font,
+        false,
     );
 }
 
-fn spawn_component_display(
+pub(crate) fn spawn_component_display(
     commands: &mut Commands,
     name: &str,
     entity: Entity,
-    component: ComponentId,
+    component: Option<ComponentId>,
     icon_font: &Handle<Font>,
     editor_font: &Handle<Font>,
     is_overridden: bool,
@@ -695,40 +700,42 @@ fn spawn_component_display(
             commands.trigger(ToggleCollapsible { entity: section });
         });
 
-    // Revert button (only shown for overridden prefab components)
-    if is_overridden {
-        let source_entity = entity;
+    if let Some(component) = component {
+        // Revert button (only shown for overridden prefab components)
+        if is_overridden {
+            let source_entity = entity;
+            commands.spawn((
+                Text::new(String::from(Icon::RotateCcw.unicode())),
+                TextFont {
+                    font: font.clone(),
+                    font_size: tokens::FONT_SM,
+                    ..Default::default()
+                },
+                TextColor(Color::srgb(1.0, 0.6, 0.3)),
+                ChildOf(header),
+                bevy::ui_widgets::observe(move |_: On<Pointer<Click>>, mut commands: Commands| {
+                    commands.queue(move |world: &mut World| {
+                        revert_component_to_baseline(world, source_entity, component);
+                    });
+                }),
+            ));
+        }
+
+        // Remove component button (X icon)
         commands.spawn((
-            Text::new(String::from(Icon::RotateCcw.unicode())),
+            Text::new(String::from(Icon::X.unicode())),
             TextFont {
-                font: font.clone(),
+                font,
                 font_size: tokens::FONT_SM,
                 ..Default::default()
             },
-            TextColor(Color::srgb(1.0, 0.6, 0.3)),
+            TextColor(tokens::TEXT_SECONDARY),
             ChildOf(header),
             bevy::ui_widgets::observe(move |_: On<Pointer<Click>>, mut commands: Commands| {
-                commands.queue(move |world: &mut World| {
-                    revert_component_to_baseline(world, source_entity, component);
-                });
+                commands.entity(entity).remove_by_id(component);
             }),
         ));
     }
-
-    // Remove component button (X icon)
-    commands.spawn((
-        Text::new(String::from(Icon::X.unicode())),
-        TextFont {
-            font,
-            font_size: tokens::FONT_SM,
-            ..Default::default()
-        },
-        TextColor(tokens::TEXT_SECONDARY),
-        ChildOf(header),
-        bevy::ui_widgets::observe(move |_: On<Pointer<Click>>, mut commands: Commands| {
-            commands.entity(entity).remove_by_id(component);
-        }),
-    ));
 
     // Hover effect on header
     commands.entity(header).observe(

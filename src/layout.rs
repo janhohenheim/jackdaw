@@ -22,9 +22,34 @@ use crate::{
     hierarchy::{HierarchyPanel, HierarchyShowAllButton, HierarchyTreeContainer},
     inspector::Inspector,
     material_browser,
+    remote::ConnectionManager,
     selection::Selection,
     viewport::SceneViewport,
 };
+
+/// Which workspace tab is active.
+#[derive(Resource, Default, Clone, Copy, PartialEq, Eq)]
+pub enum ActiveWorkspace {
+    #[default]
+    SceneEditor,
+    RemoteDebug,
+}
+
+/// Marker for the workspace tab bar row.
+#[derive(Component)]
+pub struct WorkspaceTabBar;
+
+/// Marker for a workspace tab, storing which workspace it activates.
+#[derive(Component)]
+pub struct WorkspaceTab(pub ActiveWorkspace);
+
+/// Marker for the scene editor workspace container.
+#[derive(Component)]
+pub struct SceneEditorWorkspace;
+
+/// Marker for the remote debug workspace container.
+#[derive(Component)]
+pub struct RemoteDebugWorkspace;
 
 /// Marker on the hierarchy filter text input
 #[derive(Component)]
@@ -77,7 +102,9 @@ pub fn editor_layout(icon_font: &IconFont) -> impl Bundle {
         children![
             // Menu bar (fixed height, populated in spawn_layout)
             menu_bar::menu_bar_shell(),
-            // Main content (flex grow)
+            // Workspace tab bar
+            workspace_tab_bar(),
+            // Content container (flex grow) — holds both workspaces
             (
                 EditorEntity,
                 Node {
@@ -87,19 +114,124 @@ pub fn editor_layout(icon_font: &IconFont) -> impl Bundle {
                     flex_direction: FlexDirection::Column,
                     ..Default::default()
                 },
-                // Vertical split: main area (top) + bottom panels (bottom)
-                split_panel::panel_group(
-                    0.15,
+                children![
+                    // Scene Editor workspace (active by default)
                     (
-                        Spawn((split_panel::panel(4), main_area(font.clone()))),
-                        Spawn(split_panel::panel_handle()),
-                        Spawn((split_panel::panel(1), bottom_panels(font))),
+                        SceneEditorWorkspace,
+                        EditorEntity,
+                        Node {
+                            width: percent(100),
+                            flex_grow: 1.0,
+                            min_height: px(0.0),
+                            flex_direction: FlexDirection::Column,
+                            display: Display::Flex,
+                            ..Default::default()
+                        },
+                        // Vertical split: main area (top) + bottom panels (bottom)
+                        split_panel::panel_group(
+                            0.15,
+                            (
+                                Spawn((split_panel::panel(4), main_area(font.clone()))),
+                                Spawn(split_panel::panel_handle()),
+                                Spawn((split_panel::panel(1), bottom_panels(font))),
+                            ),
+                        ),
                     ),
-                ),
+                    // Remote Debug workspace (hidden by default)
+                    (
+                        RemoteDebugWorkspace,
+                        EditorEntity,
+                        Node {
+                            width: percent(100),
+                            flex_grow: 1.0,
+                            min_height: px(0.0),
+                            flex_direction: FlexDirection::Column,
+                            display: Display::None,
+                            ..Default::default()
+                        },
+                        split_panel::panel_group(
+                            0.2,
+                            (
+                                Spawn((
+                                    split_panel::panel(1),
+                                    crate::remote::entity_browser::remote_debug_workspace_content(),
+                                )),
+                                Spawn(split_panel::panel_handle()),
+                                Spawn((
+                                    split_panel::panel(1),
+                                    crate::remote::remote_inspector::remote_inspector(),
+                                )),
+                            ),
+                        ),
+                    )
+                ],
             ),
-            // Status bar (fixed height)
-            status_bar::status_bar()
+            // Status bar (fixed height) with connection indicator
+            editor_status_bar()
         ],
+    )
+}
+
+fn workspace_tab_bar() -> impl Bundle {
+    (
+        WorkspaceTabBar,
+        EditorEntity,
+        Node {
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            width: percent(100),
+            height: px(28.0),
+            flex_shrink: 0.0,
+            padding: UiRect::horizontal(px(tokens::SPACING_SM)),
+            column_gap: px(tokens::SPACING_XS),
+            ..Default::default()
+        },
+        BackgroundColor(tokens::TOOLBAR_BG),
+        children![
+            workspace_tab("Scene Editor", ActiveWorkspace::SceneEditor, true),
+            workspace_tab("Remote Debug", ActiveWorkspace::RemoteDebug, false),
+        ],
+    )
+}
+
+fn workspace_tab(label: &str, workspace: ActiveWorkspace, active: bool) -> impl Bundle {
+    let bg = if active {
+        tokens::SELECTED_BG
+    } else {
+        tokens::TOOLBAR_BUTTON_BG
+    };
+    (
+        WorkspaceTab(workspace),
+        Interaction::default(),
+        Node {
+            padding: UiRect::axes(px(tokens::SPACING_LG), px(tokens::SPACING_XS)),
+            border_radius: BorderRadius::all(px(tokens::BORDER_RADIUS_SM)),
+            ..Default::default()
+        },
+        BackgroundColor(bg),
+        children![(
+            Text::new(label.to_string()),
+            TextFont {
+                font_size: tokens::FONT_SM,
+                ..Default::default()
+            },
+            TextColor(if active {
+                tokens::TEXT_PRIMARY
+            } else {
+                tokens::TEXT_SECONDARY
+            }),
+        )],
+        observe(
+            move |_: On<Pointer<Click>>,
+                  mut workspace_res: ResMut<ActiveWorkspace>,
+                  manager: Res<ConnectionManager>| {
+                // Only allow switching to Remote Debug when connected
+                if workspace == ActiveWorkspace::RemoteDebug && !manager.is_connected() {
+                    return;
+                }
+                *workspace_res = workspace;
+            },
+        ),
     )
 }
 
@@ -782,6 +914,68 @@ pub fn update_edit_tool_highlights(
     }
 }
 
+/// Toggle workspace container visibility when ActiveWorkspace changes.
+pub fn update_workspace_visibility(
+    workspace: Res<ActiveWorkspace>,
+    mut scene_editors: Query<&mut Node, (With<SceneEditorWorkspace>, Without<RemoteDebugWorkspace>)>,
+    mut remote_debugs: Query<&mut Node, (With<RemoteDebugWorkspace>, Without<SceneEditorWorkspace>)>,
+) {
+    if !workspace.is_changed() {
+        return;
+    }
+    for mut node in &mut scene_editors {
+        node.display = if *workspace == ActiveWorkspace::SceneEditor {
+            Display::Flex
+        } else {
+            Display::None
+        };
+    }
+    for mut node in &mut remote_debugs {
+        node.display = if *workspace == ActiveWorkspace::RemoteDebug {
+            Display::Flex
+        } else {
+            Display::None
+        };
+    }
+}
+
+/// Update tab bg colors and dim remote tab when disconnected.
+pub fn update_tab_highlights(
+    workspace: Res<ActiveWorkspace>,
+    manager: Res<ConnectionManager>,
+    mut tabs: Query<(&WorkspaceTab, &mut BackgroundColor, &Children)>,
+    mut texts: Query<&mut TextColor>,
+) {
+    if !workspace.is_changed() && !manager.is_changed() {
+        return;
+    }
+    let connected = manager.is_connected();
+    for (tab, mut bg, children) in &mut tabs {
+        let is_active = tab.0 == *workspace;
+        let is_disabled = tab.0 == ActiveWorkspace::RemoteDebug && !connected;
+
+        bg.0 = if is_active {
+            tokens::SELECTED_BG
+        } else {
+            tokens::TOOLBAR_BUTTON_BG
+        };
+
+        let text_color = if is_disabled {
+            Color::srgba(0.4, 0.4, 0.4, 0.5)
+        } else if is_active {
+            tokens::TEXT_PRIMARY
+        } else {
+            tokens::TEXT_SECONDARY
+        };
+
+        for child in children.iter() {
+            if let Ok(mut tc) = texts.get_mut(child) {
+                tc.0 = text_color;
+            }
+        }
+    }
+}
+
 fn bottom_panels(icon_font: Handle<Font>) -> impl Bundle {
     (
         EditorEntity,
@@ -805,6 +999,67 @@ fn bottom_panels(icon_font: Handle<Font>) -> impl Bundle {
                 )),
             ),
         ),
+    )
+}
+
+/// Custom status bar that wraps the feathers status bar sections and adds
+/// a connection indicator on the far right.
+fn editor_status_bar() -> impl Bundle {
+    (
+        status_bar::StatusBar,
+        Node {
+            flex_direction: FlexDirection::Row,
+            align_items: AlignItems::Center,
+            justify_content: JustifyContent::SpaceBetween,
+            width: Val::Percent(100.0),
+            height: Val::Px(tokens::STATUS_BAR_HEIGHT),
+            padding: UiRect::horizontal(Val::Px(tokens::SPACING_MD)),
+            flex_shrink: 0.0,
+            ..Default::default()
+        },
+        BackgroundColor(tokens::STATUS_BAR_BG),
+        children![
+            (
+                status_bar::StatusBarLeft,
+                Text::new("Ready"),
+                TextFont {
+                    font_size: tokens::FONT_SM,
+                    ..Default::default()
+                },
+                bevy::feathers::theme::ThemedText,
+            ),
+            (
+                status_bar::StatusBarCenter,
+                Text::new(""),
+                TextFont {
+                    font_size: tokens::FONT_SM,
+                    ..Default::default()
+                },
+                TextColor(tokens::TEXT_SECONDARY),
+            ),
+            // Right side: gizmo info + connection indicator
+            (
+                Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: Val::Px(tokens::SPACING_LG),
+                    ..Default::default()
+                },
+                children![
+                    (
+                        status_bar::StatusBarRight,
+                        Text::new(""),
+                        TextFont {
+                            font_size: tokens::FONT_SM,
+                            ..Default::default()
+                        },
+                        TextColor(tokens::TEXT_SECONDARY),
+                    ),
+                    // Connection indicator
+                    crate::remote::panel::connection_indicator()
+                ],
+            )
+        ],
     )
 }
 

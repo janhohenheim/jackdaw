@@ -1612,6 +1612,7 @@ pub(crate) fn on_text_edit_commit(
     bindings: Query<(&FieldBinding, Option<&TextEditVariant>)>,
     child_of_query: Query<&ChildOf>,
     mut commands: Commands,
+    remote_proxies: Query<(), With<crate::remote::entity_browser::RemoteEntityProxy>>,
 ) {
     // Walk up from the committed entity to find a FieldBinding
     let mut current = event.entity;
@@ -1636,6 +1637,11 @@ pub(crate) fn on_text_edit_commit(
         return;
     };
 
+    // Skip edits targeting remote proxy entities (read-only inspector)
+    if remote_proxies.contains(source_entity) {
+        return;
+    }
+
     // For numeric fields, use the text as-is (already formatted)
     // For string fields, use text directly
     let value_str = if variant.is_some_and(|v| v.is_numeric()) {
@@ -1655,11 +1661,17 @@ pub(crate) fn on_checkbox_commit(
     event: On<CheckboxCommitEvent>,
     bindings: Query<&FieldBinding>,
     mut commands: Commands,
+    remote_proxies: Query<(), With<crate::remote::entity_browser::RemoteEntityProxy>>,
 ) {
     let Ok(binding) = bindings.get(event.entity) else {
         return;
     };
     let source = binding.source_entity;
+
+    // Skip edits targeting remote proxy entities (read-only inspector)
+    if remote_proxies.contains(source) {
+        return;
+    }
     let type_id = binding.component_type_id;
     let path = binding.field_path.clone();
     let val = format!("{}", event.checked);

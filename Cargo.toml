@@ -28,6 +28,7 @@ jackdaw_feathers.workspace = true
 jackdaw_widgets.workspace = true
 jackdaw_commands.workspace = true
 jackdaw_terrain.workspace = true
+jackdaw_remote.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 avian3d.workspace = true
@@ -54,6 +55,7 @@ jackdaw_feathers = { version = "0.1.5", path = "crates/jackdaw_feathers" }
 jackdaw_widgets = { version = "0.1.5", path = "crates/jackdaw_widgets" }
 jackdaw_commands = { version = "0.1.5", path = "crates/jackdaw_commands" }
 jackdaw_terrain = { version = "0.1.5", path = "crates/jackdaw_terrain" }
+jackdaw_remote = { version = "0.1.5", path = "crates/jackdaw_remote" }
 noise = "0.9"
 rand = "0.9"
 serde = "1"

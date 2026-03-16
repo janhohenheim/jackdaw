@@ -1,0 +1,12 @@
+[package]
+name = "jackdaw_remote"
+version = "0.1.5"
+edition = "2024"
+
+[dependencies]
+bevy.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+
+[lints]
+workspace = true
