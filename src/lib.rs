@@ -97,7 +97,9 @@ impl Plugin for EditorPlugin {
             .add_plugins((
                 FeathersPlugins.build().disable::<InputDispatchPlugin>(),
                 EditorFeathersPlugin,
-                jackdaw_jsn::JsnPlugin { runtime_mesh_rebuild: false },
+                jackdaw_jsn::JsnPlugin {
+                    runtime_mesh_rebuild: false,
+                },
                 project_select::ProjectSelectPlugin,
                 inspector::InspectorPlugin,
                 hierarchy::HierarchyPlugin,

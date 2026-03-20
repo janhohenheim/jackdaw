@@ -57,7 +57,14 @@ fn draw_brush_edges(
     settings: Res<OverlaySettings>,
     edit_mode: Res<EditMode>,
     brushes: Query<
-        (Entity, &Brush, &BrushMeshCache, &GlobalTransform, Has<Selected>, &InheritedVisibility),
+        (
+            Entity,
+            &Brush,
+            &BrushMeshCache,
+            &GlobalTransform,
+            Has<Selected>,
+            &InheritedVisibility,
+        ),
         Without<CutPreviewHidden>,
     >,
     parents: Query<&ChildOf>,
@@ -93,11 +100,19 @@ fn draw_brush_edges(
             .is_some_and(|group| parents.get(entity).is_ok_and(|c| c.0 == group));
 
         let color: Color = if is_selected {
-            if in_clip_mode { colors::WIREFRAME_SELECTED_CLIP } else { colors::WIREFRAME_SELECTED }
+            if in_clip_mode {
+                colors::WIREFRAME_SELECTED_CLIP
+            } else {
+                colors::WIREFRAME_SELECTED
+            }
         } else if in_active_group {
             colors::WIREFRAME_GROUP_EDIT
         } else if parent_selected {
-            if in_clip_mode { colors::WIREFRAME_SELECTED_CLIP } else { colors::WIREFRAME_SELECTED }
+            if in_clip_mode {
+                colors::WIREFRAME_SELECTED_CLIP
+            } else {
+                colors::WIREFRAME_SELECTED
+            }
         } else {
             colors::WIREFRAME_UNSELECTED
         };

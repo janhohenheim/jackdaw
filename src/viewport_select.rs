@@ -6,7 +6,6 @@ use crate::{
     selection::Selection,
     viewport::{MainViewportCamera, SceneViewport},
 };
-use jackdaw_jsn::BrushGroup;
 use bevy::input_focus::InputFocus;
 use bevy::{
     picking::mesh_picking::ray_cast::{MeshRayCast, MeshRayCastSettings, RayCastVisibility},
@@ -14,6 +13,7 @@ use bevy::{
     prelude::*,
     ui::UiGlobalTransform,
 };
+use jackdaw_jsn::BrushGroup;
 
 /// Marker for the box-select visual overlay node.
 #[derive(Component)]
@@ -69,7 +69,11 @@ pub(crate) fn handle_viewport_click(
     scene_entities: Query<(Entity, &GlobalTransform), (Without<EditorEntity>, With<Transform>)>,
     parents: Query<&ChildOf>,
     brush_groups: Query<(), With<BrushGroup>>,
-    (gizmo_drag, modal, vp_drag): (Res<GizmoDragState>, Res<ModalTransformState>, Res<ViewportDragState>),
+    (gizmo_drag, modal, vp_drag): (
+        Res<GizmoDragState>,
+        Res<ModalTransformState>,
+        Res<ViewportDragState>,
+    ),
     mut selection: ResMut<Selection>,
     mut input_focus: ResMut<InputFocus>,
     mut commands: Commands,
@@ -79,11 +83,7 @@ pub(crate) fn handle_viewport_click(
         Res<crate::terrain::TerrainEditMode>,
     ),
     mut ray_cast: MeshRayCast,
-    (mut group_edit, mut last_click, time): (
-        ResMut<GroupEditState>,
-        ResMut<LastClick>,
-        Res<Time>,
-    ),
+    (mut group_edit, mut last_click, time): (ResMut<GroupEditState>, ResMut<LastClick>, Res<Time>),
 ) {
     let shift = keyboard.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
 
@@ -387,9 +387,7 @@ fn find_selectable_ancestor(
                 if scene_entities.contains(parent) {
                     // If we're inside a group and this parent IS that group,
                     // stop here — let the user select the child fragment.
-                    if group_edit.active_group == Some(parent)
-                        && brush_groups.contains(parent)
-                    {
+                    if group_edit.active_group == Some(parent) && brush_groups.contains(parent) {
                         return Some(entity);
                     }
                     // Keep walking up — the parent is also selectable

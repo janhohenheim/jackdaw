@@ -263,7 +263,6 @@ pub(super) struct CustomPropertyTypeSelector;
 #[derive(Component)]
 pub(super) struct CustomPropertyNameInput;
 
-
 /// Stores the entity currently being inspected.
 #[derive(Component)]
 pub(super) struct InspectorTarget(pub Entity);

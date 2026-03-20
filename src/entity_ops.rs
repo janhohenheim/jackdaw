@@ -32,10 +32,8 @@ pub struct EntityOpsPlugin;
 impl Plugin for EntityOpsPlugin {
     fn build(&self, app: &mut App) {
         // Note: GltfSource type registration is handled by JsnPlugin
-        app.init_resource::<ComponentClipboard>().add_systems(
-            Update,
-            handle_entity_keys.in_set(crate::EditorInteraction),
-        );
+        app.init_resource::<ComponentClipboard>()
+            .add_systems(Update, handle_entity_keys.in_set(crate::EditorInteraction));
     }
 }
 
@@ -488,8 +486,8 @@ fn handle_entity_keys(world: &mut World) {
         // so rotations always produce axis-aligned results while still feeling
         // intuitive from the current viewpoint.
         let (yaw_axis, roll_axis, pitch_axis) = {
-            let mut cam_query =
-                world.query_filtered::<&GlobalTransform, With<crate::viewport::MainViewportCamera>>();
+            let mut cam_query = world
+                .query_filtered::<&GlobalTransform, With<crate::viewport::MainViewportCamera>>();
             cam_query
                 .iter(world)
                 .next()

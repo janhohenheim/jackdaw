@@ -15,8 +15,8 @@ use jackdaw_feathers::{
 use crate::colors;
 
 use super::{
-    CustomPropertyAddRow, CustomPropertyBinding,
-    CustomPropertyNameInput, CustomPropertyTypeSelector, rebuild_inspector,
+    CustomPropertyAddRow, CustomPropertyBinding, CustomPropertyNameInput,
+    CustomPropertyTypeSelector, rebuild_inspector,
 };
 
 pub(super) fn spawn_custom_properties_display(

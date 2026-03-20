@@ -202,14 +202,15 @@ fn populate_keybind_dialog(
             .spawn((
                 KeybindResetAllButton,
                 button(
-                    ButtonProps::new("Reset All to Defaults")
-                        .with_variant(ButtonVariant::Default),
+                    ButtonProps::new("Reset All to Defaults").with_variant(ButtonVariant::Default),
                 ),
             ))
             .id();
-        commands
-            .entity(filter_row)
-            .add_children(&[filter_input_wrapper, key_filter_btn, reset_all_btn]);
+        commands.entity(filter_row).add_children(&[
+            filter_input_wrapper,
+            key_filter_btn,
+            reset_all_btn,
+        ]);
         commands.entity(wrapper).add_child(filter_row);
 
         // Scrollable list
@@ -349,7 +350,6 @@ fn populate_keybind_dialog(
             commands.entity(row).add_children(&[name_label, right]);
             commands.entity(scroll).add_child(row);
         }
-
     }
 }
 
@@ -385,12 +385,7 @@ fn on_key_filter_click(
     } else {
         key_filter.capturing = true;
         registry.recording = true;
-        set_button_text(
-            event.entity,
-            "Press a key...",
-            &children_query,
-            &mut texts,
-        );
+        set_button_text(event.entity, "Press a key...", &children_query, &mut texts);
     }
 }
 
@@ -489,11 +484,9 @@ fn apply_keybind_filter(
     };
 
     // Only re-filter when text changes or key filter changes
-    let text_changed = filter_wrappers.iter().any(|children| {
-        children
-            .iter()
-            .any(|child| text_values.get(child).is_ok())
-    });
+    let text_changed = filter_wrappers
+        .iter()
+        .any(|children| children.iter().any(|child| text_values.get(child).is_ok()));
     if !text_changed && !key_filter.is_changed() {
         return;
     }

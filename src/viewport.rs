@@ -40,8 +40,7 @@ impl Plugin for ViewportPlugin {
             )
             .add_systems(
                 Update,
-                (update_camera_enabled, handle_camera_keys)
-                    .in_set(crate::EditorInteraction),
+                (update_camera_enabled, handle_camera_keys).in_set(crate::EditorInteraction),
             )
             .add_systems(
                 Update,

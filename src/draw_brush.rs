@@ -202,8 +202,7 @@ fn spawn_brush_or_group(world: &mut World, data: &BrushOrGroup) -> Entity {
             parent_stable_id,
             children,
         } => {
-            let parent_entity = parent_stable_id
-                .and_then(|psid| entity_by_stable_id(world, psid));
+            let parent_entity = parent_stable_id.and_then(|psid| entity_by_stable_id(world, psid));
 
             let mut ec = world.spawn((
                 Name::new(name.clone()),
@@ -507,8 +506,7 @@ fn draw_brush_update(
                             if let Some(ground_hit) =
                                 ray_plane_intersection(ray, Vec3::ZERO, Vec3::Y)
                             {
-                                let snapped_origin =
-                                    snap_settings.snap_translate_vec3(ground_hit);
+                                let snapped_origin = snap_settings.snap_translate_vec3(ground_hit);
                                 active.plane = DrawPlane {
                                     origin: snapped_origin,
                                     normal: Vec3::Y,
@@ -849,7 +847,6 @@ fn draw_brush_cancel(
     }
 }
 
-
 fn draw_brush_preview(
     draw_state: Res<DrawBrushState>,
     snap_settings: Res<SnapSettings>,
@@ -1009,8 +1006,7 @@ fn draw_brush_preview(
             }
 
             let grid_center = if !active.polygon_vertices.is_empty() {
-                active.polygon_vertices.iter().sum::<Vec3>()
-                    / active.polygon_vertices.len() as f32
+                active.polygon_vertices.iter().sum::<Vec3>() / active.polygon_vertices.len() as f32
             } else {
                 (active.corner1 + active.corner2) / 2.0
             };
@@ -1376,8 +1372,7 @@ fn snap_to_diagonal(hit: Vec3, origin: Vec3, plane: &DrawPlane) -> Vec3 {
     let delta_u = hit.dot(plane.axis_u) - origin.dot(plane.axis_u);
     let delta_v = hit.dot(plane.axis_v) - origin.dot(plane.axis_v);
     let angle = delta_v.atan2(delta_u);
-    let snapped_angle =
-        (angle / std::f32::consts::FRAC_PI_4).round() * std::f32::consts::FRAC_PI_4;
+    let snapped_angle = (angle / std::f32::consts::FRAC_PI_4).round() * std::f32::consts::FRAC_PI_4;
     let distance = (delta_u * delta_u + delta_v * delta_v).sqrt();
     let snapped_u = origin.dot(plane.axis_u) + distance * snapped_angle.cos();
     let snapped_v = origin.dot(plane.axis_v) + distance * snapped_angle.sin();
@@ -1879,10 +1874,7 @@ fn build_cutter_planes(active: &ActiveDraw) -> Vec<BrushFaceData> {
         (plane.axis_v, plane.axis_v.dot(center) + half_v),
         (-plane.axis_v, (-plane.axis_v).dot(center) + half_v),
         (plane.normal, plane.normal.dot(center) + half_depth),
-        (
-            -plane.normal,
-            (-plane.normal).dot(center) + half_depth,
-        ),
+        (-plane.normal, (-plane.normal).dot(center) + half_depth),
     ];
     normals_dists
         .iter()
@@ -2706,8 +2698,7 @@ pub fn csg_subtract_selected_impl(world: &mut World) {
         .collect();
 
     for (result_idx, result) in results.iter().enumerate() {
-        if let Some(&(parent_sid, parent_translation)) =
-            parent_groups.get(&result.original_entity)
+        if let Some(&(parent_sid, parent_translation)) = parent_groups.get(&result.original_entity)
         {
             for (frag_idx, (brush, transform)) in result.fragments.iter().enumerate() {
                 let brush_data = BrushData {
@@ -2749,9 +2740,7 @@ pub fn csg_subtract_selected_impl(world: &mut World) {
                 .map(|(frag_idx, (brush, transform))| BrushData {
                     stable_id: fragment_stable_ids[result_idx][frag_idx],
                     brush: brush.clone(),
-                    transform: Transform::from_translation(
-                        transform.translation - group_center,
-                    ),
+                    transform: Transform::from_translation(transform.translation - group_center),
                     name: "Brush".to_string(),
                     parent_stable_id: None,
                 })

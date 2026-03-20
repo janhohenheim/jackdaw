@@ -35,11 +35,9 @@ pub(super) fn draw_brush_edit_gizmos(
                             super::HoverIntent::Extend => colors::HOVER_FACE_EXTEND,
                         };
                         for i in 0..polygon.len() {
-                            let a =
-                                brush_global.transform_point(cache.vertices[polygon[i]]);
-                            let b = brush_global.transform_point(
-                                cache.vertices[polygon[(i + 1) % polygon.len()]],
-                            );
+                            let a = brush_global.transform_point(cache.vertices[polygon[i]]);
+                            let b = brush_global
+                                .transform_point(cache.vertices[polygon[(i + 1) % polygon.len()]]);
                             gizmos.line(a, b, color);
                         }
                     }
@@ -200,4 +198,3 @@ pub(super) fn draw_brush_edit_gizmos(
         }
     }
 }
-

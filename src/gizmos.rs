@@ -191,7 +191,11 @@ fn handle_gizmo_hover(
 
     let gizmo_pos = global_tf.translation();
     // Scale is inherently local — force local orientation so handles match transform.scale axes
-    let effective_space = if *mode == GizmoMode::Scale { &GizmoSpace::Local } else { &space };
+    let effective_space = if *mode == GizmoMode::Scale {
+        &GizmoSpace::Local
+    } else {
+        &space
+    };
     let rotation = gizmo_rotation(global_tf, effective_space);
 
     let cam_dist = (cam_tf.translation() - gizmo_pos).length();
@@ -220,11 +224,14 @@ fn handle_gizmo_hover(
                 };
                 point_to_segment_dist(viewport_cursor, start_screen, end_screen)
             }
-            GizmoMode::Rotate => {
-                point_to_ring_screen_dist(
-                    viewport_cursor, camera, cam_tf, gizmo_pos, *dir, ROTATE_RING_RADIUS * scale,
-                )
-            }
+            GizmoMode::Rotate => point_to_ring_screen_dist(
+                viewport_cursor,
+                camera,
+                cam_tf,
+                gizmo_pos,
+                *dir,
+                ROTATE_RING_RADIUS * scale,
+            ),
         };
         if dist < threshold && dist < best_dist {
             best_dist = dist;
@@ -319,7 +326,11 @@ fn handle_gizmo_drag(
             return;
         };
 
-        let effective_space = if *mode == GizmoMode::Scale { &GizmoSpace::Local } else { &space };
+        let effective_space = if *mode == GizmoMode::Scale {
+            &GizmoSpace::Local
+        } else {
+            &space
+        };
         let rotation = gizmo_rotation(global_tf, effective_space);
         let axis_dir = match axis {
             GizmoAxis::X => rotation * Vec3::X,
@@ -441,7 +452,11 @@ fn draw_gizmos(
     };
 
     let pos = global_tf.translation();
-    let effective_space = if *mode == GizmoMode::Scale { &GizmoSpace::Local } else { &space };
+    let effective_space = if *mode == GizmoMode::Scale {
+        &GizmoSpace::Local
+    } else {
+        &space
+    };
     let rotation = gizmo_rotation(global_tf, effective_space);
 
     let cam_dist = (cam_tf.translation() - pos).length();

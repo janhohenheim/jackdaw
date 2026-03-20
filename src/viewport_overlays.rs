@@ -78,7 +78,12 @@ fn draw_selection_bounding_boxes(
     mut gizmos: Gizmos,
     settings: Res<OverlaySettings>,
     selected: Query<
-        (Entity, &GlobalTransform, Option<&BrushMeshCache>, &InheritedVisibility),
+        (
+            Entity,
+            &GlobalTransform,
+            Option<&BrushMeshCache>,
+            &InheritedVisibility,
+        ),
         With<Selected>,
     >,
     children_query: Query<&Children>,
@@ -98,7 +103,10 @@ fn draw_selection_bounding_boxes(
             continue;
         }
         // Skip children of BrushGroups (the group itself gets a bounding box)
-        if parents.get(entity).is_ok_and(|c| brush_groups.contains(c.0)) {
+        if parents
+            .get(entity)
+            .is_ok_and(|c| brush_groups.contains(c.0))
+        {
             continue;
         }
         // Collect world-space vertices
@@ -324,7 +332,10 @@ fn draw_spot_light_gizmo(
 fn draw_dir_light_gizmo(
     mut gizmos: Gizmos,
     settings: Res<OverlaySettings>,
-    query: Query<(&GlobalTransform, &InheritedVisibility), (With<DirectionalLight>, With<Selected>)>,
+    query: Query<
+        (&GlobalTransform, &InheritedVisibility),
+        (With<DirectionalLight>, With<Selected>),
+    >,
 ) {
     if !settings.show_bounding_boxes {
         return;
