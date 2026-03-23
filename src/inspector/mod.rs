@@ -120,6 +120,7 @@ impl Plugin for InspectorPlugin {
             .add_observer(custom_props_display::on_custom_property_text_commit)
             .add_observer(brush_display::handle_clear_texture)
             .add_observer(brush_display::handle_clear_material)
+            .add_observer(brush_display::handle_clear_material_from_brush)
             .add_observer(brush_display::handle_apply_texture_to_all)
             .add_observer(brush_display::handle_uv_scale_preset)
             .add_observer(brush_display::on_brush_face_text_commit)
@@ -269,7 +270,7 @@ pub(super) struct InspectorTarget(pub Entity);
 
 /// Marker inserted on a selected entity to signal the inspector needs rebuilding.
 #[derive(Component)]
-pub(super) struct InspectorDirty;
+pub(crate) struct InspectorDirty;
 
 /// Force inspector rebuild by marking the source entity dirty.
 pub(super) fn rebuild_inspector(world: &mut World, source_entity: Entity) {

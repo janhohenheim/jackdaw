@@ -44,6 +44,7 @@ pub(crate) fn add_component_displays(
     names: Query<&Name>,
     icon_font: Res<IconFont>,
     editor_font: Res<EditorFont>,
+    materials: Res<Assets<StandardMaterial>>,
 ) {
     let Some(primary) = selection.primary() else {
         return;
@@ -68,6 +69,7 @@ pub(crate) fn add_component_displays(
         &icon_font,
         &editor_font,
         false,
+        &materials,
     );
 
     // Set up monitoring: watch the selected entity for InspectorDirty
@@ -92,6 +94,7 @@ pub(crate) fn build_inspector_displays(
     icon_font: &IconFont,
     editor_font: &EditorFont,
     read_only: bool,
+    materials: &Assets<StandardMaterial>,
 ) {
     // Show multi-selection header when multiple entities are selected
     if selection_count > 1 {
@@ -446,7 +449,7 @@ pub(crate) fn build_inspector_displays(
             // Priority 3b: Brush — show face/vertex info
             if type_id == TypeId::of::<crate::brush::Brush>() {
                 if let Some(brush) = reflected.downcast_ref::<crate::brush::Brush>() {
-                    brush_display::spawn_brush_display(commands, body_entity, brush);
+                    brush_display::spawn_brush_display(commands, body_entity, brush, materials);
                 }
                 continue;
             }
@@ -549,6 +552,7 @@ pub(crate) fn on_inspector_dirty(
             With<ComponentPicker>,
         )>,
     >,
+    materials: Res<Assets<StandardMaterial>>,
 ) {
     let (inspector_entity, target, children) = inspector.into_inner();
     let source_entity = target.0;
@@ -586,6 +590,7 @@ pub(crate) fn on_inspector_dirty(
         &icon_font,
         &editor_font,
         false,
+        &materials,
     );
 }
 

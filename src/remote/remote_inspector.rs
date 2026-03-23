@@ -206,6 +206,7 @@ pub fn build_remote_inspector_displays(
     editor_font: Res<EditorFont>,
     inspector_query: Query<(Entity, &RemoteInspectorNeedsRebuild), With<RemoteInspector>>,
     entity_query: Query<(&Archetype, EntityRef)>,
+    materials: Res<Assets<StandardMaterial>>,
 ) {
     let Ok((inspector_entity, rebuild)) = inspector_query.single() else {
         return;
@@ -237,6 +238,7 @@ pub fn build_remote_inspector_displays(
         &icon_font,
         &editor_font,
         true, // read_only
+        &materials,
     );
 
     // Spawn JSON fallback section for unregistered components

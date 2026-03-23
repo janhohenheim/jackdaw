@@ -1,6 +1,7 @@
 use crate::EditorEntity;
 use crate::brush::{Brush, BrushEditMode, BrushFaceData, BrushSelection, EditMode, SetBrush};
 use crate::commands::CommandHistory;
+use crate::selection::Selection;
 
 use bevy::prelude::*;
 use jackdaw_feathers::{
@@ -9,6 +10,25 @@ use jackdaw_feathers::{
 };
 
 use super::{BrushFaceField, BrushFaceFieldBinding, BrushFacePropsContainer};
+
+fn resolve_material_label(
+    mat_handle: &Handle<StandardMaterial>,
+    materials: &Assets<StandardMaterial>,
+) -> String {
+    if let Some(path) = mat_handle.path() {
+        return path.to_string();
+    }
+    if let Some(mat) = materials.get(mat_handle) {
+        if let Some(ref tex) = mat.base_color_texture {
+            if let Some(path) = tex.path() {
+                if let Some(filename) = path.path().file_name() {
+                    return filename.to_string_lossy().to_string();
+                }
+            }
+        }
+    }
+    format!("Material {:?}", mat_handle.id())
+}
 
 /// Apply the first selected face's material + UV settings to all faces of the brush.
 #[derive(Event, Debug, Clone)]
@@ -22,6 +42,7 @@ pub(super) fn spawn_brush_display(
     commands: &mut Commands,
     parent: Entity,
     brush: &crate::brush::Brush,
+    materials: &Assets<StandardMaterial>,
 ) {
     let (vertices, face_polygons) = crate::brush::compute_brush_geometry(&brush.faces);
     let face_count = brush.faces.len();
@@ -50,6 +71,9 @@ pub(super) fn spawn_brush_display(
         ChildOf(parent),
     ));
 
+    // Material summary — shows unique materials used by this brush
+    spawn_material_summary(commands, parent, brush, materials);
+
     // Face properties container -- populated dynamically by update_brush_face_properties
     commands.spawn((
         BrushFacePropsContainer,
@@ -62,6 +86,169 @@ pub(super) fn spawn_brush_display(
         },
         ChildOf(parent),
     ));
+}
+
+/// Clear material from all faces of selected brushes (Object mode).
+#[derive(Event, Debug, Clone)]
+pub(crate) struct ClearMaterialFromBrush;
+
+fn spawn_material_summary(
+    commands: &mut Commands,
+    parent: Entity,
+    brush: &Brush,
+    materials: &Assets<StandardMaterial>,
+) {
+    // Collect unique materials with face counts
+    let mut material_counts: Vec<(Handle<StandardMaterial>, usize)> = Vec::new();
+    for face in &brush.faces {
+        if let Some(entry) = material_counts
+            .iter_mut()
+            .find(|(h, _)| *h == face.material)
+        {
+            entry.1 += 1;
+        } else {
+            material_counts.push((face.material.clone(), 1));
+        }
+    }
+
+    let total_faces = brush.faces.len();
+    let any_has_material = material_counts
+        .iter()
+        .any(|(h, _)| *h != Handle::default());
+
+    // Section header
+    commands.spawn((
+        Text::new("Materials & Textures"),
+        TextFont {
+            font_size: tokens::FONT_SM,
+            ..Default::default()
+        },
+        TextColor(tokens::TEXT_SECONDARY),
+        Node {
+            margin: UiRect::top(Val::Px(tokens::SPACING_SM)),
+            ..Default::default()
+        },
+        ChildOf(parent),
+    ));
+
+    for (mat_handle, count) in &material_counts {
+        let is_default = *mat_handle == Handle::default();
+
+        let row = commands
+            .spawn((
+                Node {
+                    flex_direction: FlexDirection::Row,
+                    align_items: AlignItems::Center,
+                    column_gap: px(tokens::SPACING_XS),
+                    width: Val::Percent(100.0),
+                    ..Default::default()
+                },
+                ChildOf(parent),
+            ))
+            .id();
+
+        // Thumbnail
+        if !is_default {
+            if let Some(mat) = materials.get(mat_handle) {
+                if let Some(ref tex) = mat.base_color_texture {
+                    commands.spawn((
+                        ImageNode::new(tex.clone()),
+                        Node {
+                            width: Val::Px(32.0),
+                            height: Val::Px(32.0),
+                            flex_shrink: 0.0,
+                            ..Default::default()
+                        },
+                        ChildOf(row),
+                    ));
+                }
+            }
+        }
+
+        // Material name
+        let mat_label = if is_default {
+            "No Material".to_string()
+        } else {
+            resolve_material_label(mat_handle, materials)
+        };
+        commands.spawn((
+            Text::new(mat_label),
+            TextFont {
+                font_size: tokens::FONT_SM,
+                ..Default::default()
+            },
+            TextColor(if is_default {
+                tokens::TEXT_SECONDARY
+            } else {
+                tokens::TEXT_PRIMARY
+            }),
+            Node {
+                flex_grow: 1.0,
+                ..Default::default()
+            },
+            ChildOf(row),
+        ));
+
+        // Face count
+        let count_text = if *count == total_faces {
+            "(all faces)".to_string()
+        } else {
+            format!("({count} faces)")
+        };
+        commands.spawn((
+            Text::new(count_text),
+            TextFont {
+                font_size: tokens::FONT_SM,
+                ..Default::default()
+            },
+            TextColor(tokens::TEXT_SECONDARY),
+            ChildOf(row),
+        ));
+    }
+
+    // Clear All button — only if at least one face has a material
+    if any_has_material {
+        let clear_all_btn = commands
+            .spawn((
+                Node {
+                    padding: UiRect::axes(Val::Px(tokens::SPACING_SM), Val::Px(2.0)),
+                    border_radius: BorderRadius::all(Val::Px(3.0)),
+                    margin: UiRect::top(Val::Px(tokens::SPACING_XS)),
+                    ..Default::default()
+                },
+                BackgroundColor(tokens::INPUT_BG),
+                ChildOf(parent),
+            ))
+            .id();
+        commands.spawn((
+            Text::new("Clear All"),
+            TextFont {
+                font_size: tokens::FONT_SM,
+                ..Default::default()
+            },
+            TextColor(tokens::TEXT_PRIMARY),
+            ChildOf(clear_all_btn),
+        ));
+        commands
+            .entity(clear_all_btn)
+            .observe(|_: On<Pointer<Click>>, mut commands: Commands| {
+                commands.trigger(ClearMaterialFromBrush);
+            });
+        commands.entity(clear_all_btn).observe(
+            |hover: On<Pointer<Over>>, mut bg: Query<&mut BackgroundColor>| {
+                if let Ok(mut bg) = bg.get_mut(hover.event_target()) {
+                    bg.0 = tokens::HOVER_BG;
+                }
+            },
+        );
+        commands.entity(clear_all_btn).observe(
+            |out: On<Pointer<Out>>, mut bg: Query<&mut BackgroundColor>| {
+                if let Ok(mut bg) = bg.get_mut(out.event_target()) {
+                    bg.0 = tokens::INPUT_BG;
+                }
+            },
+        );
+    }
 }
 
 /// Tracks the last state we rendered so we only rebuild on change.
@@ -180,11 +367,7 @@ pub(crate) fn update_brush_face_properties(
     // Material info
     let has_material = face.material != Handle::default();
     if has_material {
-        let mat_label = face
-            .material
-            .path()
-            .map(|p| p.to_string())
-            .unwrap_or_else(|| format!("Material {:?}", face.material.id()));
+        let mat_label = resolve_material_label(&face.material, &materials);
 
         let mat_row = commands
             .spawn((
@@ -589,6 +772,7 @@ pub(crate) fn handle_clear_material(
     edit_mode: Res<EditMode>,
     mut brushes: Query<&mut Brush>,
     mut history: ResMut<CommandHistory>,
+    mut commands: Commands,
 ) {
     if *edit_mode != EditMode::BrushEdit(BrushEditMode::Face) {
         return;
@@ -618,6 +802,7 @@ pub(crate) fn handle_clear_material(
     };
     history.undo_stack.push(Box::new(cmd));
     history.redo_stack.clear();
+    commands.entity(brush_entity).insert(super::InspectorDirty);
 }
 
 pub(crate) fn handle_clear_texture(
@@ -626,6 +811,7 @@ pub(crate) fn handle_clear_texture(
     edit_mode: Res<EditMode>,
     mut brushes: Query<&mut Brush>,
     mut history: ResMut<CommandHistory>,
+    mut commands: Commands,
 ) {
     if *edit_mode != EditMode::BrushEdit(BrushEditMode::Face) {
         return;
@@ -655,6 +841,7 @@ pub(crate) fn handle_clear_texture(
     };
     history.undo_stack.push(Box::new(cmd));
     history.redo_stack.clear();
+    commands.entity(brush_entity).insert(super::InspectorDirty);
 }
 
 pub(crate) fn handle_apply_texture_to_all(
@@ -663,6 +850,7 @@ pub(crate) fn handle_apply_texture_to_all(
     edit_mode: Res<EditMode>,
     mut brushes: Query<&mut Brush>,
     mut history: ResMut<CommandHistory>,
+    mut commands: Commands,
 ) {
     if *edit_mode != EditMode::BrushEdit(BrushEditMode::Face) {
         return;
@@ -699,6 +887,7 @@ pub(crate) fn handle_apply_texture_to_all(
     };
     history.undo_stack.push(Box::new(cmd));
     history.redo_stack.clear();
+    commands.entity(brush_entity).insert(super::InspectorDirty);
 }
 
 pub(crate) fn handle_uv_scale_preset(
@@ -737,4 +926,52 @@ pub(crate) fn handle_uv_scale_preset(
     };
     history.undo_stack.push(Box::new(cmd));
     history.redo_stack.clear();
+}
+
+pub(crate) fn handle_clear_material_from_brush(
+    _event: On<ClearMaterialFromBrush>,
+    selection: Res<Selection>,
+    mut brushes: Query<&mut Brush>,
+    mut history: ResMut<CommandHistory>,
+    brush_groups: Query<(), With<jackdaw_jsn::types::BrushGroup>>,
+    children_query: Query<&Children>,
+    mut commands: Commands,
+) {
+    // Expand BrushGroups into child brushes
+    let targets: Vec<Entity> = selection
+        .entities
+        .iter()
+        .flat_map(|&e| {
+            if brush_groups.contains(e) {
+                children_query
+                    .get(e)
+                    .map(|c| c.iter().collect::<Vec<_>>())
+                    .unwrap_or_default()
+            } else {
+                vec![e]
+            }
+        })
+        .collect();
+
+    for entity in targets {
+        if let Ok(mut brush) = brushes.get_mut(entity) {
+            let has_any_material = brush.faces.iter().any(|f| f.material != Handle::default());
+            if !has_any_material {
+                continue;
+            }
+            let old = brush.clone();
+            for face in brush.faces.iter_mut() {
+                face.material = Handle::default();
+            }
+            let cmd = SetBrush {
+                entity,
+                old,
+                new: brush.clone(),
+                label: "Clear all materials".to_string(),
+            };
+            history.undo_stack.push(Box::new(cmd));
+            history.redo_stack.clear();
+            commands.entity(entity).insert(super::InspectorDirty);
+        }
+    }
 }

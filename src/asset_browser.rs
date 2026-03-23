@@ -630,6 +630,7 @@ fn handle_apply_texture(
     registry: Res<MaterialRegistry>,
     brush_groups: Query<(), With<jackdaw_jsn::types::BrushGroup>>,
     children_query: Query<&Children>,
+    mut commands: Commands,
 ) {
     // Check if the texture belongs to a known material definition
     let material = if let Some(handle) = try_find_registry_material(&event.path, &registry) {
@@ -659,6 +660,7 @@ fn handle_apply_texture(
                 };
                 history.undo_stack.push(Box::new(cmd));
                 history.redo_stack.clear();
+                commands.entity(entity).insert(crate::inspector::InspectorDirty);
             }
         }
     } else {
@@ -691,6 +693,7 @@ fn handle_apply_texture(
                 };
                 history.undo_stack.push(Box::new(cmd));
                 history.redo_stack.clear();
+                commands.entity(entity).insert(crate::inspector::InspectorDirty);
             }
         }
     }

@@ -7,6 +7,7 @@ pub(crate) mod mesh;
 
 use bevy::prelude::*;
 
+use crate::EditorMeta;
 use crate::commands::EditorCommand;
 
 pub use self::csg::{
@@ -129,12 +130,19 @@ impl EditorCommand for SetBrush {
     }
 }
 
+impl EditorMeta for Brush {
+    fn category() -> &'static str {
+        "Brush"
+    }
+}
+
 pub struct BrushPlugin;
 
 impl Plugin for BrushPlugin {
     fn build(&self, app: &mut App) {
         // Note: Brush, BrushFaceData, BrushPlane type registration is handled by JsnPlugin
-        app.register_type::<EditMode>()
+        app.register_type_data::<Brush, crate::ReflectEditorMeta>()
+            .register_type::<EditMode>()
             .register_type::<BrushEditMode>()
             .init_resource::<EditMode>()
             .init_resource::<BrushSelection>()

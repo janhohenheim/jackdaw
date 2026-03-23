@@ -627,6 +627,7 @@ fn handle_apply_material(
     mut history: ResMut<CommandHistory>,
     brush_groups: Query<(), With<jackdaw_jsn::types::BrushGroup>>,
     children_query: Query<&Children>,
+    mut commands: Commands,
 ) {
     if *edit_mode == EditMode::BrushEdit(BrushEditMode::Face) && !brush_selection.faces.is_empty() {
         if let Some(entity) = brush_selection.entity {
@@ -645,6 +646,7 @@ fn handle_apply_material(
                 };
                 history.undo_stack.push(Box::new(cmd));
                 history.redo_stack.clear();
+                commands.entity(entity).insert(crate::inspector::InspectorDirty);
             }
         }
     } else {
@@ -677,6 +679,7 @@ fn handle_apply_material(
                 };
                 history.undo_stack.push(Box::new(cmd));
                 history.redo_stack.clear();
+                commands.entity(entity).insert(crate::inspector::InspectorDirty);
             }
         }
     }
@@ -884,9 +887,9 @@ fn update_preview_area(
         ));
 
         // Thumbnail (24x24)
-        if let Some(img) = tex_handle {
+        if let Some(ref img) = tex_handle {
             commands.spawn((
-                ImageNode::new(img),
+                ImageNode::new(img.clone()),
                 Node {
                     width: Val::Px(24.0),
                     height: Val::Px(24.0),
@@ -907,6 +910,27 @@ fn update_preview_area(
                 ChildOf(row),
             ));
         }
+
+        // Texture filename
+        let path_text = tex_handle
+            .as_ref()
+            .and_then(|h| h.path())
+            .and_then(|p| p.path().file_name().map(|f| f.to_string_lossy().to_string()))
+            .unwrap_or_else(|| "(none)".to_string());
+        let path_color = tokens::TEXT_SECONDARY;
+        commands.spawn((
+            Text::new(path_text),
+            TextFont {
+                font_size: tokens::FONT_SM,
+                ..Default::default()
+            },
+            TextColor(path_color),
+            Node {
+                flex_grow: 1.0,
+                ..Default::default()
+            },
+            ChildOf(row),
+        ));
 
         // Browse button
         let browse_handle = active_handle.clone();
