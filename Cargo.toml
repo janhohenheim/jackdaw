@@ -12,7 +12,7 @@ exclude = ["assets/environment_maps/"]
 
 [features]
 default = []
-hot-reload = ["dep:bevy_simple_subsecond_system"]
+hot-reload = []
 
 [workspace]
 members = ["crates/*"]
@@ -22,16 +22,16 @@ bevy.workspace = true
 jackdaw_jsn.workspace = true
 jackdaw_geometry.workspace = true
 bevy_monitors.workspace = true
-bevy_infinite_grid.workspace = true
 jackdaw_camera.workspace = true
 jackdaw_feathers.workspace = true
 jackdaw_widgets.workspace = true
 jackdaw_commands.workspace = true
 jackdaw_terrain.workspace = true
 jackdaw_remote.workspace = true
+jackdaw_bsn.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-avian3d.workspace = true
+parry3d.workspace = true
 rfd.workspace = true
 bevy_rerecast.workspace = true
 ehttp.workspace = true
@@ -42,30 +42,28 @@ dirs.workspace = true
 regex.workspace = true
 pathdiff.workspace = true
 notify = "8"
-bevy_simple_subsecond_system = { version = "0.2", optional = true }
 
 [workspace.dependencies]
-bevy = { version = "0.18", features = ["experimental_bevy_feathers", "serialize", "debug", "bevy_remote", "file_watcher"] }
+bevy = { git = "https://github.com/jbuehler23/bevy", branch = "bsn", features = ["experimental_bevy_feathers", "serialize", "debug", "bevy_remote", "file_watcher", "bevy_dev_tools"] }
 jackdaw_jsn = { version = "0.2.1", path = "crates/jackdaw_jsn" }
 jackdaw_geometry = { version = "0.2.1", path = "crates/jackdaw_geometry" }
-bevy_monitors = "0.2"
-bevy_infinite_grid = "0.18"
+bevy_monitors = { git = "https://github.com/jbuehler23/bevy_monitors", branch = "bsn" }
 jackdaw_camera = { version = "0.2.1", path = "crates/jackdaw_camera" }
 jackdaw_feathers = { version = "0.2.1", path = "crates/jackdaw_feathers" }
 jackdaw_widgets = { version = "0.2.1", path = "crates/jackdaw_widgets" }
 jackdaw_commands = { version = "0.2.1", path = "crates/jackdaw_commands" }
 jackdaw_terrain = { version = "0.2.1", path = "crates/jackdaw_terrain" }
 jackdaw_remote = { version = "0.2.1", path = "crates/jackdaw_remote" }
+jackdaw_bsn = { version = "0.2.1", path = "crates/jackdaw_bsn" }
 noise = "0.9"
 rand = "0.9"
 serde = "1"
 lucide-icons = "0.563"
 serde_json = "1"
-bevy_ui_text_input = "0.7"
-bevy_easings = "0.18.0"
-avian3d = { version = "0.5", default-features = false, features = ["3d", "parry-f32"] }
+smol_str = "0.2"
+parry3d = "0.26"
 rfd = "0.15"
-bevy_rerecast = { version = "0.4", default-features = true }
+bevy_rerecast = { git = "https://github.com/jbuehler23/rerecast", branch = "bsn", default-features = true }
 ehttp = { version = "0.5", default-features = false, features = ["native-async", "json"] }
 bincode = { version = "2", features = ["serde"], default-features = false }
 base64 = { version = "0.22", default-features = false, features = ["alloc"] }
@@ -96,3 +94,88 @@ debug-assertions = false
 [profile.release]
 codegen-units = 1
 lto = "thin"
+
+[patch.crates-io]
+bevy = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_a11y = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_android = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_app = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_asset = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_asset_macros = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_camera = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_color = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_core_pipeline = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_derive = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_diagnostic = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_ecs = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_ecs_macros = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_encase_derive = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_gizmos = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_gizmos_macros = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_gizmos_render = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_image = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_input = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_input_focus = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_internal = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_light = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_log = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_macro_utils = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_math = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_mesh = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_pbr = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_picking = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_platform = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_ptr = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_reflect = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_reflect_derive = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_remote = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_render = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_render_macros = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_shader = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_sprite = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_sprite_render = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_state = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_state_macros = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_tasks = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_text = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_time = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_transform = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_ui = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_ui_render = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_utils = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_window = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+
+# Redirect bevyengine/bevy git deps (from third-party forks) to our BSN fork
+[patch."https://github.com/bevyengine/bevy"]
+bevy = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_app = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_asset = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_camera = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_color = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_core_pipeline = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_derive = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_ecs = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_ecs_macros = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_gizmos = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_image = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_input = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_input_focus = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_internal = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_light = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_math = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_material = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_mesh = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_pbr = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_picking = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_platform = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_reflect = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_reflect_derive = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_remote = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_render = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_text = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_transform = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_tasks = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_ui = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_ui_render = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_utils = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }
+bevy_window = { git = "https://github.com/jbuehler23/bevy", branch = "bsn" }

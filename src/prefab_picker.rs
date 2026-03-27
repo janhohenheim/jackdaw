@@ -130,7 +130,7 @@ pub fn open_prefab_picker(world: &mut World) {
         commands.spawn((
             Text::new("No .jsn files found"),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_SECONDARY),
@@ -201,8 +201,8 @@ pub fn open_prefab_picker(world: &mut World) {
         commands.spawn((
             Text::new(String::from(Icon::Blocks.unicode())),
             TextFont {
-                font: icon_font_clone,
-                font_size: tokens::FONT_MD,
+                font: FontSource::Handle(icon_font_clone),
+                font_size: FontSize::Px(tokens::FONT_MD),
                 ..Default::default()
             },
             TextColor(tokens::FILE_ICON_COLOR),
@@ -213,7 +213,7 @@ pub fn open_prefab_picker(world: &mut World) {
         commands.spawn((
             Text::new(entry_display),
             TextFont {
-                font_size: tokens::FONT_MD,
+                font_size: FontSize::Px(tokens::FONT_MD),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_PRIMARY),

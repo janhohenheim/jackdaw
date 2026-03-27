@@ -40,7 +40,6 @@ use bevy::{
     ecs::system::SystemState,
     feathers::{FeathersPlugins, dark_theme::create_dark_theme, theme::UiTheme},
     input::mouse::{MouseScrollUnit, MouseWheel},
-    input_focus::InputDispatchPlugin,
     picking::hover::HoverMap,
     prelude::*,
 };
@@ -91,11 +90,9 @@ pub struct EditorPlugin;
 
 impl Plugin for EditorPlugin {
     fn build(&self, app: &mut App) {
-        // Disable InputDispatchPlugin from FeathersPlugins because bevy_ui_text_input's
-        // TextInputPlugin also adds it unconditionally and panics on duplicates.
         app.init_state::<AppState>()
             .add_plugins((
-                FeathersPlugins.build().disable::<InputDispatchPlugin>(),
+                FeathersPlugins,
                 EditorFeathersPlugin,
                 jackdaw_jsn::JsnPlugin {
                     runtime_mesh_rebuild: false,
@@ -115,6 +112,7 @@ impl Plugin for EditorPlugin {
             ))
             .add_plugins(keybinds::KeybindsPlugin)
             .add_plugins(keybind_settings::KeybindSettingsPlugin)
+            .add_plugins(jackdaw_bsn::JackdawBsnPlugin)
             .add_plugins((
                 viewport_overlays::ViewportOverlaysPlugin,
                 view_modes::ViewModesPlugin,
@@ -512,7 +510,7 @@ fn handle_menu_action(event: On<MenuAction>, mut commands: Commands) {
             commands.queue(|world: &mut World| {
                 let mut system_state: SystemState<(Commands, ResMut<Selection>)> =
                     SystemState::new(world);
-                let (mut commands, mut selection) = system_state.get_mut(world);
+                let Ok((mut commands, mut selection)) = system_state.get_mut(world) else { return };
                 let entity = navmesh::spawn_navmesh_entity(&mut commands);
                 selection.select_single(&mut commands, entity);
                 system_state.apply(world);
@@ -522,7 +520,7 @@ fn handle_menu_action(event: On<MenuAction>, mut commands: Commands) {
             commands.queue(|world: &mut World| {
                 let mut system_state: SystemState<(Commands, ResMut<Selection>)> =
                     SystemState::new(world);
-                let (mut commands, mut selection) = system_state.get_mut(world);
+                let Ok((mut commands, mut selection)) = system_state.get_mut(world) else { return };
                 let entity = terrain::spawn_terrain_entity(&mut commands);
                 selection.select_single(&mut commands, entity);
                 system_state.apply(world);
@@ -646,8 +644,8 @@ fn open_recent_dialog(world: &mut World) {
                     (
                         Text::new(name),
                         TextFont {
-                            font: font.clone(),
-                            font_size: jackdaw_feathers::tokens::FONT_LG,
+                            font: FontSource::Handle(font.clone()),
+                            font_size: FontSize::Px(jackdaw_feathers::tokens::FONT_LG),
                             ..Default::default()
                         },
                         TextColor(jackdaw_feathers::tokens::TEXT_PRIMARY),
@@ -656,8 +654,8 @@ fn open_recent_dialog(world: &mut World) {
                     (
                         Text::new(path_display),
                         TextFont {
-                            font,
-                            font_size: jackdaw_feathers::tokens::FONT_SM,
+                            font: FontSource::Handle(font),
+                            font_size: FontSize::Px(jackdaw_feathers::tokens::FONT_SM),
                             ..Default::default()
                         },
                         TextColor(jackdaw_feathers::tokens::TEXT_SECONDARY),

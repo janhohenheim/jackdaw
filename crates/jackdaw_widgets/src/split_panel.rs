@@ -1,5 +1,4 @@
 use bevy::prelude::*;
-use bevy_monitors::prelude::{Mutation, NotifyChanged};
 
 #[derive(Component)]
 pub struct PanelGroup {
@@ -19,14 +18,8 @@ pub struct SplitPanelPlugin;
 impl Plugin for SplitPanelPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(on_panel_added)
-            .add_systems(Startup, setup_panel_watcher);
+            .add_systems(Update, on_panel_changed);
     }
-}
-
-fn setup_panel_watcher(mut commands: Commands) {
-    commands
-        .spawn(NotifyChanged::<Panel>::default())
-        .observe(on_panel_mutated);
 }
 
 fn on_panel_added(
@@ -44,19 +37,16 @@ fn on_panel_added(
     recalculate_group(parent, &mut queries);
 }
 
-fn on_panel_mutated(
-    trigger: On<Mutation<Panel>>,
-    child_of: Query<&ChildOf>,
+fn on_panel_changed(
+    changed: Query<(Entity, &ChildOf), Changed<Panel>>,
     mut queries: ParamSet<(
         Query<(&Node, &Children), With<PanelGroup>>,
         Query<(&mut Node, &Panel)>,
     )>,
 ) {
-    let entity = trigger.mutated;
-    let Ok(&ChildOf(parent)) = child_of.get(entity) else {
-        return;
-    };
-    recalculate_group(parent, &mut queries);
+    for (_, child_of) in &changed {
+        recalculate_group(child_of.parent(), &mut queries);
+    }
 }
 
 fn recalculate_group(

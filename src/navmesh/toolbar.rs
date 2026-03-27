@@ -55,7 +55,7 @@ pub fn navmesh_toolbar() -> impl Bundle {
             (
                 Text::new("Navmesh"),
                 TextFont {
-                    font_size: tokens::FONT_SM,
+                    font_size: FontSize::Px(tokens::FONT_SM),
                     ..Default::default()
                 },
                 TextColor(tokens::TEXT_SECONDARY),

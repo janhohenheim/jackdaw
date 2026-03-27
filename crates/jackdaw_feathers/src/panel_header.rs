@@ -18,7 +18,7 @@ pub fn panel_header(title: &str) -> impl Bundle {
         children![(
             Text::new(title),
             TextFont {
-                font_size: tokens::FONT_MD,
+                font_size: FontSize::Px(tokens::FONT_MD),
                 ..Default::default()
             },
             ThemedText,

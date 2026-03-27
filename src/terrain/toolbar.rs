@@ -52,7 +52,7 @@ pub fn terrain_toolbar() -> impl Bundle {
             (
                 Text::new("Terrain"),
                 TextFont {
-                    font_size: tokens::FONT_SM,
+                    font_size: FontSize::Px(tokens::FONT_SM),
                     ..Default::default()
                 },
                 TextColor(tokens::TEXT_SECONDARY),

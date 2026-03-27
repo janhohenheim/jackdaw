@@ -2,6 +2,7 @@ use crate::EditorEntity;
 use crate::colors;
 use crate::custom_properties::CustomProperties;
 use crate::selection::{Selected, Selection};
+use jackdaw_bsn::{AstNodeRef, BsnPatch, SceneBsnAst};
 use std::any::TypeId;
 
 use bevy::{
@@ -45,6 +46,8 @@ pub(crate) fn add_component_displays(
     icon_font: Res<IconFont>,
     editor_font: Res<EditorFont>,
     materials: Res<Assets<StandardMaterial>>,
+    ast: Res<SceneBsnAst>,
+    ast_refs: Query<&AstNodeRef>,
 ) {
     let Some(primary) = selection.primary() else {
         return;
@@ -55,6 +58,28 @@ pub(crate) fn add_component_displays(
 
     let source_entity = entity_ref.entity();
     let sel_count = selection.entities.len();
+
+    // Collect BSN type_paths for this entity (only authored components)
+    let bsn_type_paths: HashSet<String> = ast_refs
+        .get(source_entity)
+        .ok()
+        .and_then(|ast_ref| {
+            let patches = ast.get_patches(ast_ref.patches_entity)?;
+            let mut paths = HashSet::new();
+            for &pe in &patches.0 {
+                match ast.get_patch(pe) {
+                    Some(BsnPatch::Struct(data)) => { paths.insert(data.type_path.clone()); }
+                    Some(BsnPatch::Type(tp)) => { paths.insert(tp.clone()); }
+                    Some(BsnPatch::TupleStruct(data)) => { paths.insert(data.type_path.clone()); }
+                    Some(BsnPatch::Template(tp, _)) => { paths.insert(tp.clone()); }
+                    _ => {}
+                }
+            }
+            Some(paths)
+        })
+        .unwrap_or_default();
+
+    let patches_entity = ast_refs.get(source_entity).ok().map(|r| r.patches_entity);
 
     build_inspector_displays(
         &mut commands,
@@ -70,6 +95,9 @@ pub(crate) fn add_component_displays(
         &editor_font,
         false,
         &materials,
+        &bsn_type_paths,
+        Some(&ast),
+        patches_entity,
     );
 
     // Set up monitoring: watch the selected entity for InspectorDirty
@@ -95,6 +123,9 @@ pub(crate) fn build_inspector_displays(
     editor_font: &EditorFont,
     read_only: bool,
     materials: &Assets<StandardMaterial>,
+    bsn_type_paths: &HashSet<String>,
+    bsn_ast: Option<&SceneBsnAst>,
+    bsn_patches_entity: Option<Entity>,
 ) {
     // Show multi-selection header when multiple entities are selected
     if selection_count > 1 {
@@ -112,8 +143,8 @@ pub(crate) fn build_inspector_displays(
                     "{selection_count} entities selected — edits apply to all"
                 )),
                 TextFont {
-                    font: editor_font.0.clone(),
-                    font_size: tokens::FONT_SM,
+                    font: FontSource::Handle(editor_font.0.clone()),
+                    font_size: FontSize::Px(tokens::FONT_SM),
                     ..Default::default()
                 },
                 TextColor(tokens::TEXT_PRIMARY),
@@ -164,8 +195,8 @@ pub(crate) fn build_inspector_displays(
     commands.spawn((
         Text::new(String::from(Icon::ChevronsUpDown.unicode())),
         TextFont {
-            font: icon_font.0.clone(),
-            font_size: tokens::FONT_MD,
+            font: FontSource::Handle(icon_font.0.clone()),
+            font_size: FontSize::Px(tokens::FONT_MD),
             ..Default::default()
         },
         TextColor(tokens::TEXT_SECONDARY),
@@ -216,6 +247,8 @@ pub(crate) fn build_inspector_displays(
     // Check for prefab baseline (override tracking)
     let baseline = entity_ref.get::<jackdaw_jsn::JsnPrefabBaseline>().cloned();
 
+    let has_bsn = !bsn_type_paths.is_empty();
+
     // (short_name, module_group, component_id)
     let mut custom_groups = std::collections::HashSet::new();
     let mut comp_list: Vec<(String, String, ComponentId)> = archetype
@@ -230,6 +263,12 @@ pub(crate) fn build_inspector_displays(
             {
                 let table = registration.type_info().type_path_table();
                 let full_path = table.path();
+
+                // If entity has BSN data, only show BSN-authored components
+                if has_bsn && !bsn_type_paths.contains(full_path) {
+                    return None;
+                }
+
                 if full_path.starts_with("jackdaw") && !full_path.starts_with("jackdaw_jsn") {
                     return None;
                 }
@@ -246,7 +285,10 @@ pub(crate) fn build_inspector_displays(
                 return Some((short, module_group, component_id));
             }
 
-            // Fallback: use Components name
+            // Fallback: use Components name (skip if BSN-filtered)
+            if has_bsn {
+                return None;
+            }
             let name = components.get_name(component_id)?;
             if name.starts_with("jackdaw") && !name.starts_with("jackdaw_jsn") {
                 return None;
@@ -329,8 +371,8 @@ pub(crate) fn build_inspector_displays(
             commands.spawn((
                 Text::new(String::from(group_icon.unicode())),
                 TextFont {
-                    font: icon_font.0.clone(),
-                    font_size: tokens::FONT_MD,
+                    font: FontSource::Handle(icon_font.0.clone()),
+                    font_size: FontSize::Px(tokens::FONT_MD),
                     ..Default::default()
                 },
                 TextColor(icon_color),
@@ -341,8 +383,8 @@ pub(crate) fn build_inspector_displays(
             commands.spawn((
                 Text::new(module_group.clone()),
                 TextFont {
-                    font: editor_font.0.clone(),
-                    font_size: tokens::FONT_MD,
+                    font: FontSource::Handle(editor_font.0.clone()),
+                    font_size: FontSize::Px(tokens::FONT_MD),
                     weight: FontWeight::BOLD,
                     ..Default::default()
                 },
@@ -461,6 +503,15 @@ pub(crate) fn build_inspector_displays(
             }
 
             // Priority 3: Generic reflection display
+            // Compute patched field paths for this component from BSN AST
+            let component_patched = compute_patched_paths_for_component(
+                source_entity,
+                &registry,
+                type_id,
+                bsn_type_paths,
+                bsn_ast,
+                bsn_patches_entity,
+            );
             reflect_fields::spawn_reflected_fields(
                 commands,
                 body_entity,
@@ -473,6 +524,7 @@ pub(crate) fn build_inspector_displays(
                 type_registry,
                 &editor_font.0,
                 &icon_font.0,
+                &component_patched,
             );
             continue;
         }
@@ -481,7 +533,7 @@ pub(crate) fn build_inspector_displays(
         commands.spawn((
             Text::new("(read-only)"),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_SECONDARY),
@@ -553,6 +605,8 @@ pub(crate) fn on_inspector_dirty(
         )>,
     >,
     materials: Res<Assets<StandardMaterial>>,
+    ast: Res<SceneBsnAst>,
+    ast_refs: Query<&AstNodeRef>,
 ) {
     let (inspector_entity, target, children) = inspector.into_inner();
     let source_entity = target.0;
@@ -577,6 +631,27 @@ pub(crate) fn on_inspector_dirty(
     };
     let sel_count = selection.entities.len();
 
+    let bsn_type_paths: HashSet<String> = ast_refs
+        .get(source_entity)
+        .ok()
+        .and_then(|ast_ref| {
+            let patches = ast.get_patches(ast_ref.patches_entity)?;
+            let mut paths = HashSet::new();
+            for &pe in &patches.0 {
+                match ast.get_patch(pe) {
+                    Some(BsnPatch::Struct(data)) => { paths.insert(data.type_path.clone()); }
+                    Some(BsnPatch::Type(tp)) => { paths.insert(tp.clone()); }
+                    Some(BsnPatch::TupleStruct(data)) => { paths.insert(data.type_path.clone()); }
+                    Some(BsnPatch::Template(tp, _)) => { paths.insert(tp.clone()); }
+                    _ => {}
+                }
+            }
+            Some(paths)
+        })
+        .unwrap_or_default();
+
+    let patches_entity = ast_refs.get(source_entity).ok().map(|r| r.patches_entity);
+
     build_inspector_displays(
         &mut commands,
         components,
@@ -591,7 +666,63 @@ pub(crate) fn on_inspector_dirty(
         &editor_font,
         false,
         &materials,
+        &bsn_type_paths,
+        Some(&ast),
+        patches_entity,
     );
+}
+
+/// Compute which field paths are explicitly patched in the BSN AST for a
+/// specific component. Returns an empty set if no BSN data is available.
+fn compute_patched_paths_for_component(
+    _source_entity: Entity,
+    registry: &bevy::reflect::TypeRegistry,
+    type_id: TypeId,
+    bsn_type_paths: &HashSet<String>,
+    bsn_ast: Option<&SceneBsnAst>,
+    bsn_patches_entity: Option<Entity>,
+) -> HashSet<String> {
+    let (Some(ast), Some(patches_entity)) = (bsn_ast, bsn_patches_entity) else {
+        return HashSet::new();
+    };
+    let Some(registration) = registry.get(type_id) else {
+        return HashSet::new();
+    };
+    let type_path = registration.type_info().type_path_table().path();
+    if !bsn_type_paths.contains(type_path) {
+        return HashSet::new();
+    }
+    let Some(patch_entity) = ast.find_patch_by_type_path(patches_entity, type_path) else {
+        return HashSet::new();
+    };
+    let Some(patch) = ast.get_patch(patch_entity) else {
+        return HashSet::new();
+    };
+    match patch {
+        BsnPatch::Struct(data) => collect_patched_paths(&data.fields, ""),
+        BsnPatch::Type(_) => HashSet::new(), // bare type → all defaults
+        _ => HashSet::new(),
+    }
+}
+
+/// Recursively collect field paths that are explicitly set in BSN struct fields.
+fn collect_patched_paths(
+    fields: &jackdaw_bsn::BsnStructFields,
+    prefix: &str,
+) -> HashSet<String> {
+    let mut result = HashSet::new();
+    for field in &fields.0 {
+        let path = if prefix.is_empty() {
+            field.name.clone()
+        } else {
+            format!("{prefix}.{}", field.name)
+        };
+        result.insert(path.clone());
+        if let jackdaw_bsn::BsnValue::Struct(nested) = &field.value {
+            result.extend(collect_patched_paths(&nested.fields, &path));
+        }
+    }
+    result
 }
 
 pub(crate) fn spawn_component_display(
@@ -672,8 +803,8 @@ pub(crate) fn spawn_component_display(
     commands.spawn((
         Text::new(String::from(Icon::ChevronDown.unicode())),
         TextFont {
-            font: font.clone(),
-            font_size: tokens::FONT_SM,
+            font: FontSource::Handle(font.clone()),
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         TextColor(tokens::TEXT_SECONDARY),
@@ -689,8 +820,8 @@ pub(crate) fn spawn_component_display(
     commands.spawn((
         Text::new(name.to_string()),
         TextFont {
-            font: body_font,
-            font_size: tokens::FONT_SM,
+            font: FontSource::Handle(body_font),
+            font_size: FontSize::Px(tokens::FONT_SM),
             weight: FontWeight::MEDIUM,
             ..Default::default()
         },
@@ -713,8 +844,8 @@ pub(crate) fn spawn_component_display(
             commands.spawn((
                 Text::new(String::from(Icon::RotateCcw.unicode())),
                 TextFont {
-                    font: font.clone(),
-                    font_size: tokens::FONT_SM,
+                    font: FontSource::Handle(font.clone()),
+                    font_size: FontSize::Px(tokens::FONT_SM),
                     ..Default::default()
                 },
                 TextColor(colors::INSPECTOR_OVERRIDE),
@@ -731,8 +862,8 @@ pub(crate) fn spawn_component_display(
         commands.spawn((
             Text::new(String::from(Icon::X.unicode())),
             TextFont {
-                font,
-                font_size: tokens::FONT_SM,
+                font: FontSource::Handle(font),
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_SECONDARY),

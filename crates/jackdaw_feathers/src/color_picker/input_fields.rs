@@ -1,7 +1,7 @@
 use bevy::input_focus::InputFocus;
 use bevy::prelude::*;
-use bevy_ui_text_input::TextInputQueue;
-use bevy_ui_text_input::actions::{TextInputAction, TextInputEdit};
+use bevy::text::{EditableText, TextEdit};
+use smol_str::SmolStr;
 
 use super::color_math::{parse_hex, rgb_to_hsv};
 use super::{
@@ -325,7 +325,7 @@ fn spawn_single_input_field(
             col.spawn((
                 Text::new(config.label),
                 TextFont {
-                    font_size: TEXT_SIZE,
+                    font_size: FontSize::Px(TEXT_SIZE),
                     ..default()
                 },
                 TextColor(TEXT_MUTED_COLOR.into()),
@@ -343,7 +343,7 @@ pub(super) fn handle_input_field_blur(
     mut commands: Commands,
     mut pickers: Query<&mut ColorPickerState>,
     input_fields: Query<&ColorInputField>,
-    text_inputs: Query<&bevy_ui_text_input::TextInputBuffer, With<EditorTextEdit>>,
+    text_inputs: Query<&EditableText, With<EditorTextEdit>>,
     parents: Query<&ChildOf>,
 ) {
     let current_focus = input_focus.0;
@@ -369,7 +369,7 @@ pub(super) fn handle_input_field_blur(
         return;
     };
 
-    let text = buffer.get_text();
+    let text = buffer.value().to_string();
     if text.is_empty() {
         return;
     }
@@ -390,7 +390,7 @@ pub(super) fn sync_text_inputs_to_state(
     input_focus: Res<InputFocus>,
     pickers: Query<(Entity, &ColorPickerState), Changed<ColorPickerState>>,
     input_fields: Query<(Entity, &ColorInputField)>,
-    mut text_inputs: Query<(Entity, &mut TextInputQueue), With<EditorTextEdit>>,
+    mut text_inputs: Query<(Entity, &mut EditableText), With<EditorTextEdit>>,
     parents: Query<&ChildOf>,
 ) {
     for (picker_entity, state) in &pickers {
@@ -401,14 +401,14 @@ pub(super) fn sync_text_inputs_to_state(
 
             let text = field.kind.format_value(state);
 
-            for (text_input_entity, mut queue) in &mut text_inputs {
+            for (text_input_entity, mut editable) in &mut text_inputs {
                 if input_focus.0 == Some(text_input_entity) {
                     continue;
                 }
 
                 if is_descendant_of(text_input_entity, field_entity, &parents) {
-                    queue.add(TextInputAction::Edit(TextInputEdit::SelectAll));
-                    queue.add(TextInputAction::Edit(TextInputEdit::Paste(text.clone())));
+                    editable.queue_edit(TextEdit::SelectAll);
+                    editable.queue_edit(TextEdit::Insert(SmolStr::new(&text)));
                 }
             }
         }

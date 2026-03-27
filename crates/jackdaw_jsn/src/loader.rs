@@ -124,7 +124,9 @@ fn build_dynamic_scene(
     drop(registry);
 
     // Extract all spawned entities into a DynamicScene
-    let scene = DynamicSceneBuilder::from_world(&world)
+    let type_registry = world.resource::<AppTypeRegistry>();
+    let type_registry_guard = type_registry.read();
+    let scene = DynamicSceneBuilder::from_world(&world, &type_registry_guard)
         .extract_entities(spawned.into_iter())
         .build();
 

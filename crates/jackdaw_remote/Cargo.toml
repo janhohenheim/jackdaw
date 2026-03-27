@@ -2,6 +2,9 @@
 name = "jackdaw_remote"
 version = "0.2.1"
 edition = "2024"
+description = "Remote game integration for the jackdaw editor"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/jbuehler23/jackdaw"
 
 [dependencies]
 bevy.workspace = true

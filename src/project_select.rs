@@ -104,8 +104,8 @@ fn spawn_project_selector(
                     card.spawn((
                         Text::new("jackdaw"),
                         TextFont {
-                            font: font.clone(),
-                            font_size: 28.0,
+                            font: FontSource::Handle(font.clone()),
+                            font_size: FontSize::Px(28.0),
                             ..Default::default()
                         },
                         TextColor(tokens::TEXT_PRIMARY),
@@ -115,8 +115,8 @@ fn spawn_project_selector(
                     card.spawn((
                         Text::new("Select a project to open"),
                         TextFont {
-                            font: font.clone(),
-                            font_size: tokens::FONT_LG,
+                            font: FontSource::Handle(font.clone()),
+                            font_size: FontSize::Px(tokens::FONT_LG),
                             ..Default::default()
                         },
                         TextColor(tokens::TEXT_SECONDARY),
@@ -145,8 +145,8 @@ fn spawn_project_selector(
                         card.spawn((
                             Text::new("Recent Projects"),
                             TextFont {
-                                font: font.clone(),
-                                font_size: tokens::FONT_MD,
+                                font: FontSource::Handle(font.clone()),
+                                font_size: FontSize::Px(tokens::FONT_MD),
                                 ..Default::default()
                             },
                             TextColor(tokens::TEXT_SECONDARY),
@@ -187,8 +187,8 @@ fn spawn_project_selector(
                             children![(
                                 Text::new("Browse..."),
                                 TextFont {
-                                    font: font.clone(),
-                                    font_size: tokens::FONT_LG,
+                                    font: FontSource::Handle(font.clone()),
+                                    font_size: FontSize::Px(tokens::FONT_LG),
                                     ..Default::default()
                                 },
                                 TextColor(tokens::TEXT_PRIMARY),
@@ -264,8 +264,8 @@ fn spawn_project_row(
                         (
                             Text::new(name.to_string()),
                             TextFont {
-                                font: font.clone(),
-                                font_size: tokens::FONT_LG,
+                                font: FontSource::Handle(font.clone()),
+                                font_size: FontSize::Px(tokens::FONT_LG),
                                 ..Default::default()
                             },
                             TextColor(tokens::TEXT_PRIMARY),
@@ -276,8 +276,8 @@ fn spawn_project_row(
                 (
                     Text::new(path_display.to_string()),
                     TextFont {
-                        font: font.clone(),
-                        font_size: tokens::FONT_SM,
+                        font: FontSource::Handle(font.clone()),
+                        font_size: FontSize::Px(tokens::FONT_SM),
                         ..Default::default()
                     },
                     TextColor(tokens::TEXT_SECONDARY),
@@ -345,8 +345,8 @@ fn if_cwd_badge(is_cwd: bool, font: Handle<Font>) -> impl Bundle {
     (
         Text::new(text.to_string()),
         TextFont {
-            font,
-            font_size: tokens::FONT_SM,
+            font: FontSource::Handle(font),
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         TextColor(tokens::TEXT_ACCENT),

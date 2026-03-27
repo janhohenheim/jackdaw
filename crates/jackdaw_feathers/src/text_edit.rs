@@ -1,12 +1,8 @@
 use bevy::input_focus::InputFocus;
 use bevy::picking::hover::Hovered;
 use bevy::prelude::*;
-use bevy::text::{FontFeatureTag, FontFeatures};
-use bevy_ui_text_input::actions::{TextInputAction, TextInputEdit};
-use bevy_ui_text_input::*;
-
-// Re-export key types from bevy_ui_text_input for consumers
-pub use bevy_ui_text_input::{TextInputBuffer, TextInputQueue};
+use bevy::text::{EditableText, FontFeatureTag, FontFeatures, TextCursorStyle, TextEdit, TextLayoutInfo};
+use smol_str::SmolStr;
 
 use crate::cursor::{ActiveCursor, HoverCursor};
 use crate::icons::EditorFont;
@@ -15,9 +11,6 @@ use crate::tokens::{
 };
 
 pub fn plugin(app: &mut App) {
-    if !app.is_plugin_added::<TextInputPlugin>() {
-        app.add_plugins(TextInputPlugin);
-    }
     app.add_systems(Update, setup_text_edit_input)
         .add_systems(
             Update,
@@ -34,9 +27,9 @@ pub fn plugin(app: &mut App) {
         .add_systems(PostUpdate, (apply_default_value, handle_suffix).chain());
 }
 
-pub fn set_text_input_value(queue: &mut TextInputQueue, text: String) {
-    queue.add(TextInputAction::Edit(TextInputEdit::SelectAll));
-    queue.add(TextInputAction::Edit(TextInputEdit::Paste(text)));
+pub fn set_text_input_value(editable: &mut EditableText, text: String) {
+    editable.queue_edit(TextEdit::SelectAll);
+    editable.queue_edit(TextEdit::Insert(SmolStr::new(&text)));
 }
 
 #[derive(Event)]
@@ -45,7 +38,7 @@ pub struct TextEditCommitEvent {
     pub text: String,
 }
 
-/// Synced from the inner `TextInputBuffer` every frame. Attach to the outer wrapper entity
+/// Synced from the inner `EditableText` every frame. Attach to the outer wrapper entity
 /// so consumers can poll the current text value without reaching into child entities.
 #[derive(Component, Default, Clone)]
 pub struct TextEditValue(pub String);
@@ -291,8 +284,8 @@ fn setup_text_edit_input(
                 .spawn((
                     Text::new(label),
                     TextFont {
-                        font: font.clone(),
-                        font_size: TEXT_SIZE_SM,
+                        font: FontSource::Handle(font.clone()),
+                        font_size: FontSize::Px(TEXT_SIZE_SM),
                         weight: FontWeight::MEDIUM,
                         ..default()
                     },
@@ -303,10 +296,6 @@ fn setup_text_edit_input(
         }
 
         let is_numeric = config.variant.is_numeric();
-        let filter = config.filter.as_ref().map(|f| match f {
-            FilterType::Decimal => TextInputFilter::Decimal,
-            FilterType::Integer => TextInputFilter::Integer,
-        });
 
         let wrapper_entity = commands
             .spawn((
@@ -357,8 +346,8 @@ fn setup_text_edit_input(
                     .spawn((
                         Text::new(label),
                         TextFont {
-                            font: font.clone(),
-                            font_size: *size,
+                            font: FontSource::Handle(font.clone()),
+                            font_size: FontSize::Px(*size),
                             ..default()
                         },
                         TextColor(TEXT_BODY_COLOR.with_alpha(0.5).into()),
@@ -373,39 +362,17 @@ fn setup_text_edit_input(
             commands.entity(wrapper_entity).add_child(prefix_entity);
         }
 
-        let placeholder = config
-            .suffix
-            .as_ref()
-            .map(|s| format!("{}{}", config.placeholder, s))
-            .unwrap_or_else(|| config.placeholder.clone());
-
         let mut text_input = commands.spawn((
             EditorTextEdit,
             config.variant,
-            TextInputNode {
-                mode: TextInputMode::SingleLine,
-                clear_on_submit: false,
-                unfocus_on_submit: true,
-                ..default()
-            },
+            EditableText::default(),
             TextFont {
-                font: font.clone(),
-                font_size: TEXT_SIZE,
+                font: FontSource::Handle(font.clone()),
+                font_size: FontSize::Px(TEXT_SIZE),
                 font_features: tabular_figures.clone(),
                 ..default()
             },
             TextColor(TEXT_BODY_COLOR.into()),
-            TextInputStyle {
-                cursor_color: TEXT_BODY_COLOR.into(),
-                cursor_width: 1.0,
-                selection_color: PRIMARY_COLOR.with_alpha(0.3).into(),
-                ..default()
-            },
-            TextInputPrompt {
-                text: placeholder,
-                color: Some(TEXT_BODY_COLOR.with_alpha(0.2).into()),
-                ..default()
-            },
             Node {
                 flex_grow: 1.0,
                 height: percent(100),
@@ -414,10 +381,6 @@ fn setup_text_edit_input(
                 ..default()
             },
         ));
-
-        if let Some(filter) = filter {
-            text_input.insert(filter);
-        }
 
         if let Some(ref suffix) = config.suffix {
             text_input.insert(TextEditSuffix(suffix.clone()));
@@ -448,8 +411,8 @@ fn setup_text_edit_input(
                     TextEditSuffixNode(text_input_entity),
                     Text::new(suffix.clone()),
                     TextFont {
-                        font: font.clone(),
-                        font_size: TEXT_SIZE,
+                        font: FontSource::Handle(font.clone()),
+                        font_size: FontSize::Px(TEXT_SIZE),
                         font_features: tabular_figures.clone(),
                         ..default()
                     },
@@ -471,16 +434,31 @@ fn setup_text_edit_input(
 }
 
 fn handle_focus_style(
+    mut commands: Commands,
     focus: Res<InputFocus>,
     mut wrappers: Query<(&TextEditWrapper, &mut BorderColor, &Hovered)>,
+    cursor_query: Query<(), With<TextCursorStyle>>,
 ) {
     for (wrapper, mut border_color, hovered) in &mut wrappers {
-        let color = match (focus.0 == Some(wrapper.0), hovered.get()) {
+        let is_focused = focus.0 == Some(wrapper.0);
+        let color = match (is_focused, hovered.get()) {
             (true, _) => PRIMARY_COLOR,
             (_, true) => BORDER_COLOR.lighter(0.05),
             _ => BORDER_COLOR,
         };
         *border_color = BorderColor::all(color);
+
+        // Show/hide cursor based on focus
+        if is_focused {
+            if cursor_query.get(wrapper.0).is_err() {
+                commands.entity(wrapper.0).insert(TextCursorStyle {
+                    color: TEXT_BODY_COLOR.into(),
+                    selection_color: PRIMARY_COLOR.with_alpha(0.3).into(),
+                });
+            }
+        } else if cursor_query.get(wrapper.0).is_ok() {
+            commands.entity(wrapper.0).remove::<TextCursorStyle>();
+        }
     }
 }
 
@@ -490,20 +468,19 @@ fn apply_default_value(
         Entity,
         &TextEditDefaultValue,
         &TextEditVariant,
-        &TextInputBuffer,
-        &mut TextInputQueue,
+        &mut EditableText,
         Option<&NumericRange>,
     )>,
 ) {
-    for (entity, default_value, variant, buffer, mut queue, range) in &mut text_edits {
-        if buffer.get_text().is_empty() {
+    for (entity, default_value, variant, mut editable, range) in &mut text_edits {
+        if editable.value().to_string().is_empty() {
             let text = if variant.is_numeric() {
                 let value = clamp_value(default_value.0.parse().unwrap_or(0.0), range);
                 format_numeric_value(value, *variant)
             } else {
                 default_value.0.clone()
             };
-            queue.add(TextInputAction::Edit(TextInputEdit::Paste(text)));
+            editable.queue_edit(TextEdit::Insert(SmolStr::new(&text)));
         }
         commands.entity(entity).remove::<TextEditDefaultValue>();
     }
@@ -512,7 +489,7 @@ fn apply_default_value(
 fn handle_suffix(
     focus: Res<InputFocus>,
     text_edits: Query<
-        (Entity, &TextInputBuffer, &TextInputLayoutInfo, &ChildOf),
+        (Entity, &EditableText, &TextLayoutInfo, &ChildOf),
         With<TextEditSuffix>,
     >,
     mut suffix_nodes: Query<(&TextEditSuffixNode, &mut Node), Without<TextEditWrapper>>,
@@ -521,7 +498,7 @@ fn handle_suffix(
 ) {
     const WRAPPER_PADDING: f32 = 8.0;
     const PREFIX_EXTRA: f32 = AFFIX_SIZE as f32 + 6.0;
-    for (entity, buffer, layout_info, child_of) in &text_edits {
+    for (entity, editable, layout_info, child_of) in &text_edits {
         let Some((_, mut node)) = suffix_nodes.iter_mut().find(|(link, _)| link.0 == entity) else {
             continue;
         };
@@ -534,7 +511,7 @@ fn handle_suffix(
 
         let offset = WRAPPER_PADDING + if has_prefix { PREFIX_EXTRA } else { 0.0 };
 
-        let show = focus.0 != Some(entity) && !buffer.get_text().is_empty();
+        let show = focus.0 != Some(entity) && !editable.value().to_string().is_empty();
         node.left = px(layout_info.size.x + offset);
         node.display = if show { Display::Flex } else { Display::None };
     }
@@ -595,8 +572,7 @@ fn handle_clamp_on_unfocus(
     mut text_edits: Query<
         (
             &TextEditVariant,
-            &TextInputBuffer,
-            &mut TextInputQueue,
+            &mut EditableText,
             Option<&TextEditSuffix>,
             Option<&NumericRange>,
             Option<&AllowEmpty>,
@@ -612,13 +588,13 @@ fn handle_clamp_on_unfocus(
         return;
     }
 
-    let Ok((variant, buffer, mut queue, suffix, range, allow_empty)) =
+    let Ok((variant, mut editable, suffix, range, allow_empty)) =
         text_edits.get_mut(was_focused)
     else {
         return;
     };
 
-    let text = strip_suffix(&buffer.get_text(), suffix);
+    let text = strip_suffix(&editable.value().to_string(), suffix);
 
     commands.trigger(TextEditCommitEvent {
         entity: was_focused,
@@ -634,7 +610,7 @@ fn handle_clamp_on_unfocus(
     }
 
     let value = text.parse().unwrap_or(0.0);
-    update_input_value(&mut queue, value, *variant, range);
+    update_input_value(&mut editable, value, *variant, range);
 }
 
 fn handle_numeric_increment(
@@ -644,8 +620,7 @@ fn handle_numeric_increment(
         (
             Entity,
             &TextEditVariant,
-            &TextInputBuffer,
-            &mut TextInputQueue,
+            &mut EditableText,
             Option<&TextEditSuffix>,
             Option<&NumericRange>,
         ),
@@ -655,7 +630,7 @@ fn handle_numeric_increment(
     let Some(focused_entity) = focus.0 else {
         return;
     };
-    let Ok((_, variant, buffer, mut queue, suffix, range)) = text_edits.get_mut(focused_entity)
+    let Ok((_, variant, mut editable, suffix, range)) = text_edits.get_mut(focused_entity)
     else {
         return;
     };
@@ -674,10 +649,10 @@ fn handle_numeric_increment(
 
     let shift = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
     let step = if shift { 10.0 } else { 1.0 };
-    let new_value = parse_numeric_value(&buffer.get_text(), suffix) + (direction * step);
+    let new_value = parse_numeric_value(&editable.value().to_string(), suffix) + (direction * step);
     let rounded = (new_value * 100.0).round() / 100.0;
 
-    update_input_value(&mut queue, rounded, *variant, range);
+    update_input_value(&mut editable, rounded, *variant, range);
 }
 
 fn handle_drag_value(
@@ -690,8 +665,7 @@ fn handle_drag_value(
     mut text_edits: Query<
         (
             &TextEditVariant,
-            &TextInputBuffer,
-            &mut TextInputQueue,
+            &mut EditableText,
             Option<&TextEditSuffix>,
             Option<&NumericRange>,
         ),
@@ -709,12 +683,12 @@ fn handle_drag_value(
 
         if mouse.just_pressed(MouseButton::Left) && *interaction == Interaction::Pressed {
             if let Some(pos) = cursor_pos {
-                let Ok((_, buffer, _, suffix, _)) = text_edits.get(input_entity) else {
+                let Ok((_, editable, suffix, _)) = text_edits.get(input_entity) else {
                     continue;
                 };
                 hitbox.dragging = true;
                 hitbox.start_x = pos.x;
-                hitbox.start_value = parse_numeric_value(&buffer.get_text(), suffix);
+                hitbox.start_value = parse_numeric_value(&editable.value().to_string(), suffix);
                 commands
                     .entity(entity)
                     .insert(ActiveCursor(bevy::window::SystemCursorIcon::ColResize));
@@ -724,8 +698,8 @@ fn handle_drag_value(
 
         if mouse.just_released(MouseButton::Left) {
             if hitbox.dragging {
-                if let Ok((_, buffer, _, suffix, _)) = text_edits.get(input_entity) {
-                    let text = strip_suffix(&buffer.get_text(), suffix);
+                if let Ok((_, editable, suffix, _)) = text_edits.get(input_entity) {
+                    let text = strip_suffix(&editable.value().to_string(), suffix);
                     commands.trigger(TextEditCommitEvent {
                         entity: input_entity,
                         text,
@@ -748,7 +722,7 @@ fn handle_drag_value(
 
         if hitbox.dragging {
             if let Some(pos) = cursor_pos {
-                let Ok((variant, _, mut queue, _, range)) = text_edits.get_mut(input_entity) else {
+                let Ok((variant, mut editable, _, range)) = text_edits.get_mut(input_entity) else {
                     continue;
                 };
 
@@ -768,7 +742,7 @@ fn handle_drag_value(
                 let new_value = hitbox.start_value + (steps * amount);
                 let rounded = (new_value * 100.0).round() / 100.0;
 
-                update_input_value(&mut queue, rounded, *variant, range);
+                update_input_value(&mut editable, rounded, *variant, range);
             }
         }
     }
@@ -804,33 +778,33 @@ fn clamp_value(value: f64, range: Option<&NumericRange>) -> f64 {
 }
 
 fn update_input_value(
-    queue: &mut TextInputQueue,
+    editable: &mut EditableText,
     value: f64,
     variant: TextEditVariant,
     range: Option<&NumericRange>,
 ) {
     let clamped = clamp_value(value, range);
-    set_text_input_value(queue, format_numeric_value(clamped, variant));
+    set_text_input_value(editable, format_numeric_value(clamped, variant));
 }
 
 fn sync_text_edit_values(
     mut configs: Query<(&TextEditConfig, &Children, &mut TextEditValue)>,
     wrappers: Query<&TextEditWrapper>,
-    buffers: Query<&TextInputBuffer, With<EditorTextEdit>>,
+    editables: Query<&EditableText, With<EditorTextEdit>>,
 ) {
     for (config, children, mut value) in &mut configs {
         if !config.initialized {
             continue;
         }
-        // Find wrapper child → TextEditWrapper → inner entity → TextInputBuffer
+        // Find wrapper child → TextEditWrapper → inner entity → EditableText
         for child in children.iter() {
             let Ok(wrapper) = wrappers.get(child) else {
                 continue;
             };
-            let Ok(buffer) = buffers.get(wrapper.0) else {
+            let Ok(editable) = editables.get(wrapper.0) else {
                 continue;
             };
-            let text = buffer.get_text();
+            let text = editable.value().to_string();
             if value.0 != text {
                 value.0 = text;
             }

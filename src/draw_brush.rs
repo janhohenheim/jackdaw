@@ -239,6 +239,7 @@ impl EditorCommand for CreateBrushCommand {
     fn undo(&mut self, world: &mut World) {
         if let Some(entity) = entity_by_stable_id(world, self.data.stable_id) {
             deselect_entities(world, &[entity]);
+            jackdaw_bsn::delete_entity_from_ast(world, entity);
             if let Ok(entity_mut) = world.get_entity_mut(entity) {
                 entity_mut.despawn();
             }
@@ -1079,6 +1080,9 @@ fn spawn_drawn_brush(active: &ActiveDraw, commands: &mut Commands) {
             ))
             .id();
 
+        // Link to AST before selection/undo
+        crate::scene_io::link_single_entity_to_ast(world, entity, None);
+
         // Select the new brush
         {
             // Deselect current selection
@@ -1129,8 +1133,8 @@ fn append_to_brush(active: &ActiveDraw, commands: &mut Commands) {
     };
 
     commands.queue(move |world: &mut World| {
-        use avian3d::parry::math::Point as ParryPoint;
-        use avian3d::parry::transformation::convex_hull;
+        
+        use parry3d::transformation::convex_hull;
 
         let Some(brush) = world.get::<Brush>(target_entity) else {
             return;
@@ -1157,9 +1161,9 @@ fn append_to_brush(active: &ActiveDraw, commands: &mut Commands) {
         }
 
         // Compute convex hull
-        let points: Vec<ParryPoint<f32>> = all_local_verts
+        let points: Vec<parry3d::math::Vec3> = all_local_verts
             .iter()
-            .map(|v| ParryPoint::new(v.x, v.y, v.z))
+            .map(|v| parry3d::math::Vec3::new(v.x, v.y, v.z))
             .collect();
         let (hull_verts, hull_tris) = convex_hull(&points);
         if hull_verts.len() < 4 || hull_tris.is_empty() {
@@ -1503,6 +1507,9 @@ fn spawn_polygon_brush(active: &ActiveDraw, commands: &mut Commands) {
                 Visibility::default(),
             ))
             .id();
+
+        // Link to AST before selection/undo
+        crate::scene_io::link_single_entity_to_ast(world, entity, None);
 
         // Select the new brush
         {
@@ -2222,14 +2229,16 @@ impl EditorCommand for SubtractBrushCommand {
             .filter_map(|d| entity_by_stable_id(world, d.stable_id))
             .collect();
         deselect_entities(world, &orig_entities);
-        for entity in &orig_entities {
-            if let Ok(e) = world.get_entity_mut(*entity) {
+        for &entity in &orig_entities {
+            jackdaw_bsn::delete_entity_from_ast(world, entity);
+            if let Ok(e) = world.get_entity_mut(entity) {
                 e.despawn();
             }
         }
         // Spawn fragments (stable IDs are reassigned from stored data)
         for data in &self.fragments {
-            spawn_brush_or_group(world, data);
+            let entity = spawn_brush_or_group(world, data);
+            crate::scene_io::link_single_entity_to_ast(world, entity, None);
         }
     }
 
@@ -2246,6 +2255,7 @@ impl EditorCommand for SubtractBrushCommand {
         for data in &self.fragments {
             let sid = Self::fragment_stable_id(data);
             if let Some(entity) = entity_by_stable_id(world, sid) {
+                jackdaw_bsn::delete_entity_from_ast(world, entity);
                 if let Ok(e) = world.get_entity_mut(entity) {
                     e.despawn();
                 }
@@ -2253,7 +2263,8 @@ impl EditorCommand for SubtractBrushCommand {
         }
         // Respawn originals (stable IDs are reassigned from stored data)
         for data in &self.originals {
-            spawn_brush_from_data(world, data);
+            let entity = spawn_brush_from_data(world, data);
+            crate::scene_io::link_single_entity_to_ast(world, entity, None);
         }
     }
 
@@ -2298,8 +2309,8 @@ pub fn join_selected_brushes_impl(world: &mut World) {
     let others: Vec<Entity> = selected_brushes[1..].to_vec();
 
     {
-        use avian3d::parry::math::Point as ParryPoint;
-        use avian3d::parry::transformation::convex_hull;
+        
+        use parry3d::transformation::convex_hull;
 
         // Read primary brush data
         let Some(primary_brush) = world.get::<Brush>(primary_entity) else {
@@ -2338,9 +2349,9 @@ pub fn join_selected_brushes_impl(world: &mut World) {
         }
 
         // Compute convex hull
-        let points: Vec<ParryPoint<f32>> = all_local_verts
+        let points: Vec<parry3d::math::Vec3> = all_local_verts
             .iter()
-            .map(|v| ParryPoint::new(v.x, v.y, v.z))
+            .map(|v| parry3d::math::Vec3::new(v.x, v.y, v.z))
             .collect();
         let (hull_verts, hull_tris) = convex_hull(&points);
         if hull_verts.len() < 4 || hull_tris.is_empty() {

@@ -185,6 +185,7 @@ fn workspace_tab_bar() -> impl Bundle {
         Node {
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
+            justify_content: JustifyContent::Center,
             width: percent(100),
             height: px(28.0),
             flex_shrink: 0.0,
@@ -194,8 +195,8 @@ fn workspace_tab_bar() -> impl Bundle {
         },
         BackgroundColor(tokens::TOOLBAR_BG),
         children![
-            workspace_tab("Scene Editor", ActiveWorkspace::SceneEditor, true),
-            workspace_tab("Remote Debug", ActiveWorkspace::RemoteDebug, false),
+            workspace_tab("Scene", ActiveWorkspace::SceneEditor, true),
+            workspace_tab("Remote", ActiveWorkspace::RemoteDebug, false),
         ],
     )
 }
@@ -218,7 +219,7 @@ fn workspace_tab(label: &str, workspace: ActiveWorkspace, active: bool) -> impl 
         children![(
             Text::new(label.to_string()),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(if active {
@@ -394,8 +395,8 @@ fn toolbar_button(
             (
                 Text::new(String::from(icon.unicode())),
                 TextFont {
-                    font,
-                    font_size: tokens::FONT_MD,
+                    font: FontSource::Handle(font),
+                    font_size: FontSize::Px(tokens::FONT_MD),
                     ..Default::default()
                 },
                 TextColor(tokens::TEXT_SECONDARY),
@@ -403,7 +404,7 @@ fn toolbar_button(
             (
                 Text::new(label),
                 TextFont {
-                    font_size: tokens::FONT_SM,
+                    font_size: FontSize::Px(tokens::FONT_SM),
                     ..Default::default()
                 },
                 ThemedText,
@@ -435,8 +436,8 @@ fn toolbar_space_button(icon_font: Handle<Font>) -> impl Bundle {
             (
                 Text::new(String::from(Icon::Globe.unicode())),
                 TextFont {
-                    font: icon_font,
-                    font_size: tokens::FONT_MD,
+                    font: FontSource::Handle(icon_font),
+                    font_size: FontSize::Px(tokens::FONT_MD),
                     ..Default::default()
                 },
                 TextColor(tokens::TEXT_SECONDARY),
@@ -444,7 +445,7 @@ fn toolbar_space_button(icon_font: Handle<Font>) -> impl Bundle {
             (
                 Text::new("World"),
                 TextFont {
-                    font_size: tokens::FONT_SM,
+                    font_size: FontSize::Px(tokens::FONT_SM),
                     ..Default::default()
                 },
                 ThemedText,
@@ -480,8 +481,8 @@ fn toolbar_edit_button(
         children![(
             Text::new(String::from(icon.unicode())),
             TextFont {
-                font,
-                font_size: tokens::FONT_MD,
+                font: FontSource::Handle(font),
+                font_size: FontSize::Px(tokens::FONT_MD),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_SECONDARY),
@@ -606,8 +607,8 @@ fn toolbar_help_button(icon_font: Handle<Font>) -> impl Bundle {
         children![(
             Text::new(String::from(Icon::Keyboard.unicode())),
             TextFont {
-                font: icon_font,
-                font_size: tokens::FONT_MD,
+                font: FontSource::Handle(icon_font),
+                font_size: FontSize::Px(tokens::FONT_MD),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_SECONDARY),
@@ -769,7 +770,7 @@ fn spawn_keybind_help_content(
         parent.spawn((
             Text::new(section),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_PRIMARY),
@@ -792,7 +793,7 @@ fn spawn_keybind_help_content(
                     (
                         Text::new(key.clone()),
                         TextFont {
-                            font_size: tokens::FONT_SM,
+                            font_size: FontSize::Px(tokens::FONT_SM),
                             ..Default::default()
                         },
                         TextColor(tokens::TEXT_PRIMARY),
@@ -800,7 +801,7 @@ fn spawn_keybind_help_content(
                     (
                         Text::new(desc.clone()),
                         TextFont {
-                            font_size: tokens::FONT_SM,
+                            font_size: FontSize::Px(tokens::FONT_SM),
                             ..Default::default()
                         },
                         TextColor(tokens::TEXT_SECONDARY),
@@ -871,8 +872,8 @@ fn entity_heiarchy(icon_font: Handle<Font>) -> impl Bundle {
                                 children![(
                                     Text::new(String::from(Icon::Eye.unicode())),
                                     TextFont {
-                                        font: icon_font,
-                                        font_size: 14.0,
+                                        font: FontSource::Handle(icon_font),
+                                        font_size: FontSize::Px(14.0),
                                         ..Default::default()
                                     },
                                     TextColor(tokens::TEXT_SECONDARY),
@@ -951,7 +952,7 @@ pub fn update_toolbar_tooltips(
             commands.spawn((
                 Text::new(tooltip.0.clone()),
                 TextFont {
-                    font_size: tokens::FONT_SM,
+                    font_size: FontSize::Px(tokens::FONT_SM),
                     ..Default::default()
                 },
                 TextColor(tokens::TEXT_PRIMARY),
@@ -1137,7 +1138,7 @@ fn editor_status_bar() -> impl Bundle {
                 status_bar::StatusBarLeft,
                 Text::new("Ready"),
                 TextFont {
-                    font_size: tokens::FONT_SM,
+                    font_size: FontSize::Px(tokens::FONT_SM),
                     ..Default::default()
                 },
                 bevy::feathers::theme::ThemedText,
@@ -1146,7 +1147,7 @@ fn editor_status_bar() -> impl Bundle {
                 status_bar::StatusBarCenter,
                 Text::new(""),
                 TextFont {
-                    font_size: tokens::FONT_SM,
+                    font_size: FontSize::Px(tokens::FONT_SM),
                     ..Default::default()
                 },
                 TextColor(tokens::TEXT_SECONDARY),
@@ -1164,7 +1165,7 @@ fn editor_status_bar() -> impl Bundle {
                         status_bar::StatusBarRight,
                         Text::new(""),
                         TextFont {
-                            font_size: tokens::FONT_SM,
+                            font_size: FontSize::Px(tokens::FONT_SM),
                             ..Default::default()
                         },
                         TextColor(tokens::TEXT_SECONDARY),

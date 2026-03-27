@@ -1,13 +1,15 @@
-use crate::commands::{CommandGroup, CommandHistory, EditorCommand, SetComponentField};
+use crate::commands::{CommandGroup, CommandHistory, EditorCommand, SetBsnField};
 use crate::selection::Selection;
 use std::any::TypeId;
+
+use jackdaw_bsn::{BsnValue, parse_string_to_bsn_value};
 
 use bevy::{
     ecs::reflect::{AppTypeRegistry, ReflectComponent},
     feathers::theme::ThemedText,
     input_focus::InputFocus,
     prelude::*,
-    reflect::{DynamicEnum, DynamicStruct, DynamicTuple, DynamicVariant, ReflectRef},
+    reflect::ReflectRef,
     ui_widgets::observe,
 };
 use jackdaw_feathers::{
@@ -17,7 +19,7 @@ use jackdaw_feathers::{
     list_view,
     text_edit::{
         self, TextEditCommitEvent, TextEditConfig, TextEditDragging, TextEditProps, TextEditValue,
-        TextEditVariant, TextEditWrapper, TextInputQueue, set_text_input_value,
+        TextEditVariant, TextEditWrapper, set_text_input_value,
     },
     tokens,
 };
@@ -38,6 +40,7 @@ pub(crate) fn spawn_reflected_fields(
     type_registry: &AppTypeRegistry,
     editor_font: &Handle<Font>,
     icon_font: &Handle<Font>,
+    _patched_paths: &std::collections::HashSet<String>,
 ) {
     match reflected.reflect_ref() {
         ReflectRef::Struct(s) => {
@@ -281,7 +284,7 @@ fn spawn_field_row(
         commands.spawn((
             Text::new(format!("{name}:")),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             Node {
@@ -808,7 +811,7 @@ fn spawn_vec3_row(
     commands.spawn((
         Text::new(format!("{name}:")),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         Node {
@@ -880,7 +883,7 @@ fn spawn_vec2_row(
     commands.spawn((
         Text::new(format!("{name}:")),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         Node {
@@ -928,7 +931,7 @@ fn spawn_axis_input(
     commands.spawn((
         Text::new(label),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         TextColor(label_color),
@@ -985,8 +988,8 @@ fn spawn_bool_toggle(
     commands.spawn((
         Text::new(format!("{name}:")),
         TextFont {
-            font: editor_font.clone(),
-            font_size: tokens::FONT_SM,
+            font: FontSource::Handle(editor_font.clone()),
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         Node {
@@ -1040,7 +1043,7 @@ fn spawn_color_field(
     commands.spawn((
         Text::new(format!("{name}:")),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         Node {
@@ -1086,7 +1089,6 @@ fn apply_color_with_undo(
     new_rgba: [f32; 4],
 ) {
     let registry = world.resource::<AppTypeRegistry>().clone();
-
     let selection = world.resource::<Selection>();
     let targets: Vec<Entity> = selection.entities.clone();
 
@@ -1096,6 +1098,7 @@ fn apply_color_with_undo(
     let Some(registration) = reg.get(component_type_id) else {
         return;
     };
+    let type_path = registration.type_info().type_path_table().path().to_string();
     let Some(reflect_component) = registration.data::<ReflectComponent>() else {
         return;
     };
@@ -1112,14 +1115,16 @@ fn apply_color_with_undo(
         let Ok(field) = reflected.reflect_path(field_path) else {
             continue;
         };
-        let old_value = field.to_dynamic();
 
-        sub_commands.push(Box::new(SetComponentField {
+        let old_bsn = BsnValue::from_reflect(field, &reg);
+        let new_bsn = BsnValue::from_reflect(new_color.as_partial_reflect(), &reg);
+
+        sub_commands.push(Box::new(SetBsnField {
             entity: target,
-            component_type_id,
+            type_path: type_path.clone(),
             field_path: field_path.to_string(),
-            old_value,
-            new_value: Box::new(new_color),
+            old_value: old_bsn,
+            new_value: new_bsn,
         }));
     }
     drop(reg);
@@ -1169,7 +1174,7 @@ fn spawn_numeric_field(
     commands.spawn((
         Text::new(format!("{label}:")),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         Node {
@@ -1225,7 +1230,7 @@ fn spawn_editable_field(
     commands.spawn((
         Text::new(format!("{label}:")),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         Node {
@@ -1263,20 +1268,21 @@ fn apply_field_value_with_undo(
     new_value_str: &str,
 ) {
     let registry = world.resource::<AppTypeRegistry>().clone();
-
-    // Collect all selected entities
     let selection = world.resource::<Selection>();
     let targets: Vec<Entity> = selection.entities.clone();
 
-    let mut sub_commands: Vec<Box<dyn EditorCommand>> = Vec::new();
-
     let reg = registry.read();
-    let Some(reflect_component) = reg
-        .get(component_type_id)
-        .and_then(|r| r.data::<ReflectComponent>())
-    else {
+
+    // Resolve type_path for SetBsnField
+    let Some(registration) = reg.get(component_type_id) else {
         return;
     };
+    let type_path = registration.type_info().type_path_table().path().to_string();
+    let Some(reflect_component) = registration.data::<ReflectComponent>() else {
+        return;
+    };
+
+    let mut sub_commands: Vec<Box<dyn EditorCommand>> = Vec::new();
 
     for &target in &targets {
         let Ok(entity_ref) = world.get_entity(target) else {
@@ -1288,19 +1294,23 @@ fn apply_field_value_with_undo(
         let Ok(field) = reflected.reflect_path(field_path) else {
             continue;
         };
-        let old_value = field.to_dynamic();
 
-        let mut new_val = old_value.to_dynamic();
-        if !parse_into_reflect(&mut *new_val, new_value_str) {
+        // Read old value from ECS as BsnValue (resolved state)
+        let old_bsn = BsnValue::from_reflect(field, &reg);
+
+        // Parse new value string into BsnValue
+        let field_tid = field_value_type_id(field);
+        let Some(new_bsn) = field_tid.and_then(|tid| parse_string_to_bsn_value(new_value_str, tid))
+        else {
             continue;
-        }
+        };
 
-        sub_commands.push(Box::new(SetComponentField {
+        sub_commands.push(Box::new(SetBsnField {
             entity: target,
-            component_type_id,
+            type_path: type_path.clone(),
             field_path: field_path.to_string(),
-            old_value,
-            new_value: new_val,
+            old_value: old_bsn,
+            new_value: new_bsn,
         }));
     }
     drop(reg);
@@ -1323,80 +1333,33 @@ fn apply_field_value_with_undo(
     history.redo_stack.clear();
 }
 
-/// Parse a string value into a reflected value, returning true on success.
-fn parse_into_reflect(target: &mut dyn PartialReflect, value_str: &str) -> bool {
-    if let Some(current) = target.try_downcast_mut::<f32>() {
-        if let Ok(v) = value_str.parse::<f32>() {
-            *current = v;
-            return true;
-        }
-    } else if let Some(current) = target.try_downcast_mut::<f64>() {
-        if let Ok(v) = value_str.parse::<f64>() {
-            *current = v;
-            return true;
-        }
-    } else if let Some(current) = target.try_downcast_mut::<i32>() {
-        if let Ok(v) = value_str.parse::<i32>() {
-            *current = v;
-            return true;
-        }
-    } else if let Some(current) = target.try_downcast_mut::<u32>() {
-        if let Ok(v) = value_str.parse::<u32>() {
-            *current = v;
-            return true;
-        }
-    } else if let Some(current) = target.try_downcast_mut::<usize>() {
-        if let Ok(v) = value_str.parse::<usize>() {
-            *current = v;
-            return true;
-        }
-    } else if let Some(current) = target.try_downcast_mut::<i8>() {
-        if let Ok(v) = value_str.parse::<i8>() {
-            *current = v;
-            return true;
-        }
-    } else if let Some(current) = target.try_downcast_mut::<i16>() {
-        if let Ok(v) = value_str.parse::<i16>() {
-            *current = v;
-            return true;
-        }
-    } else if let Some(current) = target.try_downcast_mut::<i64>() {
-        if let Ok(v) = value_str.parse::<i64>() {
-            *current = v;
-            return true;
-        }
-    } else if let Some(current) = target.try_downcast_mut::<u8>() {
-        if let Ok(v) = value_str.parse::<u8>() {
-            *current = v;
-            return true;
-        }
-    } else if let Some(current) = target.try_downcast_mut::<u16>() {
-        if let Ok(v) = value_str.parse::<u16>() {
-            *current = v;
-            return true;
-        }
-    } else if let Some(current) = target.try_downcast_mut::<u64>() {
-        if let Ok(v) = value_str.parse::<u64>() {
-            *current = v;
-            return true;
-        }
-    } else if let Some(current) = target.try_downcast_mut::<bool>() {
-        if let Ok(v) = value_str.parse::<bool>() {
-            *current = v;
-            return true;
-        }
-    } else if let Some(current) = target.try_downcast_mut::<String>() {
-        *current = value_str.to_string();
-        return true;
+/// Extract the TypeId from a reflected field value.
+fn field_value_type_id(field: &dyn PartialReflect) -> Option<TypeId> {
+    if let Some(info) = field.get_represented_type_info() {
+        return Some(info.type_id());
     }
-    false
+    if field.try_downcast_ref::<f32>().is_some() { return Some(TypeId::of::<f32>()); }
+    if field.try_downcast_ref::<f64>().is_some() { return Some(TypeId::of::<f64>()); }
+    if field.try_downcast_ref::<i32>().is_some() { return Some(TypeId::of::<i32>()); }
+    if field.try_downcast_ref::<u32>().is_some() { return Some(TypeId::of::<u32>()); }
+    if field.try_downcast_ref::<usize>().is_some() { return Some(TypeId::of::<usize>()); }
+    if field.try_downcast_ref::<bool>().is_some() { return Some(TypeId::of::<bool>()); }
+    if field.try_downcast_ref::<String>().is_some() { return Some(TypeId::of::<String>()); }
+    if field.try_downcast_ref::<i8>().is_some() { return Some(TypeId::of::<i8>()); }
+    if field.try_downcast_ref::<i16>().is_some() { return Some(TypeId::of::<i16>()); }
+    if field.try_downcast_ref::<i64>().is_some() { return Some(TypeId::of::<i64>()); }
+    if field.try_downcast_ref::<u8>().is_some() { return Some(TypeId::of::<u8>()); }
+    if field.try_downcast_ref::<u16>().is_some() { return Some(TypeId::of::<u16>()); }
+    if field.try_downcast_ref::<u64>().is_some() { return Some(TypeId::of::<u64>()); }
+    None
 }
+
 
 fn spawn_entity_link(commands: &mut Commands, parent: Entity, target: Entity, label: &str) {
     commands.spawn((
         Text::new(label),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         TextColor(tokens::TEXT_ACCENT),
@@ -1543,7 +1506,7 @@ fn spawn_text_row(commands: &mut Commands, parent: Entity, text: &str, depth: us
         },
         Text::new(text),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         ThemedText,
@@ -1798,8 +1761,8 @@ pub(crate) fn refresh_inspector_fields(world: &mut World) {
 
         if let Some(variant) = world.get::<TextEditVariant>(inner_entity).copied() {
             let formatted = text_edit::format_numeric_value(value, variant);
-            if let Some(mut queue) = world.get_mut::<TextInputQueue>(inner_entity) {
-                set_text_input_value(&mut queue, formatted);
+            if let Some(mut editable) = world.get_mut::<bevy::text::EditableText>(inner_entity) {
+                set_text_input_value(&mut editable, formatted);
             }
         }
     }
@@ -1874,7 +1837,7 @@ fn is_opaque_type(value: &dyn PartialReflect) -> bool {
 fn spawn_enum_field(
     commands: &mut Commands,
     parent: Entity,
-    enum_ref: &dyn bevy::reflect::Enum,
+    enum_ref: &dyn bevy::reflect::enums::Enum,
     depth: usize,
     field_path: String,
     source_entity: Entity,
@@ -1931,7 +1894,7 @@ fn spawn_enum_field(
     let all_unit = (0..enum_info.variant_len()).all(|i| {
         enum_info
             .variant_at(i)
-            .map(|v| matches!(v, bevy::reflect::VariantInfo::Unit(_)))
+            .map(|v| matches!(v, bevy::reflect::enums::VariantInfo::Unit(_)))
             .unwrap_or(false)
     });
 
@@ -2065,7 +2028,6 @@ fn apply_enum_variant_with_undo(
     variant_name: &str,
 ) {
     let registry = world.resource::<AppTypeRegistry>().clone();
-
     let selection = world.resource::<Selection>();
     let targets: Vec<Entity> = selection.entities.clone();
 
@@ -2073,6 +2035,7 @@ fn apply_enum_variant_with_undo(
     let Some(registration) = reg.get(component_type_id) else {
         return;
     };
+    let type_path = registration.type_info().type_path_table().path().to_string();
     let Some(reflect_component) = registration.data::<ReflectComponent>() else {
         return;
     };
@@ -2086,29 +2049,25 @@ fn apply_enum_variant_with_undo(
         let Some(reflected) = reflect_component.reflect(entity_ref) else {
             continue;
         };
-        let old_value = if field_path.is_empty() {
-            reflected.to_dynamic()
+
+        let old_reflected = if field_path.is_empty() {
+            reflected.as_partial_reflect()
         } else {
             let Ok(field) = reflected.reflect_path(field_path) else {
                 continue;
             };
-            field.to_dynamic()
+            field
         };
 
-        let Some(dynamic_variant) = build_dynamic_variant(old_value.as_ref(), variant_name, &reg)
-        else {
-            continue;
-        };
+        let old_bsn = BsnValue::from_reflect(old_reflected, &reg);
+        let new_bsn = BsnValue::Type(variant_name.to_string());
 
-        let new_value: Box<dyn PartialReflect> =
-            Box::new(DynamicEnum::new(variant_name, dynamic_variant));
-
-        sub_commands.push(Box::new(SetComponentField {
+        sub_commands.push(Box::new(SetBsnField {
             entity: target,
-            component_type_id,
+            type_path: type_path.clone(),
             field_path: field_path.to_string(),
-            old_value,
-            new_value,
+            old_value: old_bsn,
+            new_value: new_bsn,
         }));
     }
     drop(reg);
@@ -2131,50 +2090,3 @@ fn apply_enum_variant_with_undo(
     history.redo_stack.clear();
 }
 
-/// Build the appropriate DynamicVariant for a given variant name,
-/// using the enum's type info to determine if it's Unit, Tuple, or Struct.
-/// Returns None if the variant has fields whose default values can't be constructed.
-fn build_dynamic_variant(
-    old_enum_value: &dyn PartialReflect,
-    variant_name: &str,
-    registry: &bevy::reflect::TypeRegistry,
-) -> Option<DynamicVariant> {
-    let type_info = old_enum_value.get_represented_type_info()?;
-    let bevy::reflect::TypeInfo::Enum(enum_info) = type_info else {
-        return Some(DynamicVariant::Unit);
-    };
-    let variant_info = enum_info.variant(variant_name)?;
-
-    match variant_info {
-        bevy::reflect::VariantInfo::Unit(_) => Some(DynamicVariant::Unit),
-        bevy::reflect::VariantInfo::Tuple(tuple_info) => {
-            let mut dynamic_tuple = DynamicTuple::default();
-            for i in 0..tuple_info.field_len() {
-                let field_info = tuple_info.field_at(i)?;
-                let type_id = field_info.type_id();
-                let default_val = registry
-                    .get(type_id)
-                    .and_then(|reg| reg.data::<ReflectDefault>())
-                    .map(|rd| rd.default());
-                let default = default_val?;
-                dynamic_tuple.insert_boxed(default.into_partial_reflect());
-            }
-            Some(DynamicVariant::Tuple(dynamic_tuple))
-        }
-        bevy::reflect::VariantInfo::Struct(struct_info) => {
-            let mut dynamic_struct = DynamicStruct::default();
-            for i in 0..struct_info.field_len() {
-                let field_info = struct_info.field_at(i)?;
-                let field_name = field_info.name();
-                let type_id = field_info.type_id();
-                let default_val = registry
-                    .get(type_id)
-                    .and_then(|reg| reg.data::<ReflectDefault>())
-                    .map(|rd| rd.default());
-                let default = default_val?;
-                dynamic_struct.insert_boxed(field_name, default.into_partial_reflect());
-            }
-            Some(DynamicVariant::Struct(dynamic_struct))
-        }
-    }
-}

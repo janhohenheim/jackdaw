@@ -11,6 +11,12 @@ use bevy::{
 // Re-export the core command framework from the jackdaw_commands crate
 pub use jackdaw_commands::{CommandGroup, CommandHistory, EditorCommand};
 
+use jackdaw_bsn::{
+    AstDirty, BsnValue, SceneBsnAst,
+    sync_to_ast, sync_hierarchy_to_ast, add_component_to_ast, remove_component_from_ast,
+    set_bsn_field,
+};
+
 use crate::EditorEntity;
 use crate::selection::{Selected, Selection};
 
@@ -42,6 +48,7 @@ impl EditorCommand for SetComponentField {
             &self.field_path,
             &*self.new_value,
         );
+        sync_to_ast(world, self.entity, self.component_type_id);
     }
 
     fn undo(&mut self, world: &mut World) {
@@ -52,6 +59,7 @@ impl EditorCommand for SetComponentField {
             &self.field_path,
             &*self.old_value,
         );
+        sync_to_ast(world, self.entity, self.component_type_id);
     }
 
     fn description(&self) -> &str {
@@ -91,6 +99,97 @@ fn apply_reflected_value(
     }
 }
 
+/// AST-first field edit: mutates the BSN AST and marks the entity dirty so
+/// that [`apply_dirty_ast_patches`] propagates the change to ECS.
+pub struct SetBsnField {
+    pub entity: Entity,
+    pub type_path: String,
+    pub field_path: String,
+    pub old_value: BsnValue,
+    pub new_value: BsnValue,
+}
+
+impl EditorCommand for SetBsnField {
+    fn execute(&mut self, world: &mut World) {
+        set_bsn_field_on_entity(world, self.entity, &self.type_path, &self.field_path, self.new_value.clone());
+    }
+
+    fn undo(&mut self, world: &mut World) {
+        set_bsn_field_on_entity(world, self.entity, &self.type_path, &self.field_path, self.old_value.clone());
+    }
+
+    fn description(&self) -> &str {
+        "Set BSN field"
+    }
+}
+
+fn set_bsn_field_on_entity(
+    world: &mut World,
+    entity: Entity,
+    type_path: &str,
+    field_path: &str,
+    value: BsnValue,
+) {
+    let patches_entity = jackdaw_bsn::ensure_ast_node(world, entity);
+
+    let registry = world.resource::<AppTypeRegistry>().clone();
+    let reg = registry.read();
+
+    let mut ast = world.resource_mut::<SceneBsnAst>();
+    set_bsn_field(&mut ast, patches_entity, type_path, field_path, value, &reg);
+    drop(reg);
+    drop(ast);
+
+    world.entity_mut(entity).insert(AstDirty);
+}
+
+/// AST-first name edit: updates the `BsnPatch::Name` directly (Name is a
+/// special patch type, not a struct field).
+pub struct SetBsnName {
+    pub entity: Entity,
+    pub old_name: String,
+    pub new_name: String,
+}
+
+impl EditorCommand for SetBsnName {
+    fn execute(&mut self, world: &mut World) {
+        set_bsn_name_on_entity(world, self.entity, &self.new_name);
+    }
+
+    fn undo(&mut self, world: &mut World) {
+        set_bsn_name_on_entity(world, self.entity, &self.old_name);
+    }
+
+    fn description(&self) -> &str {
+        "Set entity name"
+    }
+}
+
+fn set_bsn_name_on_entity(world: &mut World, entity: Entity, name: &str) {
+    let patches_entity = jackdaw_bsn::ensure_ast_node(world, entity);
+
+    let mut ast = world.resource_mut::<SceneBsnAst>();
+    // Find existing Name patch and update it, or create one
+    if let Some(patches) = ast.get_patches(patches_entity) {
+        let patch_ids: Vec<Entity> = patches.0.clone();
+        for pe in patch_ids {
+            if let Some(jackdaw_bsn::BsnPatch::Name(_)) = ast.get_patch(pe) {
+                ast.set_patch(pe, jackdaw_bsn::BsnPatch::Name(name.to_string()));
+                drop(ast);
+                world.entity_mut(entity).insert(AstDirty);
+                return;
+            }
+        }
+    }
+    // No existing Name patch — create one
+    let patch_entity = ast.world.spawn(jackdaw_bsn::BsnPatch::Name(name.to_string())).id();
+    if let Some(patches) = ast.get_patches_mut(patches_entity) {
+        patches.0.insert(0, patch_entity); // Name goes first
+    }
+    drop(ast);
+    world.entity_mut(entity).insert(AstDirty);
+}
+
 pub struct SetTransform {
     pub entity: Entity,
     pub old_transform: Transform,
@@ -102,12 +201,14 @@ impl EditorCommand for SetTransform {
         if let Some(mut transform) = world.get_mut::<Transform>(self.entity) {
             *transform = self.new_transform;
         }
+        sync_to_ast(world, self.entity, TypeId::of::<Transform>());
     }
 
     fn undo(&mut self, world: &mut World) {
         if let Some(mut transform) = world.get_mut::<Transform>(self.entity) {
             *transform = self.old_transform;
         }
+        sync_to_ast(world, self.entity, TypeId::of::<Transform>());
     }
 
     fn description(&self) -> &str {
@@ -124,10 +225,12 @@ pub struct ReparentEntity {
 impl EditorCommand for ReparentEntity {
     fn execute(&mut self, world: &mut World) {
         set_parent(world, self.entity, self.new_parent);
+        sync_hierarchy_to_ast(world, self.entity, self.new_parent);
     }
 
     fn undo(&mut self, world: &mut World) {
         set_parent(world, self.entity, self.old_parent);
+        sync_hierarchy_to_ast(world, self.entity, self.old_parent);
     }
 
     fn description(&self) -> &str {
@@ -176,11 +279,24 @@ impl EditorCommand for AddComponent {
             default_value.as_partial_reflect(),
             &registry,
         );
+        drop(registry);
+        add_component_to_ast(world, self.entity, self.type_id);
     }
 
     fn undo(&mut self, world: &mut World) {
+        // Get type path before removing
+        let type_path = {
+            let registry = world.resource::<AppTypeRegistry>().clone();
+            let registry = registry.read();
+            registry
+                .get(self.type_id)
+                .map(|r| r.type_info().type_path().to_string())
+        };
         if let Ok(mut entity) = world.get_entity_mut(self.entity) {
             entity.remove_by_id(self.component_id);
+        }
+        if let Some(type_path) = type_path {
+            remove_component_from_ast(world, self.entity, &type_path);
         }
     }
 
@@ -199,8 +315,19 @@ pub struct RemoveComponent {
 
 impl EditorCommand for RemoveComponent {
     fn execute(&mut self, world: &mut World) {
+        // Get type path before removing
+        let type_path = {
+            let registry = world.resource::<AppTypeRegistry>().clone();
+            let registry = registry.read();
+            registry
+                .get(self.type_id)
+                .map(|r| r.type_info().type_path().to_string())
+        };
         if let Ok(mut entity) = world.get_entity_mut(self.entity) {
             entity.remove_by_id(self.component_id);
+        }
+        if let Some(type_path) = type_path {
+            remove_component_from_ast(world, self.entity, &type_path);
         }
     }
 
@@ -220,6 +347,8 @@ impl EditorCommand for RemoveComponent {
             &*self.snapshot,
             &registry,
         );
+        drop(registry);
+        add_component_to_ast(world, self.entity, self.type_id);
     }
 
     fn description(&self) -> &str {
@@ -272,6 +401,7 @@ impl DespawnEntity {
 impl EditorCommand for DespawnEntity {
     fn execute(&mut self, world: &mut World) {
         deselect_entities(world, &[self.entity]);
+        jackdaw_bsn::delete_entity_from_ast(world, self.entity);
         if let Ok(entity_mut) = world.get_entity_mut(self.entity) {
             entity_mut.despawn();
         }
@@ -285,6 +415,7 @@ impl EditorCommand for DespawnEntity {
         if let Some(&new_id) = entity_map.get(&self.entity) {
             self.entity = new_id;
         }
+        crate::scene_io::link_entity_tree_to_ast(world, self.entity, self.parent);
     }
 
     fn description(&self) -> &str {
@@ -295,8 +426,8 @@ impl EditorCommand for DespawnEntity {
 /// Create a `DynamicSceneBuilder` that excludes computed components which become
 /// stale when restored (Children references dead mesh entities, visibility flags
 /// block rendering).
-pub(crate) fn filtered_scene_builder(world: &World) -> DynamicSceneBuilder<'_> {
-    DynamicSceneBuilder::from_world(world)
+pub(crate) fn filtered_scene_builder<'w>(world: &'w World, type_registry: &'w bevy::reflect::TypeRegistry) -> DynamicSceneBuilder<'w> {
+    DynamicSceneBuilder::from_world(world, type_registry)
         .deny_component::<Children>()
         .deny_component::<GlobalTransform>()
         .deny_component::<InheritedVisibility>()
@@ -318,9 +449,11 @@ pub(crate) fn deselect_entities(world: &mut World, entities: &[Entity]) {
 
 /// Create a DynamicScene snapshot of a single entity and all its descendants.
 pub(crate) fn snapshot_entity(world: &World, entity: Entity) -> DynamicScene {
+    let registry = world.resource::<AppTypeRegistry>().clone();
+    let registry = registry.read();
     let mut entities = Vec::new();
     collect_entity_ids(world, entity, &mut entities);
-    filtered_scene_builder(world)
+    filtered_scene_builder(world, &registry)
         .extract_entities(entities.into_iter())
         .build()
 }

@@ -420,7 +420,7 @@ fn refresh_browser_on_change(
                 commands.spawn((
                     Text::new(badge_text),
                     TextFont {
-                        font_size: 8.0,
+                        font_size: FontSize::Px(8.0),
                         ..Default::default()
                     },
                     TextColor(Color::srgb(0.8, 0.8, 0.8)),
@@ -439,7 +439,7 @@ fn refresh_browser_on_change(
                 .spawn((
                     Text::new(display_name),
                     TextFont {
-                        font_size: 9.0,
+                        font_size: FontSize::Px(9.0),
                         ..Default::default()
                     },
                     TextColor(tokens::TEXT_SECONDARY),
@@ -561,7 +561,7 @@ fn refresh_browser_on_change(
             format!("/ {}", path_str.replace(std::path::MAIN_SEPARATOR, " / "))
         }),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         ThemedText,
@@ -743,7 +743,7 @@ pub fn attach_tooltip(commands: &mut Commands, entity: Entity, text: String) {
             commands.spawn((
                 Text::new(text.clone()),
                 TextFont {
-                    font_size: tokens::FONT_SM,
+                    font_size: FontSize::Px(tokens::FONT_SM),
                     ..Default::default()
                 },
                 TextColor(tokens::TEXT_PRIMARY),
@@ -889,7 +889,7 @@ fn update_preview_panel(
     commands.spawn((
         Text::new(file_name),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         TextColor(tokens::TEXT_PRIMARY),
@@ -912,7 +912,7 @@ fn update_preview_panel(
     commands.spawn((
         Text::new(type_text),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         TextColor(tokens::TEXT_SECONDARY),
@@ -960,7 +960,7 @@ fn update_preview_panel(
         commands.spawn((
             Text::new("<"),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_PRIMARY),
@@ -980,7 +980,7 @@ fn update_preview_panel(
         commands.spawn((
             Text::new(layer_text),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_SECONDARY),
@@ -1002,7 +1002,7 @@ fn update_preview_panel(
         commands.spawn((
             Text::new(">"),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_PRIMARY),
@@ -1035,7 +1035,7 @@ fn update_preview_panel(
         commands.spawn((
             Text::new("Apply"),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_PRIMARY),
@@ -1149,7 +1149,7 @@ pub fn asset_browser_panel(icon_font: Handle<Font>) -> impl Bundle {
                             (
                                 Text::new("Assets"),
                                 TextFont {
-                                    font_size: tokens::FONT_MD,
+                                    font_size: FontSize::Px(tokens::FONT_MD),
                                     ..Default::default()
                                 },
                                 ThemedText,
@@ -1158,7 +1158,7 @@ pub fn asset_browser_panel(icon_font: Handle<Font>) -> impl Bundle {
                                 AssetBrowserRootLabel,
                                 Text::new(""),
                                 TextFont {
-                                    font_size: tokens::FONT_SM,
+                                    font_size: FontSize::Px(tokens::FONT_SM),
                                     ..Default::default()
                                 },
                                 TextColor(tokens::TEXT_SECONDARY),

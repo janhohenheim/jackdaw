@@ -775,7 +775,7 @@ fn update_preview_area(
         PreviewAreaLabel,
         Text::new(active_name),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         TextColor(tokens::TEXT_PRIMARY),
@@ -805,7 +805,7 @@ fn update_preview_area(
     commands.spawn((
         Text::new("Apply"),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         TextColor(tokens::TEXT_PRIMARY),
@@ -845,7 +845,7 @@ fn update_preview_area(
     commands.spawn((
         Text::new("Textures"),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         TextColor(tokens::TEXT_SECONDARY),
@@ -878,7 +878,7 @@ fn update_preview_area(
         commands.spawn((
             Text::new(slot.label()),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_SECONDARY),
@@ -929,7 +929,7 @@ fn update_preview_area(
         commands.spawn((
             Text::new(path_text),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(path_color),
@@ -1001,7 +1001,7 @@ fn update_preview_area(
     commands.spawn((
         Text::new("Parameters"),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         TextColor(tokens::TEXT_SECONDARY),
@@ -1037,7 +1037,7 @@ fn update_preview_area(
         commands.spawn((
             Text::new(label),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_SECONDARY),
@@ -1143,7 +1143,7 @@ fn on_material_param_commit(
     };
     let value: f32 = event.text.parse().unwrap_or(0.0);
 
-    let Some(mat) = materials.get_mut(active_handle) else {
+    let Some(mut mat) = materials.get_mut(active_handle) else {
         return;
     };
     match param {
@@ -1293,8 +1293,8 @@ fn poll_texture_slot_pick(world: &mut World) {
     };
 
     let mut materials = world.resource_mut::<Assets<StandardMaterial>>();
-    if let Some(mat) = materials.get_mut(&material_handle) {
-        slot.set_on(mat, Some(image_handle));
+    if let Some(mut mat) = materials.get_mut(&material_handle) {
+        slot.set_on(&mut mat, Some(image_handle));
     }
 
     world
@@ -1309,8 +1309,8 @@ fn handle_clear_texture_slot(
     mut catalog: ResMut<crate::asset_catalog::AssetCatalog>,
     mut preview_state: ResMut<MaterialPreviewState>,
 ) {
-    if let Some(mat) = materials.get_mut(&event.material_handle) {
-        event.slot.set_on(mat, None);
+    if let Some(mut mat) = materials.get_mut(&event.material_handle) {
+        event.slot.set_on(&mut mat, None);
     }
     catalog.dirty = true;
     preview_state.set_changed();
@@ -1408,7 +1408,7 @@ fn update_material_browser_ui(
             .spawn((
                 Text::new(display_name),
                 TextFont {
-                    font_size: 9.0,
+                    font_size: FontSize::Px(9.0),
                     ..Default::default()
                 },
                 TextColor(tokens::TEXT_SECONDARY),
@@ -1494,7 +1494,7 @@ pub fn material_browser_panel(icon_font: Handle<Font>) -> impl Bundle {
                             (
                                 Text::new("Materials"),
                                 TextFont {
-                                    font_size: tokens::FONT_MD,
+                                    font_size: FontSize::Px(tokens::FONT_MD),
                                     ..Default::default()
                                 },
                                 ThemedText,
@@ -1503,7 +1503,7 @@ pub fn material_browser_panel(icon_font: Handle<Font>) -> impl Bundle {
                                 MaterialBrowserRootLabel,
                                 Text::new(""),
                                 TextFont {
-                                    font_size: tokens::FONT_SM,
+                                    font_size: FontSize::Px(tokens::FONT_SM),
                                     ..Default::default()
                                 },
                                 TextColor(tokens::TEXT_SECONDARY),

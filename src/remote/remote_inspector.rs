@@ -239,6 +239,9 @@ pub fn build_remote_inspector_displays(
         &editor_font,
         true, // read_only
         &materials,
+        &std::collections::HashSet::new(), // remote proxy — no BSN filter
+        None,  // no BSN AST for remote entities
+        None,
     );
 
     // Spawn JSON fallback section for unregistered components
@@ -304,8 +307,8 @@ fn spawn_fallback_section(
     commands.spawn((
         Text::new(String::from(Icon::FileBraces.unicode())),
         TextFont {
-            font: icon_font.0.clone(),
-            font_size: tokens::FONT_MD,
+            font: FontSource::Handle(icon_font.0.clone()),
+            font_size: FontSize::Px(tokens::FONT_MD),
             ..Default::default()
         },
         TextColor(tokens::TEXT_SECONDARY),
@@ -315,8 +318,8 @@ fn spawn_fallback_section(
     commands.spawn((
         Text::new("Other Components (JSON)"),
         TextFont {
-            font: editor_font.0.clone(),
-            font_size: tokens::FONT_MD,
+            font: FontSource::Handle(editor_font.0.clone()),
+            font_size: FontSize::Px(tokens::FONT_MD),
             weight: FontWeight::BOLD,
             ..Default::default()
         },
@@ -363,7 +366,7 @@ fn spawn_fallback_section(
         commands.spawn((
             Text::new(json_text),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_SECONDARY),
@@ -381,7 +384,7 @@ fn spawn_placeholder(world: &mut World, inspector_entity: Entity, message: &str)
         ComponentDisplay,
         Text::new(message.to_string()),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         TextColor(tokens::TEXT_SECONDARY),

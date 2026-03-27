@@ -80,7 +80,7 @@ pub fn setup_material_preview_scene(
         crate::EditorEntity,
         DirectionalLight {
             illuminance: 2000.0,
-            shadows_enabled: false,
+            shadow_maps_enabled: false,
             ..default()
         },
         Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, 0.5, -2.5, 0.0)),

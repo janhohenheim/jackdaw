@@ -40,6 +40,11 @@ impl EditorCommand for SetTerrainHeights {
         if let Some(mut dirty) = world.get_mut::<TerrainDirtyChunks>(self.entity) {
             dirty.rebuild_all = true;
         }
+        jackdaw_bsn::sync_to_ast(
+            world,
+            self.entity,
+            std::any::TypeId::of::<jackdaw_jsn::Terrain>(),
+        );
     }
 
     fn undo(&mut self, world: &mut World) {
@@ -49,6 +54,11 @@ impl EditorCommand for SetTerrainHeights {
         if let Some(mut dirty) = world.get_mut::<TerrainDirtyChunks>(self.entity) {
             dirty.rebuild_all = true;
         }
+        jackdaw_bsn::sync_to_ast(
+            world,
+            self.entity,
+            std::any::TypeId::of::<jackdaw_jsn::Terrain>(),
+        );
     }
 
     fn description(&self) -> &str {

@@ -117,8 +117,8 @@ pub fn panel_section(props: PanelSectionProps, editor_font: &Handle<Font>) -> im
                 (
                     Text::new(title),
                     TextFont {
-                        font: editor_font.clone(),
-                        font_size: TEXT_SIZE,
+                        font: FontSource::Handle(editor_font.clone()),
+                        font_size: FontSize::Px(TEXT_SIZE),
                         weight: FontWeight::SEMIBOLD,
                         ..default()
                     },

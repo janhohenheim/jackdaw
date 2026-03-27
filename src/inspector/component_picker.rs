@@ -225,7 +225,7 @@ pub(crate) fn on_add_component_button_click(
         commands.spawn((
             Text::new(format!("{group_name} ({count})")),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_SECONDARY),
@@ -318,7 +318,7 @@ pub(crate) fn on_add_component_button_click(
             commands.spawn((
                 Text::new(short_name),
                 TextFont {
-                    font_size: tokens::FONT_MD,
+                    font_size: FontSize::Px(tokens::FONT_MD),
                     ..Default::default()
                 },
                 ThemedText,
@@ -329,7 +329,7 @@ pub(crate) fn on_add_component_button_click(
                 commands.spawn((
                     Text::new(category),
                     TextFont {
-                        font_size: tokens::FONT_SM,
+                        font_size: FontSize::Px(tokens::FONT_SM),
                         ..Default::default()
                     },
                     TextColor(tokens::TEXT_SECONDARY),
@@ -342,7 +342,7 @@ pub(crate) fn on_add_component_button_click(
                 commands.spawn((
                     Text::new(subtitle),
                     TextFont {
-                        font_size: tokens::FONT_SM,
+                        font_size: FontSize::Px(tokens::FONT_SM),
                         ..Default::default()
                     },
                     TextColor(tokens::TEXT_SECONDARY),

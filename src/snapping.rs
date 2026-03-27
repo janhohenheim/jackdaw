@@ -3,7 +3,7 @@ use bevy::{
     input_focus::InputFocus,
     prelude::*,
 };
-use bevy_infinite_grid::{InfiniteGrid, InfiniteGridSettings};
+use bevy::dev_tools::infinite_grid::{InfiniteGrid, InfiniteGridSettings};
 
 use crate::colors;
 

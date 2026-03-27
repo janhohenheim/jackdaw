@@ -19,12 +19,10 @@ impl Plugin for IconFontPlugin {
         // Both fonts are embedded bytes, so no async loading is needed.
         let mut fonts = app.world_mut().resource_mut::<Assets<Font>>();
 
-        let icon_font = Font::try_from_bytes(lucide_icons::LUCIDE_FONT_BYTES.to_vec())
-            .expect("Failed to load Lucide icon font");
+        let icon_font = Font::try_from_bytes(lucide_icons::LUCIDE_FONT_BYTES.to_vec(), "lucide");
         let icon_handle = fonts.add(icon_font);
 
-        let editor_font = Font::try_from_bytes(INTER_VARIABLE_BYTES.to_vec())
-            .expect("Failed to load InterVariable font");
+        let editor_font = Font::try_from_bytes(INTER_VARIABLE_BYTES.to_vec(), "Inter Variable");
         let editor_font_handle = fonts.add(editor_font);
 
         app.insert_resource(IconFont(icon_handle));
@@ -37,8 +35,8 @@ pub fn icon(icon: Icon, size: f32, font: Handle<Font>) -> impl Bundle {
     (
         Text::new(String::from(icon.unicode())),
         TextFont {
-            font,
-            font_size: size,
+            font: FontSource::Handle(font),
+            font_size: FontSize::Px(size),
             ..Default::default()
         },
     )
@@ -49,8 +47,8 @@ pub fn icon_colored(icon: Icon, size: f32, font: Handle<Font>, color: Color) -> 
     (
         Text::new(String::from(icon.unicode())),
         TextFont {
-            font,
-            font_size: size,
+            font: FontSource::Handle(font),
+            font_size: FontSize::Px(size),
             ..Default::default()
         },
         TextColor(color),

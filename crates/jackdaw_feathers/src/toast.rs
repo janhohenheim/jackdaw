@@ -85,8 +85,8 @@ pub fn toast(
             (
                 Text::new(variant.icon().unicode()),
                 TextFont {
-                    font: icon_font.clone(),
-                    font_size: 18.0,
+                    font: FontSource::Handle(icon_font.clone()),
+                    font_size: FontSize::Px(18.0),
                     ..default()
                 },
                 TextColor(TEXT_BODY_COLOR.into()),
@@ -94,8 +94,8 @@ pub fn toast(
             (
                 Text::new(content),
                 TextFont {
-                    font: editor_font.clone(),
-                    font_size: TEXT_SIZE,
+                    font: FontSource::Handle(editor_font.clone()),
+                    font_size: FontSize::Px(TEXT_SIZE),
                     ..default()
                 },
                 TextColor(TEXT_BODY_COLOR.into()),

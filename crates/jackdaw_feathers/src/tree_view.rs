@@ -162,7 +162,7 @@ fn tree_row_content(
                 TreeRowLabel,
                 Text::new(label),
                 TextFont {
-                    font_size: tokens::FONT_MD,
+                    font_size: FontSize::Px(tokens::FONT_MD),
                     ..default()
                 },
                 Node {
@@ -279,15 +279,6 @@ fn tree_row_content(
 }
 
 fn expand_toggle(has_children: bool, icon_font: &Handle<Font>) -> impl Bundle {
-    let (text, font) = if has_children {
-        (
-            String::from(Icon::ChevronRight.unicode()),
-            icon_font.clone(),
-        )
-    } else {
-        (String::from(" "), Handle::default())
-    };
-
     (
         TreeNodeExpandToggle,
         Node {
@@ -296,10 +287,14 @@ fn expand_toggle(has_children: bool, icon_font: &Handle<Font>) -> impl Bundle {
             ..default()
         },
         children![(
-            Text::new(text),
+            Text::new(if has_children {
+                String::from(Icon::ChevronRight.unicode())
+            } else {
+                String::new()
+            }),
             TextFont {
-                font,
-                font_size: tokens::FONT_SM,
+                font: FontSource::Handle(icon_font.clone()),
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..default()
             },
             TextColor(tokens::TEXT_SECONDARY),
@@ -346,8 +341,8 @@ fn visibility_toggle(source: Entity, icon_font: &Handle<Font>) -> impl Bundle {
         children![(
             Text::new(String::from(Icon::Eye.unicode())),
             TextFont {
-                font: icon_font.clone(),
-                font_size: tokens::FONT_SM,
+                font: FontSource::Handle(icon_font.clone()),
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..default()
             },
             TextColor(tokens::TEXT_SECONDARY.with_alpha(0.4)),

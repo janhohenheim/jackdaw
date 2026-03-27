@@ -20,7 +20,7 @@ use jackdaw_widgets::tree_view::{
 
 use crate::{
     EditorEntity, EditorHidden,
-    commands::{CommandHistory, EditorCommand, ReparentEntity, SetComponentField},
+    commands::{CommandHistory, EditorCommand, ReparentEntity, SetBsnField},
     entity_ops,
     layout::HierarchyFilter,
     selection::{Selected, Selection},
@@ -129,6 +129,13 @@ fn classify_entity(world: &World, entity: Entity) -> EntityCategory {
 
 /// Check if an entity has any non-editor children.
 fn has_visible_children(world: &World, entity: Entity) -> bool {
+    // Prefer BSN AST children
+    let ast = world.resource::<jackdaw_bsn::SceneBsnAst>();
+    if let Some(ast_entity) = ast.ast_for(entity) {
+        let children = ast.get_children_ast(ast_entity);
+        return children.iter().any(|&child_ast| ast.ecs_for_ast(child_ast).is_some());
+    }
+    // Fallback to ECS
     let Some(children) = world.get::<Children>(entity) else {
         return false;
     };
@@ -140,10 +147,18 @@ fn has_visible_children(world: &World, entity: Entity) -> bool {
 /// Spawn a single (non-recursive) tree row for a source entity.
 /// Updates TreeIndex immediately.
 fn spawn_single_tree_row(world: &mut World, source: Entity, parent_container: Entity) -> Entity {
-    let label = world
-        .get::<Name>(source)
-        .map(|n| n.as_str().to_string())
-        .unwrap_or_else(|| format!("Entity {source}"));
+    // Read name from BSN AST first, fall back to ECS Name
+    let label = {
+        let ast = world.resource::<jackdaw_bsn::SceneBsnAst>();
+        ast.ast_for(source)
+            .and_then(|pe| ast.get_name(pe).map(|s| s.to_string()))
+    }
+    .unwrap_or_else(|| {
+        world
+            .get::<Name>(source)
+            .map(|n| n.as_str().to_string())
+            .unwrap_or_else(|| format!("Entity {source}"))
+    });
     let has_children = has_visible_children(world, source);
     let category = classify_entity(world, source);
     let icon_font = world.resource::<IconFont>().0.clone();
@@ -174,16 +189,28 @@ fn rebuild_hierarchy(world: &mut World) {
         return;
     };
 
-    // Collect all root scene entities (Transform, no ChildOf, no editor markers)
-    let roots: Vec<Entity> = world
-        .query_filtered::<Entity, (
-            With<Transform>,
-            Without<EditorEntity>,
-            Without<EditorHidden>,
-            Without<ChildOf>,
-        )>()
-        .iter(world)
+    // Read roots from BSN AST, mapping AST entities → ECS entities
+    let ast = world.resource::<jackdaw_bsn::SceneBsnAst>();
+    let ast_roots: Vec<Entity> = ast
+        .roots
+        .iter()
+        .filter_map(|&ast_root| ast.ecs_for_ast(ast_root))
         .collect();
+
+    // Fallback: if no AST roots, use ECS query (for scenes without BSN data)
+    let roots: Vec<Entity> = if ast_roots.is_empty() {
+        world
+            .query_filtered::<Entity, (
+                With<Transform>,
+                Without<EditorEntity>,
+                Without<EditorHidden>,
+                Without<ChildOf>,
+            )>()
+            .iter(world)
+            .collect()
+    } else {
+        ast_roots
+    };
 
     let show_all = world.resource::<HierarchyShowAll>().0;
 
@@ -191,13 +218,27 @@ fn rebuild_hierarchy(world: &mut World) {
     let mut root_data: Vec<(Entity, EntityCategory, String)> = roots
         .into_iter()
         .filter(|&e| !world.resource::<TreeIndex>().contains(e))
-        .filter(|&e| show_all || world.get::<Name>(e).is_some())
+        .filter(|&e| {
+            show_all || {
+                let ast = world.resource::<jackdaw_bsn::SceneBsnAst>();
+                ast.ast_for(e)
+                    .and_then(|pe| ast.get_name(pe))
+                    .is_some()
+                    || world.get::<Name>(e).is_some()
+            }
+        })
         .map(|e| {
+            let ast = world.resource::<jackdaw_bsn::SceneBsnAst>();
             let category = classify_entity(world, e);
-            let name = world
-                .get::<Name>(e)
-                .map(|n| n.as_str().to_string())
-                .unwrap_or_else(|| format!("Entity {e}"));
+            let name = ast
+                .ast_for(e)
+                .and_then(|pe| ast.get_name(pe).map(|s| s.to_string()))
+                .unwrap_or_else(|| {
+                    world
+                        .get::<Name>(e)
+                        .map(|n| n.as_str().to_string())
+                        .unwrap_or_else(|| format!("Entity {e}"))
+                });
             (e, category, name)
         })
         .collect();
@@ -511,11 +552,21 @@ fn on_tree_node_expanded(
             pop.0 = true;
         }
 
-        // Collect visible children with classification
-        let source_children: Vec<Entity> = world
-            .get::<Children>(source)
-            .map(|c| c.iter().collect())
-            .unwrap_or_default();
+        // Read children from BSN AST, fall back to ECS
+        let source_children: Vec<Entity> = {
+            let ast = world.resource::<jackdaw_bsn::SceneBsnAst>();
+            if let Some(ast_entity) = ast.ast_for(source) {
+                ast.get_children_ast(ast_entity)
+                    .iter()
+                    .filter_map(|&child_ast| ast.ecs_for_ast(child_ast))
+                    .collect()
+            } else {
+                world
+                    .get::<Children>(source)
+                    .map(|c| c.iter().collect())
+                    .unwrap_or_default()
+            }
+        };
 
         let mut child_data: Vec<(Entity, String, EntityCategory)> = Vec::new();
         for child in source_children {
@@ -528,10 +579,17 @@ fn on_tree_node_expanded(
             if world.resource::<TreeIndex>().contains(child) {
                 continue;
             }
-            let name = world
-                .get::<Name>(child)
-                .map(|n| n.as_str().to_string())
-                .unwrap_or_else(|| format!("Entity {child}"));
+            // Read name from BSN AST first
+            let ast = world.resource::<jackdaw_bsn::SceneBsnAst>();
+            let name = ast
+                .ast_for(child)
+                .and_then(|pe| ast.get_name(pe).map(|s| s.to_string()))
+                .unwrap_or_else(|| {
+                    world
+                        .get::<Name>(child)
+                        .map(|n| n.as_str().to_string())
+                        .unwrap_or_else(|| format!("Entity {child}"))
+                });
             let category = classify_entity(world, child);
             child_data.push((child, name, category));
         }
@@ -953,6 +1011,7 @@ fn on_visibility_toggled(
     event: On<TreeRowVisibilityToggled>,
     mut commands: Commands,
     visibility_query: Query<&Visibility>,
+    type_registry: Res<AppTypeRegistry>,
 ) {
     let source = event.source_entity;
 
@@ -966,16 +1025,21 @@ fn on_visibility_toggled(
         _ => Visibility::Hidden,
     };
 
-    // Apply with undo
-    let old_value: Box<dyn bevy::reflect::PartialReflect> = Box::new(current);
-    let new_value: Box<dyn bevy::reflect::PartialReflect> = Box::new(new_visibility);
+    let reg = type_registry.read();
+    let old_bsn = jackdaw_bsn::BsnValue::from_reflect(current.as_partial_reflect(), &reg);
+    let new_bsn = jackdaw_bsn::BsnValue::from_reflect(new_visibility.as_partial_reflect(), &reg);
+    let type_path = reg
+        .get(TypeId::of::<Visibility>())
+        .map(|r| r.type_info().type_path_table().path().to_string())
+        .unwrap_or_default();
+    drop(reg);
 
-    let cmd = SetComponentField {
+    let cmd = SetBsnField {
         entity: source,
-        component_type_id: TypeId::of::<Visibility>(),
+        type_path,
         field_path: String::new(),
-        old_value,
-        new_value,
+        old_value: old_bsn,
+        new_value: new_bsn,
     };
 
     commands.queue(move |world: &mut World| {
@@ -1193,12 +1257,11 @@ fn handle_inline_rename_commit(
     });
 }
 
-/// Commit inline rename: update Name with undo.
+/// Commit inline rename: update Name with undo via BSN AST.
 fn on_tree_row_renamed(event: On<TreeRowRenamed>, mut commands: Commands, names: Query<&Name>) {
     let source = event.source_entity;
     let new_name = event.new_name.clone();
 
-    // Apply name change with undo
     let old_name = names
         .get(source)
         .map(|n| n.as_str().to_string())
@@ -1209,14 +1272,12 @@ fn on_tree_row_renamed(event: On<TreeRowRenamed>, mut commands: Commands, names:
     }
 
     commands.queue(move |world: &mut World| {
-        let cmd = SetComponentField {
+        let cmd = crate::commands::SetBsnName {
             entity: source,
-            component_type_id: TypeId::of::<Name>(),
-            field_path: String::new(),
-            old_value: Box::new(Name::new(old_name)),
-            new_value: Box::new(Name::new(new_name)),
+            old_name,
+            new_name,
         };
-        let mut cmd = Box::new(cmd);
+        let mut cmd: Box<dyn EditorCommand> = Box::new(cmd);
         cmd.execute(world);
         let mut history = world.resource_mut::<CommandHistory>();
         history.undo_stack.push(cmd);

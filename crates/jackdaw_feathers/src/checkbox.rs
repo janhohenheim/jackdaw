@@ -94,8 +94,8 @@ pub fn checkbox(
                     CheckboxIconMarker,
                     Text::new(Icon::Check.unicode()),
                     TextFont {
-                        font: icon_font.clone(),
-                        font_size: 12.0,
+                        font: FontSource::Handle(icon_font.clone()),
+                        font_size: FontSize::Px(12.0),
                         ..default()
                     },
                     TextColor(TEXT_BODY_COLOR.into()),
@@ -108,8 +108,8 @@ pub fn checkbox(
             (
                 Text::new(label),
                 TextFont {
-                    font: editor_font.clone(),
-                    font_size: TEXT_SIZE,
+                    font: FontSource::Handle(editor_font.clone()),
+                    font_size: FontSize::Px(TEXT_SIZE),
                     ..default()
                 },
                 TextColor(TEXT_BODY_COLOR.into()),

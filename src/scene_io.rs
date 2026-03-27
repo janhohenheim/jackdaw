@@ -120,8 +120,9 @@ fn spawn_save_dialog(world: &mut World) {
     let last_dir = world.resource::<SceneFilePath>().last_directory.clone();
 
     let mut dialog = AsyncFileDialog::new()
+        .add_filter("BSN Scene", &["bsn"])
         .add_filter("JSN Scene", &["jsn"])
-        .set_file_name("scene.jsn");
+        .set_file_name("scene.bsn");
 
     if let Some(dir) = &last_dir {
         dialog = dialog.set_directory(dir);
@@ -142,6 +143,7 @@ fn spawn_open_dialog(world: &mut World) {
 
     let mut dialog = AsyncFileDialog::new()
         .add_filter("JSN Scene", &["jsn"])
+        .add_filter("BSN Scene", &["bsn"])
         .add_filter("Legacy Scene", &["scene.json"]);
 
     if let Some(dir) = &last_dir {
@@ -159,13 +161,17 @@ fn spawn_open_dialog(world: &mut World) {
 
 pub fn save_scene(world: &mut World) {
     // If no path is set yet, delegate to Save As
-    let has_path = world.resource::<SceneFilePath>().path.is_some();
-    if !has_path {
+    let path = world.resource::<SceneFilePath>().path.clone();
+    let Some(path) = path else {
         save_scene_as(world);
         return;
-    }
+    };
 
-    save_scene_inner(world);
+    if path.ends_with(".bsn") {
+        save_scene_bsn(world);
+    } else {
+        save_scene_inner(world);
+    }
 }
 
 pub fn save_scene_as(world: &mut World) {
@@ -288,6 +294,329 @@ fn save_scene_inner(world: &mut World) {
 
     // Save catalog alongside scene if dirty
     crate::asset_catalog::save_catalog(world);
+}
+
+/// Save the current scene as a `.bsn` file.
+///
+/// Builds a BSN AST from the ECS world state (reusing the existing entity
+/// collection and component filtering), then pretty-prints it to BSN text.
+/// Also writes a `.bsn.meta` sidecar with editor metadata.
+pub fn save_scene_bsn(world: &mut World) {
+    let scene_file_path = world.resource::<SceneFilePath>();
+    let path = match &scene_file_path.path {
+        Some(p) => {
+            // Replace .jsn extension with .bsn
+            let p = if p.ends_with(".jsn") {
+                format!("{}.bsn", &p[..p.len() - 4])
+            } else if !p.ends_with(".bsn") {
+                format!("{p}.bsn")
+            } else {
+                p.clone()
+            };
+            p
+        }
+        None => {
+            warn!("save_scene_bsn called without a path set");
+            return;
+        }
+    };
+    // Always rebuild the AST from ECS before emitting — entities spawned
+    // after the initial build_and_link_ast (brushes, entity_ops, etc.) would
+    // otherwise be missing from the AST.
+    let material_names = collect_and_name_materials(world);
+    build_and_link_ast_with_materials(world, &material_names);
+    let ast = world.resource::<jackdaw_bsn::SceneBsnAst>();
+    let bsn_text = jackdaw_bsn::emit_scene(ast);
+
+    // Use Bevy's asset serializer for assets.bsn
+    let mat_assets: Vec<(String, TypeId, bevy::asset::UntypedAssetId)> = material_names
+        .iter()
+        .map(|(id, name)| (name.clone(), TypeId::of::<StandardMaterial>(), *id))
+        .collect();
+    let materials_text = bevy::scene2::dynamic_bsn_writer::serialize_assets_to_bsn(world, &mat_assets);
+
+    // Build metadata for sidecar
+    let now = chrono_now();
+    let scene_path_res = world.resource::<SceneFilePath>();
+    let mut metadata = scene_path_res.metadata.clone();
+    metadata.modified = now.clone();
+    if metadata.created.is_empty() {
+        metadata.created = now;
+    }
+    if metadata.name.is_empty() {
+        metadata.name = "Untitled".to_string();
+    }
+
+    let meta_toml = format!(
+        "[metadata]\nname = \"{}\"\nauthor = \"{}\"\ncreated = \"{}\"\nmodified = \"{}\"\n",
+        metadata.name,
+        metadata.author.as_str(),
+        metadata.created,
+        metadata.modified,
+    );
+
+    // Mark scene as clean
+    let history_len = world
+        .resource::<jackdaw_commands::CommandHistory>()
+        .undo_stack
+        .len();
+    world.resource_mut::<SceneDirtyState>().undo_len_at_save = history_len;
+
+    // Write to disk (scene + materials + metadata)
+    let meta_path = format!("{path}.meta");
+    let materials_path = {
+        let dir = Path::new(&path).parent().unwrap_or(Path::new("."));
+        dir.join("assets.bsn").to_string_lossy().into_owned()
+    };
+    IoTaskPool::get()
+        .spawn(async move {
+            match std::fs::write(&path, &bsn_text) {
+                Ok(()) => info!("BSN scene saved to {path}"),
+                Err(err) => warn!("Failed to write BSN scene: {err}"),
+            }
+            if !materials_text.is_empty() {
+                match std::fs::write(&materials_path, &materials_text) {
+                    Ok(()) => info!("Assets saved to {materials_path}"),
+                    Err(err) => warn!("Failed to write assets: {err}"),
+                }
+            }
+            match std::fs::write(&meta_path, &meta_toml) {
+                Ok(()) => {}
+                Err(err) => warn!("Failed to write BSN metadata: {err}"),
+            }
+        })
+        .detach();
+}
+
+/// Build the BSN AST from ECS, link every scene entity to its AST node via
+/// `AstNodeRef`, and store the AST as the `SceneBsnAst` resource.
+///
+/// Call this after spawning scene entities (new scene, JSN load) so the
+/// live-AST pipeline works for subsequent edits and saves.
+pub fn build_and_link_ast(world: &mut World) {
+    use jackdaw_bsn::*;
+
+    let parent_path = world
+        .resource::<SceneFilePath>()
+        .path
+        .as_ref()
+        .and_then(|p| Path::new(p).parent().map(|pp| pp.to_path_buf()))
+        .unwrap_or_else(|| env::current_dir().unwrap_or_default());
+
+    let editor_set = collect_editor_entities(world);
+    let scene_entities = collect_scene_entities_from_set(world, &editor_set);
+
+    let registry = world.resource::<AppTypeRegistry>().clone();
+    let registry_guard = registry.read();
+
+    let entity_set: HashSet<Entity> = scene_entities.iter().copied().collect();
+
+    // Build parent → children map.
+    let mut roots = Vec::new();
+    let mut children_map: HashMap<Entity, Vec<Entity>> = HashMap::new();
+    for &entity in &scene_entities {
+        let parent = world
+            .get::<ChildOf>(entity)
+            .map(|c| c.parent())
+            .filter(|p| entity_set.contains(p));
+        if let Some(parent) = parent {
+            children_map.entry(parent).or_default().push(entity);
+        } else {
+            roots.push(entity);
+        }
+    }
+
+    let skip_ids: HashSet<TypeId> = HashSet::from([
+        TypeId::of::<Name>(),
+        TypeId::of::<Transform>(),
+        TypeId::of::<GlobalTransform>(),
+        TypeId::of::<Visibility>(),
+        TypeId::of::<InheritedVisibility>(),
+        TypeId::of::<ViewVisibility>(),
+        TypeId::of::<ChildOf>(),
+        TypeId::of::<Children>(),
+    ]);
+
+    let mut ast = SceneBsnAst::default();
+
+    // ECS entity → AST patches entity, collected during build.
+    let mut ecs_to_ast_map: Vec<(Entity, Entity)> = Vec::new();
+
+    for &root in &roots {
+        let patches_entity = build_entity_ast_linked(
+            world,
+            &registry_guard,
+            &parent_path,
+            root,
+            &skip_ids,
+            &children_map,
+            &mut ast,
+            &mut ecs_to_ast_map,
+        );
+        ast.add_to_roots(patches_entity);
+    }
+
+    drop(registry_guard);
+
+    // Link ECS ↔ AST and insert AstNodeRef on each entity.
+    for (ecs_entity, ast_entity) in &ecs_to_ast_map {
+        ast.link(*ecs_entity, *ast_entity);
+    }
+    *world.resource_mut::<SceneBsnAst>() = ast;
+
+    for (ecs_entity, ast_entity) in ecs_to_ast_map {
+        if let Ok(mut ec) = world.get_entity_mut(ecs_entity) {
+            ec.insert(AstNodeRef {
+                patches_entity: ast_entity,
+            });
+        }
+    }
+}
+
+/// Like `build_entity_ast` but also records the ECS→AST mapping.
+fn build_entity_ast_linked(
+    world: &World,
+    registry: &TypeRegistry,
+    parent_path: &Path,
+    entity: Entity,
+    skip_ids: &HashSet<TypeId>,
+    children_map: &HashMap<Entity, Vec<Entity>>,
+    ast: &mut jackdaw_bsn::SceneBsnAst,
+    ecs_to_ast: &mut Vec<(Entity, Entity)>,
+) -> Entity {
+    use jackdaw_bsn::*;
+
+    let entity_ref = world.entity(entity);
+    let mut patches = Vec::new();
+
+    let asset_ctx = world.get_resource::<AssetServer>().map(|asset_server| {
+        BsnAssetContext {
+            asset_server,
+            parent_path,
+        }
+    });
+
+    // #Name
+    if let Some(name) = entity_ref.get::<Name>() {
+        patches.push(ast.world.spawn(BsnPatch::Name(name.to_string())).id());
+    }
+
+    // Visibility (only if non-default)
+    if let Some(vis) = entity_ref.get::<Visibility>() {
+        match vis {
+            Visibility::Hidden => {
+                patches.push(
+                    ast.world
+                        .spawn(BsnPatch::Type(
+                            "bevy_camera::visibility::Visibility::Hidden".into(),
+                        ))
+                        .id(),
+                );
+            }
+            Visibility::Visible => {
+                patches.push(
+                    ast.world
+                        .spawn(BsnPatch::Type(
+                            "bevy_camera::visibility::Visibility::Visible".into(),
+                        ))
+                        .id(),
+                );
+            }
+            _ => {}
+        }
+    }
+
+    // Transform (only non-default fields)
+    if let Some(transform) = entity_ref.get::<Transform>() {
+        let patch = component_to_bsn_patch(transform.as_partial_reflect(), registry);
+        patches.push(ast.world.spawn(patch).id());
+    }
+
+    // All other reflected components
+    for registration in registry.iter() {
+        if skip_ids.contains(&registration.type_id()) {
+            continue;
+        }
+        let type_path = registration.type_info().type_path_table().path();
+        if should_skip_component(type_path) {
+            continue;
+        }
+        let Some(reflect_component) = registration.data::<ReflectComponent>() else {
+            continue;
+        };
+        let Some(component) = reflect_component.reflect(entity_ref) else {
+            continue;
+        };
+
+        if let Some(reflect_handle) = registration.data::<ReflectHandle>() {
+            if let Some(path_str) =
+                try_emit_handle_as_path(world, component, reflect_handle, parent_path)
+            {
+                patches.push(
+                    ast.world
+                        .spawn(BsnPatch::TupleStruct(BsnTupleStructData {
+                            type_path: type_path.to_string(),
+                            values: vec![BsnValue::String(path_str)],
+                        }))
+                        .id(),
+                );
+                continue;
+            }
+        }
+
+        // Use asset-aware conversion so Handle<T> fields inside structs get resolved
+        let patch = if let Some(ref ctx) = asset_ctx {
+            component_to_bsn_patch_with_assets(component, registry, ctx)
+        } else {
+            component_to_bsn_patch(component, registry)
+        };
+        patches.push(ast.world.spawn(patch).id());
+    }
+
+    // Children
+    if let Some(children) = children_map.get(&entity) {
+        let child_ast_entities: Vec<Entity> = children
+            .iter()
+            .map(|&child| {
+                build_entity_ast_linked(
+                    world,
+                    registry,
+                    parent_path,
+                    child,
+                    skip_ids,
+                    children_map,
+                    ast,
+                    ecs_to_ast,
+                )
+            })
+            .collect();
+        patches.push(ast.world.spawn(BsnPatch::Children(child_ast_entities)).id());
+    }
+
+    let ast_entity = ast.world.spawn(BsnPatches(patches)).id();
+    ecs_to_ast.push((entity, ast_entity));
+    ast_entity
+}
+
+/// Try to emit a Handle<T> component as an asset path string.
+/// Returns `Some(path)` if the handle points to a file-backed asset.
+fn try_emit_handle_as_path(
+    world: &World,
+    component: &dyn bevy::reflect::Reflect,
+    reflect_handle: &ReflectHandle,
+    parent_path: &Path,
+) -> Option<String> {
+    let untyped_handle = reflect_handle.downcast_handle_untyped(component.as_any())?;
+    let asset_server = world.get_resource::<AssetServer>()?;
+    let path = asset_server.get_path(untyped_handle.id())?;
+
+    // Make relative to parent_path if possible
+    let path_str = path.to_string();
+    if let Some(relative) = pathdiff::diff_paths(&path_str, parent_path) {
+        Some(relative.to_string_lossy().into_owned())
+    } else {
+        Some(path_str)
+    }
 }
 
 pub fn load_scene(world: &mut World) {
@@ -1122,7 +1451,7 @@ fn build_scene_snapshot(
 
 // ─────────────────────────────────── Load ───────────────────────────────────
 
-fn finish_load_scene(world: &mut World, chosen: &std::path::Path) {
+pub(crate) fn finish_load_scene(world: &mut World, chosen: &std::path::Path) {
     let path = chosen.to_string_lossy().to_string();
     let last_dir = chosen.parent().map(|p| p.to_path_buf());
 
@@ -1137,14 +1466,71 @@ fn finish_load_scene(world: &mut World, chosen: &std::path::Path) {
         }
     };
 
+    if path.ends_with(".bsn") {
+        // BSN format: load materials → parse scene → spawn → apply
+        clear_scene_entities(world);
+
+        match jackdaw_bsn::parse_bsn_text(&json) {
+            Ok(ast) => {
+                // Store the AST as the authoritative scene data.
+                *world.resource_mut::<jackdaw_bsn::SceneBsnAst>() = ast;
+
+                // Spawn entities linked to AST nodes, marked AstDirty.
+                let spawned = jackdaw_bsn::spawn_from_ast(world);
+                // Apply patches immediately so components (Transform, Brush,
+                // DirectionalLight, etc.) are available this frame — otherwise
+                // mesh regen and hierarchy systems running in Update would miss them.
+                jackdaw_bsn::apply_dirty_ast_patches(world);
+                info!("BSN scene loaded from {path} ({} entities)", spawned.len());
+            }
+            Err(err) => {
+                warn!("Failed to parse BSN file: {err}");
+                return;
+            }
+        }
+
+        // Load .bsn.meta sidecar if it exists.
+        let meta_path = format!("{path}.meta");
+        if let Ok(meta_toml) = std::fs::read_to_string(&meta_path) {
+            // Simple TOML parsing for metadata (name, author, created, modified).
+            let mut metadata = JsnMetadata::default();
+            for line in meta_toml.lines() {
+                let line = line.trim();
+                if let Some(val) = line.strip_prefix("name = \"").and_then(|s| s.strip_suffix('"'))
+                {
+                    metadata.name = val.to_string();
+                } else if let Some(val) =
+                    line.strip_prefix("author = \"").and_then(|s| s.strip_suffix('"'))
+                {
+                    metadata.author = val.to_string().into();
+                } else if let Some(val) =
+                    line.strip_prefix("created = \"").and_then(|s| s.strip_suffix('"'))
+                {
+                    metadata.created = val.to_string();
+                } else if let Some(val) =
+                    line.strip_prefix("modified = \"").and_then(|s| s.strip_suffix('"'))
+                {
+                    metadata.modified = val.to_string();
+                }
+            }
+            world.resource_mut::<SceneFilePath>().metadata = metadata;
+        }
+
+        world.resource_mut::<SceneFilePath>().path = Some(path);
+        world.resource_mut::<SceneDirtyState>().undo_len_at_save = 0;
+        return;
+    }
+
     if path.ends_with(".scene.json") {
         // Legacy format: raw DynamicScene JSON
         let registry = world.resource::<AppTypeRegistry>().clone();
         let registry = registry.read();
+        let mut asset_server = world.resource::<AssetServer>().clone();
 
         use bevy::scene::serde::SceneDeserializer;
         let scene_deserializer = SceneDeserializer {
             type_registry: &registry,
+            load_from_path: &mut asset_server,
         };
         let mut json_de = serde_json::Deserializer::from_str(&json);
         let scene = match scene_deserializer.deserialize(&mut json_de) {
@@ -1158,7 +1544,10 @@ fn finish_load_scene(world: &mut World, chosen: &std::path::Path) {
         drop(registry);
         clear_scene_entities(world);
         match scene.write_to_world(world, &mut Default::default()) {
-            Ok(_) => info!("Scene loaded from {path} (legacy format)"),
+            Ok(_) => {
+                build_and_link_ast(world);
+                info!("Scene loaded from {path} (legacy format)");
+            }
             Err(err) => warn!("Failed to write scene to world: {err}"),
         }
     } else {
@@ -1189,6 +1578,10 @@ fn finish_load_scene(world: &mut World, chosen: &std::path::Path) {
 
         // Load entities with processor
         load_scene_from_jsn(world, &jsn.scene, parent_path, &local_assets);
+
+        // Build the BSN AST from the loaded entities so the live-AST
+        // pipeline works for edits and BSN saves.
+        build_and_link_ast(world);
 
         info!("Scene loaded from {path}");
 
@@ -1462,6 +1855,7 @@ fn do_new_scene(world: &mut World) {
     scene_path.metadata = JsnMetadata::default();
     world.resource_mut::<SceneDirtyState>().undo_len_at_save = 0;
     spawn_default_lighting(world);
+    build_and_link_ast(world);
     info!("New scene created");
 }
 
@@ -1476,7 +1870,7 @@ pub fn spawn_default_lighting(world: &mut World) {
     world.spawn((
         Name::new("Sun"),
         DirectionalLight {
-            shadows_enabled: true,
+            shadow_maps_enabled: true,
             illuminance: 10000.0,
             ..default()
         },
@@ -1530,8 +1924,10 @@ fn cleanup_pending_new_scene(
 /// Collect scene entities (named non-editor entities and all their descendants).
 /// Requires `&mut World` for `query_filtered`.
 fn collect_scene_entities_from_set(world: &mut World, editor_set: &HashSet<Entity>) -> Vec<Entity> {
+    // Require Transform to exclude Bevy internal entities (gizmo renderers etc.)
+    // that have Name but aren't scene content.
     let roots: Vec<Entity> = world
-        .query_filtered::<Entity, With<Name>>()
+        .query_filtered::<Entity, (With<Name>, With<Transform>)>()
         .iter(world)
         .filter(|e| !editor_set.contains(e))
         .collect();
@@ -1593,6 +1989,9 @@ pub(crate) fn clear_scene_entities(world: &mut World) {
     let mut history = world.resource_mut::<jackdaw_commands::CommandHistory>();
     history.undo_stack.clear();
     history.redo_stack.clear();
+
+    // Reset the BSN AST.
+    *world.resource_mut::<jackdaw_bsn::SceneBsnAst>() = Default::default();
 
     let editor_set = collect_editor_entities(world);
 
@@ -1744,10 +2143,14 @@ fn poll_scene_dialog(world: &mut World) {
                 let last_dir = path.parent().map(|p| p.to_path_buf());
 
                 let mut scene_path = world.resource_mut::<SceneFilePath>();
-                scene_path.path = Some(path_str);
+                scene_path.path = Some(path_str.clone());
                 scene_path.last_directory = last_dir;
 
-                save_scene_inner(world);
+                if path_str.ends_with(".bsn") {
+                    save_scene_bsn(world);
+                } else {
+                    save_scene_inner(world);
+                }
             }
         }
         SceneDialogTask::Load(t) => {
@@ -1782,3 +2185,247 @@ fn handle_scene_io_keys(world: &mut World) {
         new_scene(world);
     }
 }
+
+/// Recursively link an entity and all its descendants to the AST.
+pub fn link_entity_tree_to_ast(world: &mut World, entity: Entity, parent: Option<Entity>) {
+    link_single_entity_to_ast(world, entity, parent);
+    let children: Vec<Entity> = world
+        .get::<Children>(entity)
+        .map(|c| c.iter().collect())
+        .unwrap_or_default();
+    for child in children {
+        link_entity_tree_to_ast(world, child, Some(entity));
+    }
+}
+
+/// Build a full AST node for a single entity (all component patches) and link
+/// it into the AST under `parent` (or as a root).
+pub fn link_single_entity_to_ast(world: &mut World, entity: Entity, parent: Option<Entity>) {
+    use jackdaw_bsn::*;
+
+    let parent_path = world
+        .resource::<SceneFilePath>()
+        .path
+        .as_ref()
+        .and_then(|p| Path::new(p).parent().map(|pp| pp.to_path_buf()))
+        .unwrap_or_else(|| env::current_dir().unwrap_or_default());
+
+    let registry = world.resource::<AppTypeRegistry>().clone();
+    let registry_guard = registry.read();
+
+    let skip_ids: HashSet<TypeId> = HashSet::from([
+        TypeId::of::<Name>(),
+        TypeId::of::<Transform>(),
+        TypeId::of::<GlobalTransform>(),
+        TypeId::of::<Visibility>(),
+        TypeId::of::<InheritedVisibility>(),
+        TypeId::of::<ViewVisibility>(),
+        TypeId::of::<ChildOf>(),
+        TypeId::of::<Children>(),
+    ]);
+
+    // Phase 1: Build patches from ECS components (read-only world access).
+    let patches = {
+        let entity_ref = world.entity(entity);
+        let mut patches = Vec::new();
+
+        let asset_ctx = world.get_resource::<AssetServer>().map(|asset_server| {
+            BsnAssetContext {
+                asset_server,
+                parent_path: &parent_path,
+            }
+        });
+
+        // #Name
+        if let Some(name) = entity_ref.get::<Name>() {
+            patches.push(BsnPatch::Name(name.to_string()));
+        }
+
+        // Visibility (only if non-default)
+        if let Some(vis) = entity_ref.get::<Visibility>() {
+            match vis {
+                Visibility::Hidden => {
+                    patches.push(BsnPatch::Type(
+                        "bevy_camera::visibility::Visibility::Hidden".into(),
+                    ));
+                }
+                Visibility::Visible => {
+                    patches.push(BsnPatch::Type(
+                        "bevy_camera::visibility::Visibility::Visible".into(),
+                    ));
+                }
+                _ => {}
+            }
+        }
+
+        // Transform (only non-default fields)
+        if let Some(transform) = entity_ref.get::<Transform>() {
+            patches.push(component_to_bsn_patch(
+                transform.as_partial_reflect(),
+                &registry_guard,
+            ));
+        }
+
+        // All other reflected components
+        for registration in registry_guard.iter() {
+            if skip_ids.contains(&registration.type_id()) {
+                continue;
+            }
+            let type_path = registration.type_info().type_path_table().path();
+            if should_skip_component(type_path) {
+                continue;
+            }
+            let Some(reflect_component) = registration.data::<ReflectComponent>() else {
+                continue;
+            };
+            let Some(component) = reflect_component.reflect(entity_ref) else {
+                continue;
+            };
+
+            if let Some(reflect_handle) = registration.data::<ReflectHandle>() {
+                if let Some(path_str) =
+                    try_emit_handle_as_path(world, component, reflect_handle, &parent_path)
+                {
+                    patches.push(BsnPatch::TupleStruct(BsnTupleStructData {
+                        type_path: type_path.to_string(),
+                        values: vec![BsnValue::String(path_str)],
+                    }));
+                    continue;
+                }
+            }
+
+            let patch = if let Some(ref ctx) = asset_ctx {
+                component_to_bsn_patch_with_assets(component, &registry_guard, ctx)
+            } else {
+                component_to_bsn_patch(component, &registry_guard)
+            };
+            patches.push(patch);
+        }
+
+        patches
+    };
+
+    drop(registry_guard);
+
+    // Phase 2: Create AST node and link.
+    let mut ast = world.resource_mut::<SceneBsnAst>();
+    let ast_entity = ast.create_entity_node(patches);
+
+    let parent_ast = parent.and_then(|p| ast.ast_for(p));
+    if let Some(parent_ast) = parent_ast {
+        ast.add_child_to_ast(parent_ast, ast_entity);
+    } else {
+        ast.add_to_roots(ast_entity);
+    }
+    ast.link(entity, ast_entity);
+
+    drop(ast);
+
+    world
+        .entity_mut(entity)
+        .insert(AstNodeRef { patches_entity: ast_entity });
+}
+
+// ---------------------------------------------------------------------------
+// Materials BSN helpers
+// ---------------------------------------------------------------------------
+
+/// Collect all unique materials from brush faces and assign names.
+/// Returns a map of `UntypedAssetId → name`.
+fn collect_and_name_materials(world: &mut World) -> HashMap<UntypedAssetId, String> {
+    let mut material_map: HashMap<UntypedAssetId, String> = HashMap::new();
+    let mut next_index = 0usize;
+
+    let mut query = world.query::<&Brush>();
+    for brush in query.iter(world) {
+        for face in &brush.faces {
+            let handle = &face.material;
+            if handle.id() == bevy::asset::AssetId::<StandardMaterial>::default().untyped() {
+                continue; // Skip default/empty handles
+            }
+            let untyped_id = handle.id().untyped();
+            if material_map.contains_key(&untyped_id) {
+                continue;
+            }
+            let name = format!("Material_{next_index}");
+            next_index += 1;
+            material_map.insert(untyped_id, name);
+        }
+    }
+
+    material_map
+}
+
+/// Like `build_and_link_ast` but uses material names for Handle fields.
+fn build_and_link_ast_with_materials(
+    world: &mut World,
+    material_names: &HashMap<UntypedAssetId, String>,
+) {
+    // Store material names in a thread-local for the BSN conversion to pick up.
+    // For now, we just call the standard build_and_link_ast.
+    // The material name resolution happens in emit_materials_bsn + AST patching.
+    build_and_link_ast(world);
+
+    // Post-process: replace empty material strings in the AST with #name references
+    let registry = world.resource::<AppTypeRegistry>().clone();
+    let _reg = registry.read();
+
+    let brush_entities: Vec<Entity> = world
+        .query_filtered::<Entity, With<Brush>>()
+        .iter(world)
+        .collect();
+
+    for entity in brush_entities {
+        let Some(brush) = world.get::<Brush>(entity) else {
+            continue;
+        };
+        let face_materials: Vec<Option<String>> = brush
+            .faces
+            .iter()
+            .map(|face| {
+                let id = face.material.id().untyped();
+                material_names.get(&id).map(|n| format!("assets.bsn#{n}"))
+            })
+            .collect();
+
+        // Update the AST's Brush patch to use #name strings for materials
+        let Some(ast_ref) = world.get::<jackdaw_bsn::AstNodeRef>(entity) else {
+            continue;
+        };
+        let patches_entity = ast_ref.patches_entity;
+
+        let mut ast = world.resource_mut::<jackdaw_bsn::SceneBsnAst>();
+        let brush_type_path = "jackdaw_jsn::types::Brush";
+        let Some(patch_entity) = ast.find_patch_by_type_path(patches_entity, brush_type_path) else {
+            continue;
+        };
+
+        let Some(patch) = ast.get_patch(patch_entity).cloned() else {
+            continue;
+        };
+
+        if let jackdaw_bsn::BsnPatch::Struct(mut data) = patch {
+            // Find the "faces" field and update material strings
+            for field in &mut data.fields.0 {
+                if field.name == "faces" {
+                    if let jackdaw_bsn::BsnValue::List(ref mut items) = field.value {
+                        for (i, item) in items.iter_mut().enumerate() {
+                            if let jackdaw_bsn::BsnValue::Struct(face_data) = item {
+                                for face_field in &mut face_data.fields.0 {
+                                    if face_field.name == "material" {
+                                        if let Some(ref mat_name) = face_materials.get(i).and_then(|m| m.clone()) {
+                                            face_field.value = jackdaw_bsn::BsnValue::String(mat_name.clone());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            ast.set_patch(patch_entity, jackdaw_bsn::BsnPatch::Struct(data));
+        }
+    }
+}
+
+

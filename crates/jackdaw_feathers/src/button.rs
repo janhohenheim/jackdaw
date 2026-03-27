@@ -340,8 +340,8 @@ fn setup_button(
                 parent.spawn((
                     Text::new(icon.unicode()),
                     TextFont {
-                        font: icon_font.0.clone(),
-                        font_size: size.icon_size(),
+                        font: FontSource::Handle(icon_font.0.clone()),
+                        font_size: FontSize::Px(size.icon_size()),
                         ..default()
                     },
                     TextColor(variant.text_color().into()),
@@ -352,8 +352,8 @@ fn setup_button(
                 parent.spawn((
                     Text::new(&config.content),
                     TextFont {
-                        font: font.clone(),
-                        font_size: TEXT_SIZE,
+                        font: FontSource::Handle(font.clone()),
+                        font_size: FontSize::Px(TEXT_SIZE),
                         weight: FontWeight::MEDIUM,
                         ..default()
                     },
@@ -369,8 +369,8 @@ fn setup_button(
                 parent.spawn((
                     Text::new(subtitle),
                     TextFont {
-                        font: font.clone(),
-                        font_size: TEXT_SIZE_SM,
+                        font: FontSource::Handle(font.clone()),
+                        font_size: FontSize::Px(TEXT_SIZE_SM),
                         ..default()
                     },
                     TextColor(TEXT_MUTED_COLOR.into()),
@@ -385,8 +385,8 @@ fn setup_button(
                 parent.spawn((
                     Text::new(icon.unicode()),
                     TextFont {
-                        font: icon_font.0.clone(),
-                        font_size: size.icon_size(),
+                        font: FontSource::Handle(icon_font.0.clone()),
+                        font_size: FontSize::Px(size.icon_size()),
                         ..default()
                     },
                     TextColor(variant.text_color().into()),
@@ -452,8 +452,8 @@ pub fn icon_button(props: IconButtonProps, icon_font: &Handle<Font>) -> impl Bun
         children![(
             Text::new(icon.unicode()),
             TextFont {
-                font: icon_font.clone(),
-                font_size: size.icon_size(),
+                font: FontSource::Handle(icon_font.clone()),
+                font_size: FontSize::Px(size.icon_size()),
                 ..default()
             },
             TextColor(Color::Srgba(icon_color)),

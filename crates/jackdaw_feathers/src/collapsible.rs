@@ -61,8 +61,8 @@ pub fn collapsible_section(
     commands.spawn((
         Text::new(String::from(Icon::ChevronDown.unicode())),
         TextFont {
-            font: font.clone(),
-            font_size: tokens::FONT_SM,
+            font: FontSource::Handle(font.clone()),
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         TextColor(tokens::TEXT_SECONDARY),
@@ -73,7 +73,7 @@ pub fn collapsible_section(
     commands.spawn((
         Text::new(title_owned),
         TextFont {
-            font_size: tokens::FONT_MD,
+            font_size: FontSize::Px(tokens::FONT_MD),
             ..Default::default()
         },
         ThemedText,

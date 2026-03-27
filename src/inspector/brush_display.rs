@@ -64,7 +64,7 @@ pub(super) fn spawn_brush_display(
     commands.spawn((
         Text::new(info),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         TextColor(tokens::TEXT_SECONDARY),
@@ -118,7 +118,7 @@ fn spawn_material_summary(
     commands.spawn((
         Text::new("Materials & Textures"),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         TextColor(tokens::TEXT_SECONDARY),
@@ -172,7 +172,7 @@ fn spawn_material_summary(
         commands.spawn((
             Text::new(mat_label),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(if is_default {
@@ -196,7 +196,7 @@ fn spawn_material_summary(
         commands.spawn((
             Text::new(count_text),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_SECONDARY),
@@ -221,7 +221,7 @@ fn spawn_material_summary(
         commands.spawn((
             Text::new("Clear All"),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_PRIMARY),
@@ -351,7 +351,7 @@ pub(crate) fn update_brush_face_properties(
     commands.spawn((
         Text::new(header_text),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         TextColor(tokens::TEXT_PRIMARY),
@@ -399,7 +399,7 @@ pub(crate) fn update_brush_face_properties(
         commands.spawn((
             Text::new(mat_label),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_SECONDARY),
@@ -425,7 +425,7 @@ pub(crate) fn update_brush_face_properties(
         commands.spawn((
             Text::new("Clear"),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_PRIMARY),
@@ -466,7 +466,7 @@ pub(crate) fn update_brush_face_properties(
         commands.spawn((
             Text::new("Apply to All Faces"),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_PRIMARY),
@@ -495,7 +495,7 @@ pub(crate) fn update_brush_face_properties(
         commands.spawn((
             Text::new("No Material"),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_SECONDARY),
@@ -561,7 +561,7 @@ pub(crate) fn update_brush_face_properties(
         commands.spawn((
             Text::new(label),
             TextFont {
-                font_size: tokens::FONT_SM,
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_PRIMARY),
@@ -605,7 +605,7 @@ pub(crate) fn update_brush_face_properties(
     commands.spawn((
         Text::new("Rotation"),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         TextColor(tokens::TEXT_SECONDARY),
@@ -658,7 +658,7 @@ fn spawn_brush_face_field_row(
     commands.spawn((
         Text::new(label),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         TextColor(tokens::TEXT_SECONDARY),

@@ -1,17 +1,17 @@
 use std::collections::HashSet;
 
-use avian3d::parry::math::Point as ParryPoint;
-use avian3d::parry::transformation::convex_hull;
+
+use parry3d::transformation::convex_hull;
 use bevy::prelude::*;
 
 use jackdaw_geometry::{EPSILON, sort_face_vertices_by_winding};
 use jackdaw_jsn::{Brush, BrushFaceData, BrushPlane};
 
-fn vec3_to_point(v: Vec3) -> ParryPoint<f32> {
-    ParryPoint::new(v.x, v.y, v.z)
+fn vec3_to_parry(v: Vec3) -> parry3d::math::Vec3 {
+    parry3d::math::Vec3::new(v.x, v.y, v.z)
 }
 
-fn point_to_vec3(p: &ParryPoint<f32>) -> Vec3 {
+fn parry_to_vec3(p: &parry3d::math::Vec3) -> Vec3 {
     Vec3::new(p.x, p.y, p.z)
 }
 
@@ -113,14 +113,14 @@ pub(super) fn rebuild_brush_from_vertices(
         return None;
     }
 
-    let points: Vec<ParryPoint<f32>> = new_vertices.iter().map(|v| vec3_to_point(*v)).collect();
+    let points: Vec<parry3d::math::Vec3> = new_vertices.iter().map(|v| vec3_to_parry(*v)).collect();
     let (hull_verts, hull_tris) = convex_hull(&points);
 
     if hull_verts.len() < 4 || hull_tris.is_empty() {
         return None;
     }
 
-    let hull_positions: Vec<Vec3> = hull_verts.iter().map(point_to_vec3).collect();
+    let hull_positions: Vec<Vec3> = hull_verts.iter().map(parry_to_vec3).collect();
     let hull_faces = merge_hull_triangles(&hull_positions, &hull_tris);
 
     if hull_faces.len() < 4 {

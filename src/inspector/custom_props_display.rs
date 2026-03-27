@@ -46,8 +46,8 @@ pub(super) fn spawn_custom_properties_display(
         commands.spawn((
             Text::new(format!("{}:", prop_name)),
             TextFont {
-                font: editor_font.clone(),
-                font_size: tokens::FONT_SM,
+                font: FontSource::Handle(editor_font.clone()),
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             Node {
@@ -235,8 +235,8 @@ pub(super) fn spawn_custom_properties_display(
         commands.spawn((
             Text::new(String::from(Icon::X.unicode())),
             TextFont {
-                font: icon_font.clone(),
-                font_size: tokens::FONT_SM,
+                font: FontSource::Handle(icon_font.clone()),
+                font_size: FontSize::Px(tokens::FONT_SM),
                 ..Default::default()
             },
             TextColor(tokens::TEXT_SECONDARY),
@@ -275,7 +275,7 @@ fn spawn_custom_axis(
     commands.spawn((
         Text::new(label),
         TextFont {
-            font_size: tokens::FONT_SM,
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         TextColor(label_color),
@@ -352,8 +352,8 @@ fn spawn_add_property_row(
     commands.spawn((
         Text::new(String::from(Icon::Plus.unicode())),
         TextFont {
-            font,
-            font_size: tokens::FONT_SM,
+            font: FontSource::Handle(font),
+            font_size: FontSize::Px(tokens::FONT_SM),
             ..Default::default()
         },
         TextColor(tokens::TEXT_ACCENT),

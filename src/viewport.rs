@@ -5,7 +5,7 @@ use bevy::{
     render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
     ui::{UiGlobalTransform, widget::ViewportNode},
 };
-use bevy_infinite_grid::InfiniteGridPlugin;
+use bevy::dev_tools::infinite_grid::InfiniteGridPlugin;
 use jackdaw_camera::{JackdawCameraPlugin, JackdawCameraSettings};
 
 use crate::selection::{Selected, Selection};
@@ -93,7 +93,7 @@ pub(crate) fn setup_viewport(
     // Spawn infinite grid (marked EditorEntity so it's hidden from hierarchy and undeletable)
     commands.spawn((
         crate::EditorEntity,
-        bevy_infinite_grid::InfiniteGridBundle::default(),
+        bevy::dev_tools::infinite_grid::InfiniteGrid,
     ));
 
     // Attach ViewportNode to the SceneViewport UI entity
@@ -124,8 +124,18 @@ fn handle_viewport_drop(
     let is_gltf = path_lower.ends_with(".gltf") || path_lower.ends_with(".glb");
     let is_template = path_lower.ends_with(".template.json");
     let is_jsn = path_lower.ends_with(".jsn");
+    let is_bsn = path_lower.ends_with(".bsn");
 
-    if !is_gltf && !is_template && !is_jsn {
+    if !is_gltf && !is_template && !is_jsn && !is_bsn {
+        return;
+    }
+
+    // BSN files load as full scenes — no positioning needed
+    if is_bsn {
+        let path = item.path.clone();
+        commands.queue(move |world: &mut World| {
+            crate::scene_io::finish_load_scene(world, std::path::Path::new(&path));
+        });
         return;
     }
 

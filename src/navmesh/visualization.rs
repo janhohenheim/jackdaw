@@ -191,10 +191,10 @@ fn rebuild_navmesh_visuals(
     let wireframe_color: Color = colors::NAVMESH_DETAIL_WIREFRAME;
 
     if let Ok((_entity, gizmo)) = existing_gizmo.single() {
-        if let Some(asset) = gizmo_assets.get_mut(&gizmo.handle) {
+        if let Some(mut asset) = gizmo_assets.get_mut(&gizmo.handle) {
             asset.clear();
             if viz_config.show_detail_mesh {
-                populate_wireframe(asset, detail, wireframe_color);
+                populate_wireframe(&mut asset, detail, wireframe_color);
             }
         }
     } else {
@@ -262,10 +262,10 @@ fn rebuild_navmesh_visuals(
     let poly_color: Color = colors::NAVMESH_POLYGON_WIREFRAME;
 
     if let Ok((_entity, gizmo)) = existing_poly_gizmo.single() {
-        if let Some(asset) = gizmo_assets.get_mut(&gizmo.handle) {
+        if let Some(mut asset) = gizmo_assets.get_mut(&gizmo.handle) {
             asset.clear();
             if viz_config.show_polygon_mesh {
-                populate_polygon_wireframe(asset, polygon, poly_color);
+                populate_polygon_wireframe(&mut asset, polygon, poly_color);
             }
         }
     } else {
@@ -451,12 +451,12 @@ fn sync_navmesh_viz_visibility(
 
     // Obstacle gizmo — clear/repopulate from mesh data
     for (mesh3d, gizmo) in &obstacles {
-        if let Some(asset) = gizmo_assets.get_mut(&gizmo.handle) {
+        if let Some(mut asset) = gizmo_assets.get_mut(&gizmo.handle) {
             asset.clear();
             if viz_config.show_obstacles {
                 if let Some(mesh) = meshes.get(&mesh3d.0) {
                     if let Some(trimesh) = TriMesh::from_mesh(mesh) {
-                        populate_obstacle_wireframe(asset, &trimesh);
+                        populate_obstacle_wireframe(&mut asset, &trimesh);
                     }
                 }
             }
@@ -485,12 +485,12 @@ fn sync_navmesh_viz_visibility(
 
     // Detail gizmo — clear/repopulate
     for gizmo in &detail_gizmos {
-        if let Some(asset) = gizmo_assets.get_mut(&gizmo.handle) {
+        if let Some(mut asset) = gizmo_assets.get_mut(&gizmo.handle) {
             asset.clear();
             if viz_config.show_detail_mesh {
                 if let Some(navmesh) = navmesh_handle.as_ref().and_then(|h| navmeshes.get(h.id())) {
                     let color: Color = colors::NAVMESH_DETAIL_WIREFRAME;
-                    populate_wireframe(asset, &navmesh.detail, color);
+                    populate_wireframe(&mut asset, &navmesh.detail, color);
                 }
             }
         }
@@ -498,12 +498,12 @@ fn sync_navmesh_viz_visibility(
 
     // Polygon gizmo — clear/repopulate
     for gizmo in &poly_gizmos {
-        if let Some(asset) = gizmo_assets.get_mut(&gizmo.handle) {
+        if let Some(mut asset) = gizmo_assets.get_mut(&gizmo.handle) {
             asset.clear();
             if viz_config.show_polygon_mesh {
                 if let Some(navmesh) = navmesh_handle.as_ref().and_then(|h| navmeshes.get(h.id())) {
                     let color: Color = colors::NAVMESH_POLYGON_WIREFRAME;
-                    populate_polygon_wireframe(asset, &navmesh.polygon, color);
+                    populate_polygon_wireframe(&mut asset, &navmesh.polygon, color);
                 }
             }
         }

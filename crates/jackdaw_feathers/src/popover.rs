@@ -415,8 +415,8 @@ pub fn popover_header(
             (
                 Text::new(title),
                 TextFont {
-                    font: editor_font.clone(),
-                    font_size: TEXT_SIZE,
+                    font: FontSource::Handle(editor_font.clone()),
+                    font_size: FontSize::Px(TEXT_SIZE),
                     weight: FontWeight::SEMIBOLD,
                     ..default()
                 },

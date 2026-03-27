@@ -3,12 +3,14 @@ use bevy::prelude::*;
 pub const EPSILON: f32 = 1e-4;
 
 #[derive(Clone, Debug, Reflect, Default)]
+#[reflect(Default)]
 pub struct BrushPlane {
     pub normal: Vec3,
     pub distance: f32,
 }
 
 #[derive(Clone, Debug, Reflect, Default)]
+#[reflect(Default)]
 pub struct BrushFaceData {
     pub plane: BrushPlane,
     /// Material handle for this face. Serialized as an asset path or inline `#Name` reference.

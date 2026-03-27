@@ -306,8 +306,8 @@ fn setup_combobox_fields(
             .spawn((
                 Text::new(&config.label),
                 TextFont {
-                    font: font.clone(),
-                    font_size: 11.0,
+                    font: FontSource::Handle(font.clone()),
+                    font_size: FontSize::Px(11.0),
                     weight: FontWeight::MEDIUM,
                     ..default()
                 },

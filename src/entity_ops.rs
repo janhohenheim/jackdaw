@@ -99,7 +99,7 @@ pub fn create_entity(
             .spawn((
                 Name::new("Point Light"),
                 PointLight {
-                    shadows_enabled: true,
+                    shadow_maps_enabled: true,
                     ..default()
                 },
                 Transform::from_xyz(0.0, 3.0, 0.0),
@@ -109,7 +109,7 @@ pub fn create_entity(
             .spawn((
                 Name::new("Directional Light"),
                 DirectionalLight {
-                    shadows_enabled: true,
+                    shadow_maps_enabled: true,
                     ..default()
                 },
                 Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.8, 0.4, 0.0)),
@@ -119,7 +119,7 @@ pub fn create_entity(
             .spawn((
                 Name::new("Spot Light"),
                 SpotLight {
-                    shadows_enabled: true,
+                    shadow_maps_enabled: true,
                     ..default()
                 },
                 Transform::from_xyz(0.0, 3.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
@@ -158,9 +158,10 @@ fn apply_last_material(entity: Entity) -> impl FnOnce(&mut World) {
 /// World-access version of `create_entity` — used from menu actions and other deferred contexts.
 pub fn create_entity_in_world(world: &mut World, template: EntityTemplate) {
     let mut system_state: SystemState<(Commands, ResMut<Selection>)> = SystemState::new(world);
-    let (mut commands, mut selection) = system_state.get_mut(world);
-    create_entity(&mut commands, template, &mut selection);
+    let Ok((mut commands, mut selection)) = system_state.get_mut(world) else { return };
+    let entity = create_entity(&mut commands, template, &mut selection);
     system_state.apply(world);
+    crate::scene_io::link_single_entity_to_ast(world, entity, None);
 }
 
 pub fn spawn_gltf(
@@ -195,9 +196,10 @@ pub fn spawn_gltf(
 pub fn spawn_gltf_in_world(world: &mut World, path: &str, position: Vec3) {
     let mut system_state: SystemState<(Commands, Res<AssetServer>, ResMut<Selection>)> =
         SystemState::new(world);
-    let (mut commands, asset_server, mut selection) = system_state.get_mut(world);
-    spawn_gltf(&mut commands, &asset_server, path, position, &mut selection);
+    let Ok((mut commands, asset_server, mut selection)) = system_state.get_mut(world) else { return };
+    let entity = spawn_gltf(&mut commands, &asset_server, path, position, &mut selection);
     system_state.apply(world);
+    crate::scene_io::link_single_entity_to_ast(world, entity, None);
 }
 
 pub fn delete_selected(world: &mut World) {
@@ -275,9 +277,12 @@ pub fn duplicate_selected(world: &mut World) {
         // Snapshot the entity (and descendants) via DynamicSceneBuilder
         let mut snapshot_entities = Vec::new();
         crate::commands::collect_entity_ids(world, entity, &mut snapshot_entities);
-        let scene = DynamicSceneBuilder::from_world(world)
+        let registry = world.resource::<AppTypeRegistry>().clone();
+        let registry_guard = registry.read();
+        let scene = DynamicSceneBuilder::from_world(world, &registry_guard)
             .extract_entities(snapshot_entities.into_iter())
             .build();
+        drop(registry_guard);
 
         // Write the snapshot back to create a clone
         let mut entity_map = Default::default();
@@ -331,6 +336,9 @@ pub fn duplicate_selected(world: &mut World) {
             // Original was a root entity — remove any ChildOf the scene write may have added
             world.entity_mut(new_root).remove::<ChildOf>();
         }
+
+        // Link the duplicated tree to the AST
+        crate::scene_io::link_entity_tree_to_ast(world, new_root, parent);
 
         new_entities.push(new_root);
     }

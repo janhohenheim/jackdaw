@@ -117,12 +117,14 @@ impl EditorCommand for SetBrush {
         if let Some(mut brush) = world.get_mut::<Brush>(self.entity) {
             *brush = self.new.clone();
         }
+        jackdaw_bsn::sync_to_ast(world, self.entity, std::any::TypeId::of::<Brush>());
     }
 
     fn undo(&mut self, world: &mut World) {
         if let Some(mut brush) = world.get_mut::<Brush>(self.entity) {
             *brush = self.old.clone();
         }
+        jackdaw_bsn::sync_to_ast(world, self.entity, std::any::TypeId::of::<Brush>());
     }
 
     fn description(&self) -> &str {
