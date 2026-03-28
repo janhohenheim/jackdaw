@@ -41,10 +41,12 @@ anyhow.workspace = true
 dirs.workspace = true
 regex.workspace = true
 pathdiff.workspace = true
+avian3d.workspace = true
 notify = "8"
 
 [workspace.dependencies]
 bevy = { git = "https://github.com/jbuehler23/bevy", branch = "bsn", features = ["experimental_bevy_feathers", "serialize", "debug", "bevy_remote", "file_watcher", "bevy_dev_tools"] }
+avian3d = { git = "https://github.com/jbuehler23/avian", branch = "bsn", default-features = false, features = ["3d", "f32", "parry-f32", "collider-from-mesh", "bevy_scene", "bevy_picking"] }
 jackdaw_jsn = { version = "0.2.1", path = "crates/jackdaw_jsn" }
 jackdaw_geometry = { version = "0.2.1", path = "crates/jackdaw_geometry" }
 bevy_monitors = { git = "https://github.com/jbuehler23/bevy_monitors", branch = "bsn" }

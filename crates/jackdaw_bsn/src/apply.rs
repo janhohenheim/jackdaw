@@ -269,8 +269,10 @@ pub fn bsn_value_to_reflect(
         if let BsnValue::String(path) = value {
             if !path.is_empty() {
                 if let Some(asset_server) = asset_server {
-                    let handle = asset_server.load_untyped(path.to_owned());
-                    return Some(Box::new(handle).into_partial_reflect());
+                    let asset_type_id = reflect_handle.asset_type_id();
+                    let untyped = asset_server.load_erased(asset_type_id, path.to_owned());
+                    let typed = reflect_handle.typed(untyped);
+                    return Some(typed.into_partial_reflect());
                 }
             }
         }

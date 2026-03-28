@@ -89,6 +89,13 @@ pub const BRUSH_PALETTE: [Color; 8] = [
     Color::srgb(0.5, 0.3, 0.5), // purple
 ];
 
+// ── Physics / collider visualization ──
+pub const COLLIDER_WIREFRAME: Color = Color::srgba(0.0, 1.0, 0.5, 0.7);
+pub const SENSOR_WIREFRAME: Color = Color::srgba(0.0, 0.8, 1.0, 0.5);
+pub const COLLIDER_SELECTED: Color = Color::srgba(0.0, 1.0, 0.5, 1.0);
+pub const SENSOR_SELECTED: Color = Color::srgba(0.0, 0.8, 1.0, 0.85);
+pub const COLLIDER_HIERARCHY_ARROW: Color = Color::srgba(0.4, 0.7, 1.0, 0.6);
+
 // ── Inspector UI ──
 pub const INSPECTOR_AXIS_X: Color = Color::srgb(0.8, 0.3, 0.3);
 pub const INSPECTOR_AXIS_Y: Color = Color::srgb(0.3, 0.7, 0.3);

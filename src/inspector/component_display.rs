@@ -69,7 +69,14 @@ pub(crate) fn add_component_displays(
             for &pe in &patches.0 {
                 match ast.get_patch(pe) {
                     Some(BsnPatch::Struct(data)) => { paths.insert(data.type_path.clone()); }
-                    Some(BsnPatch::Type(tp)) => { paths.insert(tp.clone()); }
+                    Some(BsnPatch::Type(tp)) => {
+                        paths.insert(tp.clone());
+                        // For enum variants (e.g. "Foo::Variant"), also insert
+                        // the base type path so the inspector filter matches.
+                        if let Some(base) = tp.rsplit_once("::").map(|(b, _)| b.to_string()) {
+                            paths.insert(base);
+                        }
+                    }
                     Some(BsnPatch::TupleStruct(data)) => { paths.insert(data.type_path.clone()); }
                     Some(BsnPatch::Template(tp, _)) => { paths.insert(tp.clone()); }
                     _ => {}
@@ -640,7 +647,14 @@ pub(crate) fn on_inspector_dirty(
             for &pe in &patches.0 {
                 match ast.get_patch(pe) {
                     Some(BsnPatch::Struct(data)) => { paths.insert(data.type_path.clone()); }
-                    Some(BsnPatch::Type(tp)) => { paths.insert(tp.clone()); }
+                    Some(BsnPatch::Type(tp)) => {
+                        paths.insert(tp.clone());
+                        // For enum variants (e.g. "Foo::Variant"), also insert
+                        // the base type path so the inspector filter matches.
+                        if let Some(base) = tp.rsplit_once("::").map(|(b, _)| b.to_string()) {
+                            paths.insert(base);
+                        }
+                    }
                     Some(BsnPatch::TupleStruct(data)) => { paths.insert(data.type_path.clone()); }
                     Some(BsnPatch::Template(tp, _)) => { paths.insert(tp.clone()); }
                     _ => {}

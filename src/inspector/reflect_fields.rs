@@ -1647,11 +1647,30 @@ pub(crate) fn on_checkbox_commit(
 
 /// Refreshes inspector field values using reflection -- handles all component types generically.
 /// Uses exclusive world access to avoid query conflicts.
+/// Only runs when the selected entity has changed components (via change detection).
 pub(crate) fn refresh_inspector_fields(world: &mut World) {
     let selection = world.resource::<Selection>();
     let Some(primary) = selection.primary() else {
         return;
     };
+
+    // Skip if the entity doesn't exist or hasn't had any component changes
+    let Ok(entity_ref) = world.get_entity(primary) else {
+        return;
+    };
+    let last_run = world.last_change_tick();
+    let this_run = world.read_change_tick();
+    let has_changes = entity_ref
+        .archetype()
+        .iter_components()
+        .any(|cid| {
+            entity_ref
+                .get_change_ticks_by_id(cid)
+                .is_some_and(|ticks| ticks.is_changed(last_run, this_run))
+        });
+    if !has_changes {
+        return;
+    }
 
     let type_registry = world.resource::<AppTypeRegistry>().clone();
     let registry = type_registry.read();

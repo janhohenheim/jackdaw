@@ -30,6 +30,7 @@ pub mod snapping;
 pub mod status_bar;
 pub mod terrain;
 pub mod texture_browser;
+pub mod physics_overlays;
 pub mod view_modes;
 pub mod viewport;
 pub mod viewport_overlays;
@@ -113,6 +114,7 @@ impl Plugin for EditorPlugin {
             .add_plugins(keybinds::KeybindsPlugin)
             .add_plugins(keybind_settings::KeybindSettingsPlugin)
             .add_plugins(jackdaw_bsn::JackdawBsnPlugin)
+            .add_plugins(physics_overlays::PhysicsOverlaysPlugin)
             .add_plugins((
                 viewport_overlays::ViewportOverlaysPlugin,
                 view_modes::ViewModesPlugin,
@@ -256,6 +258,8 @@ fn populate_menu(world: &mut World) {
                 "View",
                 vec![
                     ("view.wireframe", "Toggle Wireframe"),
+                    ("view.collider_gizmos", "Toggle Collider Gizmos"),
+                    ("view.hierarchy_arrows", "Toggle Hierarchy Arrows"),
                     ("view.bounding_boxes", "Toggle Bounding Boxes"),
                     ("view.bounding_box_mode", "Cycle Bounding Box Mode"),
                     ("view.face_grid", "Toggle Face Grid"),
@@ -429,6 +433,18 @@ fn handle_menu_action(event: On<MenuAction>, mut commands: Commands) {
             commands.queue(|world: &mut World| {
                 let mut settings = world.resource_mut::<view_modes::ViewModeSettings>();
                 settings.wireframe = !settings.wireframe;
+            });
+        }
+        "view.collider_gizmos" => {
+            commands.queue(|world: &mut World| {
+                let mut config = world.resource_mut::<physics_overlays::PhysicsOverlayConfig>();
+                config.show_colliders = !config.show_colliders;
+            });
+        }
+        "view.hierarchy_arrows" => {
+            commands.queue(|world: &mut World| {
+                let mut config = world.resource_mut::<physics_overlays::PhysicsOverlayConfig>();
+                config.show_hierarchy_arrows = !config.show_hierarchy_arrows;
             });
         }
         "view.bounding_boxes" => {
