@@ -2039,6 +2039,10 @@ fn spawn_enum_field(
 }
 
 /// Apply an enum variant change with undo support.
+///
+/// Instead of using SetBsnField (designed for struct field paths), this applies
+/// the variant change directly via reflection, then re-serializes the whole
+/// component to BSN via sync_to_ast.
 fn apply_enum_variant_with_undo(
     world: &mut World,
     _entity: Entity,
@@ -2079,14 +2083,22 @@ fn apply_enum_variant_with_undo(
         };
 
         let old_bsn = BsnValue::from_reflect(old_reflected, &reg);
-        let new_bsn = BsnValue::Type(variant_name.to_string());
 
-        sub_commands.push(Box::new(SetBsnField {
+        // Build full variant path for the new BSN value
+        let full_variant_path = if field_path.is_empty() {
+            format!("{type_path}::{variant_name}")
+        } else {
+            variant_name.to_string()
+        };
+        let new_bsn = BsnValue::Type(full_variant_path);
+
+        sub_commands.push(Box::new(SetEnumVariant {
             entity: target,
+            component_type_id,
             type_path: type_path.clone(),
             field_path: field_path.to_string(),
             old_value: old_bsn,
-            new_value: new_bsn,
+            variant_name: variant_name.to_string(),
         }));
     }
     drop(reg);
@@ -2107,5 +2119,78 @@ fn apply_enum_variant_with_undo(
     let mut history = world.resource_mut::<CommandHistory>();
     history.undo_stack.push(cmd);
     history.redo_stack.clear();
+}
+
+/// Command that changes an enum variant on a component, then re-serializes
+/// the entire component to BSN (so variant fields are preserved).
+struct SetEnumVariant {
+    entity: Entity,
+    component_type_id: TypeId,
+    type_path: String,
+    field_path: String,
+    old_value: BsnValue,
+    variant_name: String,
+}
+
+impl EditorCommand for SetEnumVariant {
+    fn execute(&mut self, world: &mut World) {
+        apply_enum_variant_to_ecs(world, self.entity, self.component_type_id, &self.field_path, &self.variant_name);
+        jackdaw_bsn::sync_to_ast(world, self.entity, self.component_type_id);
+        world.entity_mut(self.entity).insert(jackdaw_bsn::AstDirty);
+    }
+
+    fn undo(&mut self, world: &mut World) {
+        // Restore by re-applying the old variant
+        // Extract the variant name from old_value
+        let old_variant = match &self.old_value {
+            BsnValue::Type(tp) => {
+                tp.rsplit_once("::").map(|(_, v)| v.to_string()).unwrap_or(tp.clone())
+            }
+            BsnValue::Struct(data) => {
+                data.type_path.rsplit_once("::").map(|(_, v)| v.to_string()).unwrap_or_default()
+            }
+            _ => return,
+        };
+        apply_enum_variant_to_ecs(world, self.entity, self.component_type_id, &self.field_path, &old_variant);
+        jackdaw_bsn::sync_to_ast(world, self.entity, self.component_type_id);
+        world.entity_mut(self.entity).insert(jackdaw_bsn::AstDirty);
+    }
+
+    fn description(&self) -> &str {
+        "Set enum variant"
+    }
+}
+
+/// Apply an enum variant change directly to the ECS component via reflection.
+fn apply_enum_variant_to_ecs(
+    world: &mut World,
+    entity: Entity,
+    component_type_id: TypeId,
+    field_path: &str,
+    variant_name: &str,
+) {
+    use bevy::reflect::{enums::{DynamicEnum, DynamicVariant}, ReflectMut};
+
+    let registry = world.resource::<AppTypeRegistry>().clone();
+    let reg = registry.read();
+    let Some(registration) = reg.get(component_type_id) else { return };
+    let Some(reflect_component) = registration.data::<ReflectComponent>() else { return };
+
+    let Ok(entity_ref) = world.get_entity(entity) else { return };
+    let Some(reflected) = reflect_component.reflect(entity_ref) else { return };
+    let mut value = reflected.to_dynamic();
+
+    // For root-level enums (field_path is empty), apply directly
+    if field_path.is_empty() {
+        if let ReflectMut::Enum(e) = value.reflect_mut() {
+            let dynamic_enum = DynamicEnum::new(variant_name, DynamicVariant::Unit);
+            e.apply(&dynamic_enum);
+        }
+    }
+    // For nested enum fields within struct components, we'd need reflect_path_mut
+    // which requires Reflect (not PartialReflect). Root-level enum components
+    // (like ColliderConstructor, RigidBody) always have empty field_path.
+
+    reflect_component.insert(&mut world.entity_mut(entity), value.as_partial_reflect(), &reg);
 }
 

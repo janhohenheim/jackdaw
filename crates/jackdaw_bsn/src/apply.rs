@@ -137,36 +137,82 @@ fn apply_struct_patch(world: &mut World, entity: Entity, data: &BsnStructData) {
     let registry = world.resource::<AppTypeRegistry>().clone();
     let reg = registry.read();
 
-    let Some(registration) = reg.get_with_type_path(&data.type_path) else {
-        return;
-    };
-    let Some(reflect_default) = registration.data::<ReflectDefault>() else {
-        return;
-    };
-    let Some(reflect_component) = registration.data::<ReflectComponent>() else {
-        return;
-    };
-
-    let mut value: Box<dyn PartialReflect> = {
-        let Ok(entity_ref) = world.get_entity(entity) else {
+    // Direct lookup: the type_path is a struct component
+    if let Some(registration) = reg.get_with_type_path(&data.type_path) {
+        let Some(reflect_default) = registration.data::<ReflectDefault>() else {
             return;
         };
-        if let Some(existing) = reflect_component.reflect(entity_ref) {
-            existing.to_dynamic()
-        } else {
-            reflect_default.default().into_partial_reflect()
-        }
-    };
+        let Some(reflect_component) = registration.data::<ReflectComponent>() else {
+            return;
+        };
 
-    if let ReflectMut::Struct(s) = value.reflect_mut() {
-        for field in &data.fields.0 {
-            if let Some(target) = s.field_mut(&field.name) {
-                merge_bsn_value_into_reflect(target, &field.value, &reg, asset_server.as_ref());
+        let mut value: Box<dyn PartialReflect> = {
+            let Ok(entity_ref) = world.get_entity(entity) else {
+                return;
+            };
+            if let Some(existing) = reflect_component.reflect(entity_ref) {
+                existing.to_dynamic()
+            } else {
+                reflect_default.default().into_partial_reflect()
+            }
+        };
+
+        if let ReflectMut::Struct(s) = value.reflect_mut() {
+            for field in &data.fields.0 {
+                if let Some(target) = s.field_mut(&field.name) {
+                    merge_bsn_value_into_reflect(target, &field.value, &reg, asset_server.as_ref());
+                }
             }
         }
+
+        reflect_component.insert(&mut world.entity_mut(entity), value.as_partial_reflect(), &reg);
+        return;
     }
 
-    reflect_component.insert(&mut world.entity_mut(entity), value.as_partial_reflect(), &reg);
+    // Enum variant lookup: type_path is "EnumType::Variant" with struct fields
+    if let Some(last_sep) = data.type_path.rfind("::") {
+        let enum_path = &data.type_path[..last_sep];
+        let variant_name = &data.type_path[last_sep + 2..];
+
+        let Some(registration) = reg.get_with_type_path(enum_path) else {
+            return;
+        };
+        let Some(reflect_default) = registration.data::<ReflectDefault>() else {
+            return;
+        };
+        let Some(reflect_component) = registration.data::<ReflectComponent>() else {
+            return;
+        };
+
+        let mut value = reflect_default.default();
+        if let ReflectMut::Enum(e) = value.reflect_mut() {
+            // Build a DynamicStruct with the variant's fields
+            let mut dynamic_struct = bevy::reflect::structs::DynamicStruct::default();
+            for field in &data.fields.0 {
+                if let Some(reflected) = bsn_value_to_reflect(
+                    &field.value,
+                    // We don't know the exact field type, so use the existing variant's field type
+                    e.field(&field.name)
+                        .and_then(|f| f.get_represented_type_info())
+                        .map(|info| info.type_id())
+                        .unwrap_or(std::any::TypeId::of::<f32>()),
+                    &reg,
+                    asset_server.as_ref(),
+                ) {
+                    dynamic_struct.insert_boxed(&field.name, reflected);
+                }
+            }
+            let dynamic_enum =
+                DynamicEnum::new(variant_name, DynamicVariant::Struct(dynamic_struct));
+            e.apply(&dynamic_enum);
+        }
+
+        reflect_component.insert(
+            &mut world.entity_mut(entity),
+            value.as_partial_reflect(),
+            &reg,
+        );
+    }
 }
 
 /// Recursively merge a BSN value into an existing reflected value.

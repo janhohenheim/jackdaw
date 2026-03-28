@@ -554,7 +554,38 @@ impl BsnValue {
                 .map(|info| info.type_path().to_string())
                 .unwrap_or_default();
             let variant = e.variant_name();
-            return BsnValue::Type(format!("{type_path}::{variant}"));
+            let full_path = format!("{type_path}::{variant}");
+            match e.variant_type() {
+                bevy::reflect::enums::VariantType::Struct => {
+                    let mut fields = Vec::new();
+                    for i in 0..e.field_len() {
+                        let name = e.name_at(i).unwrap().to_string();
+                        let field_value = e.field_at(i).unwrap();
+                        fields.push(BsnField {
+                            name,
+                            value: BsnValue::from_reflect_inner(field_value, type_registry, ctx),
+                        });
+                    }
+                    return BsnValue::Struct(BsnStructData {
+                        type_path: full_path,
+                        fields: BsnStructFields(fields),
+                    });
+                }
+                bevy::reflect::enums::VariantType::Tuple => {
+                    let mut values = Vec::new();
+                    for i in 0..e.field_len() {
+                        let field_value = e.field_at(i).unwrap();
+                        values.push(BsnValue::from_reflect_inner(field_value, type_registry, ctx));
+                    }
+                    return BsnValue::TupleStruct(BsnTupleStructData {
+                        type_path: full_path,
+                        values,
+                    });
+                }
+                bevy::reflect::enums::VariantType::Unit => {
+                    return BsnValue::Type(full_path);
+                }
+            }
         }
 
         // Lists / Vecs
@@ -669,7 +700,40 @@ fn component_to_bsn_patch_inner(
 
         ReflectRef::Enum(e) => {
             let variant = e.variant_name();
-            BsnPatch::Type(format!("{type_path}::{variant}"))
+            let full_path = format!("{type_path}::{variant}");
+            match e.variant_type() {
+                bevy::reflect::enums::VariantType::Struct => {
+                    let mut fields = Vec::new();
+                    for i in 0..e.field_len() {
+                        let name = e.name_at(i).unwrap().to_string();
+                        let field_value = e.field_at(i).unwrap();
+                        fields.push(BsnField {
+                            name,
+                            value: BsnValue::from_reflect_inner(field_value, type_registry, ctx),
+                        });
+                    }
+                    if fields.is_empty() {
+                        BsnPatch::Type(full_path)
+                    } else {
+                        BsnPatch::Struct(BsnStructData {
+                            type_path: full_path,
+                            fields: BsnStructFields(fields),
+                        })
+                    }
+                }
+                bevy::reflect::enums::VariantType::Tuple => {
+                    let mut values = Vec::new();
+                    for i in 0..e.field_len() {
+                        let field_value = e.field_at(i).unwrap();
+                        values.push(BsnValue::from_reflect_inner(field_value, type_registry, ctx));
+                    }
+                    BsnPatch::TupleStruct(BsnTupleStructData {
+                        type_path: full_path,
+                        values,
+                    })
+                }
+                bevy::reflect::enums::VariantType::Unit => BsnPatch::Type(full_path),
+            }
         }
 
         _ => BsnPatch::Type(type_path),
