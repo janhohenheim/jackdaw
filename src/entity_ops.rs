@@ -71,106 +71,150 @@ impl EntityTemplate {
     }
 }
 
-pub fn create_entity(
-    commands: &mut Commands,
-    template: EntityTemplate,
-    selection: &mut Selection,
-) -> Entity {
-    let entity = match template {
-        EntityTemplate::Empty => commands
-            .spawn((Name::new("Empty"), Transform::default()))
-            .id(),
+/// Create an entity from a template. BSN-first: builds AST node, spawns ECS from it.
+pub fn create_entity_in_world(world: &mut World, template: EntityTemplate) {
+    use jackdaw_bsn::*;
+
+    let registry = world.resource::<bevy::ecs::reflect::AppTypeRegistry>().clone();
+    let reg = registry.read();
+
+    // Build BSN patches for this template.
+    let mut patches: Vec<BsnPatch> = Vec::new();
+    patches.push(BsnPatch::Name(template.label().to_string()));
+
+    match template {
+        EntityTemplate::Empty => {
+            patches.push(component_to_bsn_patch(
+                Transform::default().as_partial_reflect(),
+                &reg,
+            ));
+        }
         EntityTemplate::Cube => {
-            let id = commands
-                .spawn((
-                    Name::new("Cube"),
-                    crate::brush::Brush::cuboid(0.5, 0.5, 0.5),
-                    Transform::default(),
-                    Visibility::default(),
-                ))
-                .id();
-            commands.queue(apply_last_material(id));
-            id
-        }
-        EntityTemplate::Sphere => {
-            let id = commands
-                .spawn((
-                    Name::new("Sphere"),
-                    crate::brush::Brush::sphere(0.5),
-                    Transform::default(),
-                    Visibility::default(),
-                ))
-                .id();
-            commands.queue(apply_last_material(id));
-            id
-        }
-        EntityTemplate::PointLight => commands
-            .spawn((
-                Name::new("Point Light"),
-                PointLight {
-                    shadow_maps_enabled: true,
-                    ..default()
-                },
-                Transform::from_xyz(0.0, 3.0, 0.0),
-            ))
-            .id(),
-        EntityTemplate::DirectionalLight => commands
-            .spawn((
-                Name::new("Directional Light"),
-                DirectionalLight {
-                    shadow_maps_enabled: true,
-                    ..default()
-                },
-                Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.8, 0.4, 0.0)),
-            ))
-            .id(),
-        EntityTemplate::SpotLight => commands
-            .spawn((
-                Name::new("Spot Light"),
-                SpotLight {
-                    shadow_maps_enabled: true,
-                    ..default()
-                },
-                Transform::from_xyz(0.0, 3.0, 0.0).looking_at(Vec3::ZERO, Vec3::Y),
-            ))
-            .id(),
-        EntityTemplate::Camera3d => commands
-            .spawn((
-                Name::new("Camera"),
-                Camera3d::default(),
-                Transform::from_xyz(0.0, 2.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-            ))
-            .id(),
-    };
-
-    selection.select_single(commands, entity);
-    entity
-}
-
-/// Returns a command that applies the last-used material to all faces of a brush entity.
-fn apply_last_material(entity: Entity) -> impl FnOnce(&mut World) {
-    move |world: &mut World| {
-        let last_mat = world
-            .resource::<crate::brush::LastUsedMaterial>()
-            .material
-            .clone();
-        if let Some(mat) = last_mat {
-            if let Some(mut brush) = world.get_mut::<crate::brush::Brush>(entity) {
+            let mut brush = crate::brush::Brush::cuboid(0.5, 0.5, 0.5);
+            let last_mat = world
+                .resource::<crate::brush::LastUsedMaterial>()
+                .material
+                .clone();
+            if let Some(mat) = &last_mat {
                 for face in &mut brush.faces {
                     face.material = mat.clone();
                 }
             }
+            patches.push(component_to_bsn_patch(
+                Transform::default().as_partial_reflect(),
+                &reg,
+            ));
+            patches.push(component_to_bsn_patch(brush.as_partial_reflect(), &reg));
+        }
+        EntityTemplate::Sphere => {
+            let mut brush = crate::brush::Brush::sphere(0.5);
+            let last_mat = world
+                .resource::<crate::brush::LastUsedMaterial>()
+                .material
+                .clone();
+            if let Some(mat) = &last_mat {
+                for face in &mut brush.faces {
+                    face.material = mat.clone();
+                }
+            }
+            patches.push(component_to_bsn_patch(
+                Transform::default().as_partial_reflect(),
+                &reg,
+            ));
+            patches.push(component_to_bsn_patch(brush.as_partial_reflect(), &reg));
+        }
+        EntityTemplate::PointLight => {
+            patches.push(component_to_bsn_patch(
+                Transform::from_xyz(0.0, 3.0, 0.0).as_partial_reflect(),
+                &reg,
+            ));
+            patches.push(component_to_bsn_patch(
+                PointLight {
+                    shadow_maps_enabled: true,
+                    ..default()
+                }
+                .as_partial_reflect(),
+                &reg,
+            ));
+        }
+        EntityTemplate::DirectionalLight => {
+            patches.push(component_to_bsn_patch(
+                Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.8, 0.4, 0.0))
+                    .as_partial_reflect(),
+                &reg,
+            ));
+            patches.push(component_to_bsn_patch(
+                DirectionalLight {
+                    shadow_maps_enabled: true,
+                    ..default()
+                }
+                .as_partial_reflect(),
+                &reg,
+            ));
+        }
+        EntityTemplate::SpotLight => {
+            patches.push(component_to_bsn_patch(
+                Transform::from_xyz(0.0, 3.0, 0.0)
+                    .looking_at(Vec3::ZERO, Vec3::Y)
+                    .as_partial_reflect(),
+                &reg,
+            ));
+            patches.push(component_to_bsn_patch(
+                SpotLight {
+                    shadow_maps_enabled: true,
+                    ..default()
+                }
+                .as_partial_reflect(),
+                &reg,
+            ));
+        }
+        EntityTemplate::Camera3d => {
+            patches.push(component_to_bsn_patch(
+                Transform::from_xyz(0.0, 2.0, 5.0)
+                    .looking_at(Vec3::ZERO, Vec3::Y)
+                    .as_partial_reflect(),
+                &reg,
+            ));
+            patches.push(component_to_bsn_patch(
+                Camera3d::default().as_partial_reflect(),
+                &reg,
+            ));
         }
     }
-}
 
-/// World-access version of `create_entity` — used from menu actions and other deferred contexts.
-pub fn create_entity_in_world(world: &mut World, template: EntityTemplate) {
-    let mut system_state: SystemState<(Commands, ResMut<Selection>)> = SystemState::new(world);
-    let Ok((mut commands, mut selection)) = system_state.get_mut(world) else { return };
-    let entity = create_entity(&mut commands, template, &mut selection);
-    system_state.apply(world);
-    crate::scene_io::link_single_entity_to_ast(world, entity, None);
+    drop(reg);
+
+    // Create AST node and add to roots.
+    let ast_entity = {
+        let mut ast = world.resource_mut::<SceneBsnAst>();
+        let node = ast.create_entity_node(patches);
+        ast.add_to_roots(node);
+        node
+    };
+
+    // Spawn ECS entity from AST.
+    let ecs_entity = world
+        .spawn((
+            AstNodeRef { patches_entity: ast_entity },
+            AstDirty,
+            Visibility::default(),
+        ))
+        .id();
+    world.resource_mut::<SceneBsnAst>().link(ecs_entity, ast_entity);
+
+    // Apply BSN patches to populate ECS components.
+    apply_dirty_ast_patches(world);
+
+    // Select the new entity.
+    for &e in &world.resource::<crate::selection::Selection>().entities.clone() {
+        if let Ok(mut ec) = world.get_entity_mut(e) {
+            ec.remove::<crate::selection::Selected>();
+        }
+    }
+    let mut selection = world.resource_mut::<crate::selection::Selection>();
+    selection.entities = vec![ecs_entity];
+    drop(selection);
+    world.entity_mut(ecs_entity).insert(crate::selection::Selected);
 }
 
 pub fn spawn_gltf(
@@ -273,7 +317,7 @@ pub fn duplicate_selected(world: &mut World) {
         }
     }
 
-    let mut new_entities = Vec::new();
+    let mut new_ast_roots = Vec::new();
 
     for &entity in &entities {
         if world.get_entity(entity).is_err() {
@@ -283,81 +327,147 @@ pub fn duplicate_selected(world: &mut World) {
             continue;
         }
 
-        // Snapshot the entity (and descendants) via DynamicSceneBuilder
-        let mut snapshot_entities = Vec::new();
-        crate::commands::collect_entity_ids(world, entity, &mut snapshot_entities);
-        let registry = world.resource::<AppTypeRegistry>().clone();
-        let registry_guard = registry.read();
-        let scene = DynamicSceneBuilder::from_world(world, &registry_guard)
-            .extract_entities(snapshot_entities.into_iter())
-            .build();
-        drop(registry_guard);
-
-        // Write the snapshot back to create a clone
-        let mut entity_map = Default::default();
-        if scene.write_to_world(world, &mut entity_map).is_err() {
-            continue;
-        }
-
-        // Find the cloned root entity
-        let Some(&new_root) = entity_map.get(&entity) else {
+        let ast = world.resource::<jackdaw_bsn::SceneBsnAst>();
+        let Some(ast_entity) = ast.ast_for(entity) else {
             continue;
         };
 
-        // Rename with incremented number suffix
-        if let Some(name) = world.get::<Name>(new_root) {
-            // Strip trailing " (Copy)" chains and trailing " N" to find base name
-            let mut base = name.as_str().to_string();
-            while base.ends_with(" (Copy)") {
-                base.truncate(base.len() - 7);
-            }
-            if let Some(pos) = base.rfind(' ') {
-                if base[pos + 1..].parse::<u32>().is_ok() {
-                    base.truncate(pos);
-                }
-            }
+        // Copy the AST subtree within the scene AST.
+        let new_root_ast = duplicate_ast_subtree(world, ast_entity);
 
-            // Find highest existing number for this base name
-            let mut max_num = 0u32;
-            let mut query = world.query::<&Name>();
-            for existing in query.iter(world) {
-                let s = existing.as_str();
-                if s == base {
-                    max_num = max_num.max(1);
-                } else if let Some(rest) = s.strip_prefix(base.as_str()) {
-                    if let Some(num_str) = rest.strip_prefix(' ') {
-                        if let Ok(n) = num_str.parse::<u32>() {
-                            max_num = max_num.max(n);
-                        }
+        // Rename in AST: increment number suffix.
+        let new_name = {
+            let ast = world.resource::<jackdaw_bsn::SceneBsnAst>();
+            let original_name = ast.get_name(ast_entity).unwrap_or("Entity").to_string();
+            increment_name(&original_name, world)
+        };
+        // Update name patch in the new AST node.
+        {
+            let mut ast = world.resource_mut::<jackdaw_bsn::SceneBsnAst>();
+            if let Some(patches) = ast.get_patches(new_root_ast) {
+                let patch_ids: Vec<Entity> = patches.0.clone();
+                for pe in patch_ids {
+                    if let Some(jackdaw_bsn::BsnPatch::Name(_)) = ast.get_patch(pe) {
+                        ast.set_patch(pe, jackdaw_bsn::BsnPatch::Name(new_name.clone()));
+                        break;
                     }
                 }
             }
-
-            let new_name = format!("{} {}", base, max_num + 1);
-            world.entity_mut(new_root).insert(Name::new(new_name));
         }
 
-        // Preserve parent relationship from original
-        let parent = world.get::<ChildOf>(entity).map(|c| c.0);
-        if let Some(parent) = parent {
-            world.entity_mut(new_root).insert(ChildOf(parent));
-        } else {
-            // Original was a root entity — remove any ChildOf the scene write may have added
-            world.entity_mut(new_root).remove::<ChildOf>();
+        // Preserve parent: if original had a parent, add under same parent in AST.
+        let parent_ast = world.get::<ChildOf>(entity).and_then(|c| {
+            world
+                .resource::<jackdaw_bsn::SceneBsnAst>()
+                .ast_for(c.0)
+        });
+
+        {
+            let mut ast = world.resource_mut::<jackdaw_bsn::SceneBsnAst>();
+            if let Some(parent_ast) = parent_ast {
+                ast.add_child_to_ast(parent_ast, new_root_ast);
+            } else {
+                ast.add_to_roots(new_root_ast);
+            }
         }
 
-        // Link the duplicated tree to the AST
-        crate::scene_io::link_entity_tree_to_ast(world, new_root, parent);
+        // Spawn ECS entity from AST.
+        let parent_ecs = world.get::<ChildOf>(entity).map(|c| c.0);
+        let mut spawned = Vec::new();
+        spawn_pasted_node(world, new_root_ast, parent_ecs, &mut spawned);
 
-        new_entities.push(new_root);
+        new_ast_roots.push(new_root_ast);
     }
 
-    // Select the new entities
+    // Apply BSN patches to populate ECS components.
+    jackdaw_bsn::apply_dirty_ast_patches(world);
+
+    // Select the newly spawned root entities.
+    let new_entities: Vec<Entity> = new_ast_roots
+        .iter()
+        .filter_map(|&ast_root| {
+            world
+                .resource::<jackdaw_bsn::SceneBsnAst>()
+                .ecs_for_ast(ast_root)
+        })
+        .collect();
+
     let mut selection = world.resource_mut::<Selection>();
-    selection.entities = new_entities;
-    for &entity in &selection.entities.clone() {
+    selection.entities = new_entities.clone();
+    drop(selection);
+    for &entity in &new_entities {
         world.entity_mut(entity).insert(Selected);
     }
+}
+
+/// Deep-copy an AST subtree within the scene AST. Returns the new root entity.
+fn duplicate_ast_subtree(world: &mut World, source: Entity) -> Entity {
+    let ast = world.resource::<jackdaw_bsn::SceneBsnAst>();
+    let Some(patches) = ast.get_patches(source) else {
+        let mut ast = world.resource_mut::<jackdaw_bsn::SceneBsnAst>();
+        return ast.world.spawn(jackdaw_bsn::BsnPatches(Vec::new())).id();
+    };
+
+    let patch_ids: Vec<Entity> = patches.0.clone();
+    let mut cloned_patches = Vec::new();
+    let mut children_to_clone = Vec::new();
+
+    for &pe in &patch_ids {
+        let Some(patch) = ast.get_patch(pe) else {
+            continue;
+        };
+        match patch {
+            jackdaw_bsn::BsnPatch::Children(children) => {
+                children_to_clone = children.clone();
+            }
+            other => {
+                cloned_patches.push(other.clone());
+            }
+        }
+    }
+    drop(ast);
+
+    // Recursively clone children.
+    let cloned_children: Vec<Entity> = children_to_clone
+        .iter()
+        .map(|&child| duplicate_ast_subtree(world, child))
+        .collect();
+
+    if !cloned_children.is_empty() {
+        cloned_patches.push(jackdaw_bsn::BsnPatch::Children(cloned_children));
+    }
+
+    let mut ast = world.resource_mut::<jackdaw_bsn::SceneBsnAst>();
+    ast.create_entity_node(cloned_patches)
+}
+
+/// Compute an incremented name: "Cube" → "Cube 2", "Cube 2" → "Cube 3", etc.
+fn increment_name(original: &str, world: &mut World) -> String {
+    let mut base = original.to_string();
+    while base.ends_with(" (Copy)") {
+        base.truncate(base.len() - 7);
+    }
+    if let Some(pos) = base.rfind(' ') {
+        if base[pos + 1..].parse::<u32>().is_ok() {
+            base.truncate(pos);
+        }
+    }
+
+    let mut max_num = 0u32;
+    let mut query = world.query::<&Name>();
+    for existing in query.iter(world) {
+        let s = existing.as_str();
+        if s == base {
+            max_num = max_num.max(1);
+        } else if let Some(rest) = s.strip_prefix(base.as_str()) {
+            if let Some(num_str) = rest.strip_prefix(' ') {
+                if let Ok(n) = num_str.parse::<u32>() {
+                    max_num = max_num.max(n);
+                }
+            }
+        }
+    }
+    format!("{} {}", base, max_num + 1)
 }
 
 /// Snap a vector to the nearest cardinal world axis (±X, ±Y, ±Z).
@@ -737,23 +847,8 @@ fn copy_components(world: &mut World) {
         return;
     };
     cb.last_bsn = bsn_text.clone();
-
-    // Diagnostic: log what we're copying and display server info
-    info!("BSN copy ({} bytes):\n{}", bsn_text.len(), &bsn_text);
-    info!(
-        "Display: WAYLAND_DISPLAY={:?} DISPLAY={:?}",
-        std::env::var("WAYLAND_DISPLAY").ok(),
-        std::env::var("DISPLAY").ok()
-    );
-
     match cb.clipboard.set_text(&bsn_text) {
-        Ok(()) => {
-            // Verify roundtrip: can we read back what we just wrote?
-            match cb.clipboard.get_text() {
-                Ok(readback) => info!("Clipboard set+readback OK ({} bytes)", readback.len()),
-                Err(e) => warn!("Clipboard set OK but readback failed: {e}"),
-            }
-        }
+        Ok(()) => {}
         Err(e) => warn!("Failed to set clipboard: {e}"),
     }
 }
@@ -890,43 +985,45 @@ fn spawn_pasted_node(
     }
 }
 
+struct SetVisibility {
+    entity: Entity,
+    old: Visibility,
+    new: Visibility,
+}
+
+impl EditorCommand for SetVisibility {
+    fn execute(&mut self, world: &mut World) {
+        crate::commands::apply_component_bsn(world, self.entity, &self.new);
+    }
+    fn undo(&mut self, world: &mut World) {
+        crate::commands::apply_component_bsn(world, self.entity, &self.old);
+    }
+    fn description(&self) -> &str {
+        "Set visibility"
+    }
+}
+
 fn hide_selected(world: &mut World) {
     let selection = world.resource::<Selection>();
     let entities: Vec<Entity> = selection.entities.clone();
-
     if entities.is_empty() {
         return;
     }
 
     let mut cmds: Vec<Box<dyn EditorCommand>> = Vec::new();
-
     for &entity in &entities {
-        let current = world
-            .get::<Visibility>(entity)
-            .copied()
-            .unwrap_or(Visibility::Inherited);
-
+        let current = world.get::<Visibility>(entity).copied().unwrap_or(Visibility::Inherited);
         let new_visibility = match current {
             Visibility::Hidden => Visibility::Inherited,
             _ => Visibility::Hidden,
         };
-
-        let mut cmd = crate::commands::SetComponentField {
-            entity,
-            component_type_id: std::any::TypeId::of::<Visibility>(),
-            field_path: String::new(),
-            old_value: Box::new(current),
-            new_value: Box::new(new_visibility),
-        };
+        let mut cmd = SetVisibility { entity, old: current, new: new_visibility };
         cmd.execute(world);
         cmds.push(Box::new(cmd));
     }
 
     if !cmds.is_empty() {
-        let group = crate::commands::CommandGroup {
-            commands: cmds,
-            label: "Toggle visibility".to_string(),
-        };
+        let group = crate::commands::CommandGroup { commands: cmds, label: "Toggle visibility".to_string() };
         let mut history = world.resource_mut::<CommandHistory>();
         history.undo_stack.push(Box::new(group));
         history.redo_stack.clear();
@@ -935,38 +1032,23 @@ fn hide_selected(world: &mut World) {
 
 fn unhide_all_entities(world: &mut World) {
     let mut cmds: Vec<Box<dyn EditorCommand>> = Vec::new();
-
-    // Only unhide top-level scene entities (with Name), matching hide_unselected logic.
     let hidden: Vec<Entity> = {
         let mut query = world.query_filtered::<(Entity, &Visibility), (
             With<Name>,
             Without<EditorEntity>,
             Without<Node>,
         )>();
-        query
-            .iter(world)
-            .filter(|(_, vis)| **vis == Visibility::Hidden)
-            .map(|(e, _)| e)
-            .collect()
+        query.iter(world).filter(|(_, vis)| **vis == Visibility::Hidden).map(|(e, _)| e).collect()
     };
 
     for entity in hidden {
-        let mut cmd = crate::commands::SetComponentField {
-            entity,
-            component_type_id: std::any::TypeId::of::<Visibility>(),
-            field_path: String::new(),
-            old_value: Box::new(Visibility::Hidden),
-            new_value: Box::new(Visibility::Inherited),
-        };
+        let mut cmd = SetVisibility { entity, old: Visibility::Hidden, new: Visibility::Inherited };
         cmd.execute(world);
         cmds.push(Box::new(cmd));
     }
 
     if !cmds.is_empty() {
-        let group = crate::commands::CommandGroup {
-            commands: cmds,
-            label: "Unhide all".to_string(),
-        };
+        let group = crate::commands::CommandGroup { commands: cmds, label: "Unhide all".to_string() };
         let mut history = world.resource_mut::<CommandHistory>();
         history.undo_stack.push(Box::new(group));
         history.redo_stack.clear();
@@ -975,38 +1057,23 @@ fn unhide_all_entities(world: &mut World) {
 
 fn hide_all_entities(world: &mut World) {
     let mut cmds: Vec<Box<dyn EditorCommand>> = Vec::new();
-
-    // Hide all top-level scene entities (same filter as H, applied to everything).
     let to_hide: Vec<(Entity, Visibility)> = {
         let mut query = world.query_filtered::<(Entity, &Visibility), (
             With<Name>,
             Without<EditorEntity>,
             Without<Node>,
         )>();
-        query
-            .iter(world)
-            .filter(|(_, vis)| **vis != Visibility::Hidden)
-            .map(|(e, vis)| (e, *vis))
-            .collect()
+        query.iter(world).filter(|(_, vis)| **vis != Visibility::Hidden).map(|(e, vis)| (e, *vis)).collect()
     };
 
     for (entity, current) in to_hide {
-        let mut cmd = crate::commands::SetComponentField {
-            entity,
-            component_type_id: std::any::TypeId::of::<Visibility>(),
-            field_path: String::new(),
-            old_value: Box::new(current),
-            new_value: Box::new(Visibility::Hidden),
-        };
+        let mut cmd = SetVisibility { entity, old: current, new: Visibility::Hidden };
         cmd.execute(world);
         cmds.push(Box::new(cmd));
     }
 
     if !cmds.is_empty() {
-        let group = crate::commands::CommandGroup {
-            commands: cmds,
-            label: "Hide all".to_string(),
-        };
+        let group = crate::commands::CommandGroup { commands: cmds, label: "Hide all".to_string() };
         let mut history = world.resource_mut::<CommandHistory>();
         history.undo_stack.push(Box::new(group));
         history.redo_stack.clear();

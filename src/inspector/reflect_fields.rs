@@ -2134,9 +2134,7 @@ struct SetEnumVariant {
 
 impl EditorCommand for SetEnumVariant {
     fn execute(&mut self, world: &mut World) {
-        apply_enum_variant_to_ecs(world, self.entity, self.component_type_id, &self.field_path, &self.variant_name);
-        jackdaw_bsn::sync_to_ast(world, self.entity, self.component_type_id);
-        world.entity_mut(self.entity).insert((jackdaw_bsn::AstDirty, crate::inspector::InspectorDirty));
+        apply_enum_variant_bsn_first(world, self.entity, self.component_type_id, &self.field_path, &self.variant_name);
     }
 
     fn undo(&mut self, world: &mut World) {
@@ -2149,14 +2147,28 @@ impl EditorCommand for SetEnumVariant {
             }
             _ => return,
         };
-        apply_enum_variant_to_ecs(world, self.entity, self.component_type_id, &self.field_path, &old_variant);
-        jackdaw_bsn::sync_to_ast(world, self.entity, self.component_type_id);
-        world.entity_mut(self.entity).insert((jackdaw_bsn::AstDirty, crate::inspector::InspectorDirty));
+        apply_enum_variant_bsn_first(world, self.entity, self.component_type_id, &self.field_path, &old_variant);
     }
 
     fn description(&self) -> &str {
         "Set enum variant"
     }
+}
+
+/// BSN-first enum variant switch: build reflected value → write AST patch → apply to ECS.
+fn apply_enum_variant_bsn_first(
+    world: &mut World,
+    entity: Entity,
+    component_type_id: TypeId,
+    field_path: &str,
+    variant_name: &str,
+) {
+    // Build the reflected value with the new variant.
+    apply_enum_variant_to_ecs(world, entity, component_type_id, field_path, variant_name);
+
+    // Read back the mutated component and write to AST (BSN becomes authoritative).
+    jackdaw_bsn::sync_to_ast(world, entity, component_type_id);
+    world.entity_mut(entity).insert(crate::inspector::InspectorDirty);
 }
 
 /// Apply an enum variant change directly to the ECS component via reflection.

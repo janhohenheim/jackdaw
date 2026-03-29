@@ -13,7 +13,7 @@ pub use jackdaw_commands::{CommandGroup, CommandHistory, EditorCommand};
 
 use jackdaw_bsn::{
     BsnValue, SceneBsnAst,
-    sync_to_ast, sync_hierarchy_to_ast, add_component_to_ast, remove_component_from_ast,
+    sync_hierarchy_to_ast, remove_component_from_ast,
     set_bsn_field,
 };
 
@@ -28,74 +28,6 @@ impl Plugin for CommandHistoryPlugin {
             Update,
             handle_undo_redo_keys.in_set(crate::EditorInteraction),
         );
-    }
-}
-
-pub struct SetComponentField {
-    pub entity: Entity,
-    pub component_type_id: TypeId,
-    pub field_path: String,
-    pub old_value: Box<dyn PartialReflect>,
-    pub new_value: Box<dyn PartialReflect>,
-}
-
-impl EditorCommand for SetComponentField {
-    fn execute(&mut self, world: &mut World) {
-        apply_reflected_value(
-            world,
-            self.entity,
-            self.component_type_id,
-            &self.field_path,
-            &*self.new_value,
-        );
-        sync_to_ast(world, self.entity, self.component_type_id);
-    }
-
-    fn undo(&mut self, world: &mut World) {
-        apply_reflected_value(
-            world,
-            self.entity,
-            self.component_type_id,
-            &self.field_path,
-            &*self.old_value,
-        );
-        sync_to_ast(world, self.entity, self.component_type_id);
-    }
-
-    fn description(&self) -> &str {
-        "Set component field"
-    }
-}
-
-fn apply_reflected_value(
-    world: &mut World,
-    entity: Entity,
-    component_type_id: TypeId,
-    field_path: &str,
-    value: &dyn PartialReflect,
-) {
-    let registry = world.resource::<AppTypeRegistry>().clone();
-    let registry = registry.read();
-
-    let Some(registration) = registry.get(component_type_id) else {
-        return;
-    };
-    let Some(reflect_component) = registration.data::<ReflectComponent>() else {
-        return;
-    };
-
-    let Some(reflected) = reflect_component.reflect_mut(world.entity_mut(entity)) else {
-        return;
-    };
-
-    if field_path.is_empty() {
-        // Apply to the entire component (e.g. a top-level enum component)
-        reflected.into_inner().apply(value);
-    } else {
-        let Ok(field) = reflected.into_inner().reflect_path_mut(field_path) else {
-            return;
-        };
-        field.apply(value);
     }
 }
 
@@ -365,28 +297,37 @@ impl EditorCommand for AddComponent {
         let Some(registration) = registry.get(self.type_id) else {
             return;
         };
+        let type_path = registration.type_info().type_path().to_string();
 
-        // Create default value
+        // Create default value and convert to BSN patch.
         let Some(reflect_default) = registration.data::<ReflectDefault>() else {
             warn!("No ReflectDefault for component — cannot add");
             return;
         };
         let default_value = reflect_default.default();
+        let patch = jackdaw_bsn::component_to_bsn_patch(default_value.as_partial_reflect(), &registry);
+
+        // 1. Write to AST (source of truth).
+        let patches_entity = jackdaw_bsn::ensure_ast_node(world, self.entity);
+        let mut ast = world.resource_mut::<SceneBsnAst>();
+        let pe = ast.world.spawn(patch).id();
+        if let Some(patches) = ast.get_patches_mut(patches_entity) {
+            patches.0.push(pe);
+        }
+        drop(ast);
+
+        // 2. Apply to ECS (preview).
         let Some(reflect_component) = registration.data::<ReflectComponent>() else {
             return;
         };
-
         reflect_component.insert(
             &mut world.entity_mut(self.entity),
             default_value.as_partial_reflect(),
             &registry,
         );
-        drop(registry);
-        add_component_to_ast(world, self.entity, self.type_id);
     }
 
     fn undo(&mut self, world: &mut World) {
-        // Get type path before removing
         let type_path = {
             let registry = world.resource::<AppTypeRegistry>().clone();
             let registry = registry.read();
@@ -394,11 +335,13 @@ impl EditorCommand for AddComponent {
                 .get(self.type_id)
                 .map(|r| r.type_info().type_path().to_string())
         };
+        // 1. Remove from AST.
+        if let Some(type_path) = &type_path {
+            remove_component_from_ast(world, self.entity, type_path);
+        }
+        // 2. Remove from ECS.
         if let Ok(mut entity) = world.get_entity_mut(self.entity) {
             entity.remove_by_id(self.component_id);
-        }
-        if let Some(type_path) = type_path {
-            remove_component_from_ast(world, self.entity, &type_path);
         }
     }
 
@@ -417,7 +360,6 @@ pub struct RemoveComponent {
 
 impl EditorCommand for RemoveComponent {
     fn execute(&mut self, world: &mut World) {
-        // Get type path before removing
         let type_path = {
             let registry = world.resource::<AppTypeRegistry>().clone();
             let registry = registry.read();
@@ -425,11 +367,13 @@ impl EditorCommand for RemoveComponent {
                 .get(self.type_id)
                 .map(|r| r.type_info().type_path().to_string())
         };
+        // 1. Remove from AST (source of truth).
+        if let Some(type_path) = &type_path {
+            remove_component_from_ast(world, self.entity, type_path);
+        }
+        // 2. Remove from ECS (preview).
         if let Ok(mut entity) = world.get_entity_mut(self.entity) {
             entity.remove_by_id(self.component_id);
-        }
-        if let Some(type_path) = type_path {
-            remove_component_from_ast(world, self.entity, &type_path);
         }
     }
 
@@ -440,17 +384,26 @@ impl EditorCommand for RemoveComponent {
         let Some(registration) = registry.get(self.type_id) else {
             return;
         };
+
+        // 1. Re-add to AST (source of truth).
+        let patch = jackdaw_bsn::component_to_bsn_patch(&*self.snapshot, &registry);
+        let patches_entity = jackdaw_bsn::ensure_ast_node(world, self.entity);
+        let mut ast = world.resource_mut::<SceneBsnAst>();
+        let pe = ast.world.spawn(patch).id();
+        if let Some(patches) = ast.get_patches_mut(patches_entity) {
+            patches.0.push(pe);
+        }
+        drop(ast);
+
+        // 2. Re-add to ECS (preview).
         let Some(reflect_component) = registration.data::<ReflectComponent>() else {
             return;
         };
-
         reflect_component.insert(
             &mut world.entity_mut(self.entity),
             &*self.snapshot,
             &registry,
         );
-        drop(registry);
-        add_component_to_ast(world, self.entity, self.type_id);
     }
 
     fn description(&self) -> &str {

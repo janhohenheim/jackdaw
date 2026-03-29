@@ -68,7 +68,12 @@ pub(crate) fn add_component_displays(
             let mut paths = HashSet::new();
             for &pe in &patches.0 {
                 match ast.get_patch(pe) {
-                    Some(BsnPatch::Struct(data)) => { paths.insert(data.type_path.clone()); }
+                    Some(BsnPatch::Struct(data)) => {
+                        paths.insert(data.type_path.clone());
+                        if let Some(base) = data.type_path.rsplit_once("::").map(|(b, _)| b.to_string()) {
+                            paths.insert(base);
+                        }
+                    }
                     Some(BsnPatch::Type(tp)) => {
                         paths.insert(tp.clone());
                         // For enum variants (e.g. "Foo::Variant"), also insert
@@ -77,7 +82,12 @@ pub(crate) fn add_component_displays(
                             paths.insert(base);
                         }
                     }
-                    Some(BsnPatch::TupleStruct(data)) => { paths.insert(data.type_path.clone()); }
+                    Some(BsnPatch::TupleStruct(data)) => {
+                        paths.insert(data.type_path.clone());
+                        if let Some(base) = data.type_path.rsplit_once("::").map(|(b, _)| b.to_string()) {
+                            paths.insert(base);
+                        }
+                    }
                     Some(BsnPatch::Template(tp, _)) => { paths.insert(tp.clone()); }
                     _ => {}
                 }
@@ -646,7 +656,12 @@ pub(crate) fn on_inspector_dirty(
             let mut paths = HashSet::new();
             for &pe in &patches.0 {
                 match ast.get_patch(pe) {
-                    Some(BsnPatch::Struct(data)) => { paths.insert(data.type_path.clone()); }
+                    Some(BsnPatch::Struct(data)) => {
+                        paths.insert(data.type_path.clone());
+                        if let Some(base) = data.type_path.rsplit_once("::").map(|(b, _)| b.to_string()) {
+                            paths.insert(base);
+                        }
+                    }
                     Some(BsnPatch::Type(tp)) => {
                         paths.insert(tp.clone());
                         // For enum variants (e.g. "Foo::Variant"), also insert
@@ -655,7 +670,12 @@ pub(crate) fn on_inspector_dirty(
                             paths.insert(base);
                         }
                     }
-                    Some(BsnPatch::TupleStruct(data)) => { paths.insert(data.type_path.clone()); }
+                    Some(BsnPatch::TupleStruct(data)) => {
+                        paths.insert(data.type_path.clone());
+                        if let Some(base) = data.type_path.rsplit_once("::").map(|(b, _)| b.to_string()) {
+                            paths.insert(base);
+                        }
+                    }
                     Some(BsnPatch::Template(tp, _)) => { paths.insert(tp.clone()); }
                     _ => {}
                 }
@@ -1004,9 +1024,7 @@ fn revert_component_to_baseline(world: &mut World, entity: Entity, component_id:
 
     drop(registry);
 
-    // Sync reverted component to BSN AST
+    // Write reverted component to BSN AST (AST becomes authoritative).
     jackdaw_bsn::sync_to_ast(world, entity, type_id);
-
-    // Trigger inspector rebuild
     world.entity_mut(entity).insert(InspectorDirty);
 }

@@ -515,12 +515,14 @@ pub fn set_bsn_field(
         }
     };
 
-    // If the patch is a bare Type (all defaults), promote to Struct.
+    // If the patch is a bare Type (all defaults), promote to Struct,
+    // preserving the original type path (which may be variant-qualified).
     if let Some(patch) = ast.world.get_mut::<BsnPatch>(patch_entity) {
         let patch = patch.into_inner();
-        if matches!(patch, BsnPatch::Type(_)) {
+        if let BsnPatch::Type(existing_tp) = patch {
+            let preserved_tp = existing_tp.clone();
             *patch = BsnPatch::Struct(BsnStructData {
-                type_path: type_path.to_string(),
+                type_path: preserved_tp,
                 fields: BsnStructFields::default(),
             });
         }

@@ -34,35 +34,26 @@ pub struct SetTerrainHeights {
 
 impl EditorCommand for SetTerrainHeights {
     fn execute(&mut self, world: &mut World) {
-        if let Some(mut terrain) = world.get_mut::<jackdaw_jsn::Terrain>(self.entity) {
-            terrain.heights = self.new_heights.clone();
-        }
-        if let Some(mut dirty) = world.get_mut::<TerrainDirtyChunks>(self.entity) {
-            dirty.rebuild_all = true;
-        }
-        jackdaw_bsn::sync_to_ast(
-            world,
-            self.entity,
-            std::any::TypeId::of::<jackdaw_jsn::Terrain>(),
-        );
+        apply_terrain_heights(world, self.entity, &self.new_heights);
     }
 
     fn undo(&mut self, world: &mut World) {
-        if let Some(mut terrain) = world.get_mut::<jackdaw_jsn::Terrain>(self.entity) {
-            terrain.heights = self.old_heights.clone();
-        }
-        if let Some(mut dirty) = world.get_mut::<TerrainDirtyChunks>(self.entity) {
-            dirty.rebuild_all = true;
-        }
-        jackdaw_bsn::sync_to_ast(
-            world,
-            self.entity,
-            std::any::TypeId::of::<jackdaw_jsn::Terrain>(),
-        );
+        apply_terrain_heights(world, self.entity, &self.old_heights);
     }
 
     fn description(&self) -> &str {
         &self.label
+    }
+}
+
+fn apply_terrain_heights(world: &mut World, entity: Entity, heights: &[f32]) {
+    let Some(mut terrain) = world.get::<jackdaw_jsn::Terrain>(entity).cloned() else {
+        return;
+    };
+    terrain.heights = heights.to_vec();
+    crate::commands::apply_component_bsn(world, entity, &terrain);
+    if let Some(mut dirty) = world.get_mut::<TerrainDirtyChunks>(entity) {
+        dirty.rebuild_all = true;
     }
 }
 

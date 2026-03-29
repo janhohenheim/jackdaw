@@ -10,6 +10,15 @@ use bevy::asset::{AssetServer, ReflectHandle};
 use bevy::prelude::*;
 use bevy::platform::collections::HashMap;
 
+/// Check if `stored_path` is an enum variant of `base_path`.
+/// e.g. "foo::Bar::Sphere" is a variant of "foo::Bar".
+fn is_enum_variant_of(stored_path: &str, base_path: &str) -> bool {
+    stored_path.starts_with(base_path)
+        && stored_path.as_bytes().get(base_path.len()) == Some(&b':')
+        && stored_path[base_path.len()..].starts_with("::")
+        && !stored_path[base_path.len() + 2..].contains("::")
+}
+
 // ---------------------------------------------------------------------------
 // AST node types — stored as components on entities in SceneBsnAst.world
 // ---------------------------------------------------------------------------
@@ -210,9 +219,9 @@ impl SceneBsnAst {
         for &patch_entity in &patches.0 {
             if let Some(patch) = self.get_patch(patch_entity) {
                 let matches = match patch {
-                    BsnPatch::Type(tp) => tp == type_path,
-                    BsnPatch::Struct(data) => data.type_path == type_path,
-                    BsnPatch::TupleStruct(data) => data.type_path == type_path,
+                    BsnPatch::Type(tp) => tp == type_path || is_enum_variant_of(tp, type_path),
+                    BsnPatch::Struct(data) => data.type_path == type_path || is_enum_variant_of(&data.type_path, type_path),
+                    BsnPatch::TupleStruct(data) => data.type_path == type_path || is_enum_variant_of(&data.type_path, type_path),
                     BsnPatch::Template(tp, _) => tp == type_path,
                     _ => false,
                 };
