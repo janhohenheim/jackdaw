@@ -33,9 +33,6 @@ pub fn apply_dirty_ast_patches(world: &mut World) {
         .iter(world)
         .collect();
 
-    for entity in &dirty {
-        info!("apply_dirty_ast_patches: applying to entity {entity:?}");
-    }
     for entity in dirty {
         apply_ast_to_ecs(world, entity);
         if let Ok(mut ec) = world.get_entity_mut(entity) {
@@ -63,17 +60,6 @@ pub fn apply_ast_to_ecs(world: &mut World, entity: Entity) {
         if let Some(patch) = ast.get_patch(pe) {
             patch_data.push(patch.clone());
         }
-    }
-
-    for patch in &patch_data {
-        let desc = match patch {
-            BsnPatch::Type(tp) => format!("Type({})", tp),
-            BsnPatch::Struct(d) => format!("Struct({})", d.type_path),
-            BsnPatch::TupleStruct(d) => format!("TupleStruct({})", d.type_path),
-            BsnPatch::Name(n) => format!("Name({})", n),
-            _ => "other".to_string(),
-        };
-        info!("  apply patch: {desc}");
     }
 
     for patch in patch_data {
@@ -180,7 +166,7 @@ fn apply_struct_patch(world: &mut World, entity: Entity, data: &BsnStructData) {
     }
 
     // Enum variant lookup: type_path is "EnumType::Variant" with struct fields
-    info!("apply_struct_patch: no direct registration for '{}', trying enum variant", data.type_path);
+    // Enum variant lookup: type_path is "EnumType::Variant" with struct fields
     if let Some(last_sep) = data.type_path.rfind("::") {
         let enum_path = &data.type_path[..last_sep];
         let variant_name = &data.type_path[last_sep + 2..];
@@ -545,10 +531,9 @@ pub fn set_bsn_field(
     value: BsnValue,
     registry: &TypeRegistry,
 ) {
-    info!("set_bsn_field: type_path={type_path}, field_path={field_path}");
     // Ensure a Struct patch exists for this type.
     let patch_entity = match ast.find_patch_by_type_path(patches_entity, type_path) {
-        Some(pe) => { info!("  found existing patch"); pe }
+        Some(pe) => pe,
         None => {
             let pe = ast
                 .world

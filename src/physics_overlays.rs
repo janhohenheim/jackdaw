@@ -1,11 +1,23 @@
 use std::f32::consts::FRAC_PI_2;
 
 use avian3d::prelude::*;
+use bevy::platform::collections::HashMap;
 use bevy::prelude::*;
 use parry3d::shape::TypedShape;
 
 use crate::colors;
 use crate::selection::Selected;
+
+/// Cache of computed collider shapes, keyed by mesh asset ID.
+/// For brush entities (no mesh asset), keyed by entity ID converted to a
+/// synthetic AssetId. Collider is Arc-backed so clones are cheap.
+#[derive(Resource, Default)]
+pub struct ColliderPreviewCache {
+    /// Mesh asset → (constructor, collider) pairs (same pattern as Avian's ColliderCache).
+    by_mesh: HashMap<AssetId<Mesh>, Vec<(ColliderConstructor, Collider)>>,
+    /// Entity → collider for brush entities that build meshes from BrushMeshCache.
+    by_entity: HashMap<Entity, (ColliderConstructor, Collider)>,
+}
 
 #[derive(Resource)]
 pub struct PhysicsOverlayConfig {
@@ -30,6 +42,7 @@ pub struct PhysicsOverlaysPlugin;
 impl Plugin for PhysicsOverlaysPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PhysicsOverlayConfig>()
+            .init_resource::<ColliderPreviewCache>()
             .init_gizmo_group::<ColliderGizmoGroup>()
             .add_systems(
                 PostUpdate,
@@ -38,6 +51,11 @@ impl Plugin for PhysicsOverlaysPlugin {
                     draw_hierarchy_arrows,
                 )
                     .after(bevy::transform::TransformSystems::Propagate)
+                    .run_if(in_state(crate::AppState::Editor)),
+            )
+            .add_systems(
+                PostUpdate,
+                evict_collider_cache
                     .run_if(in_state(crate::AppState::Editor)),
             );
 
@@ -60,6 +78,7 @@ fn parry_point(p: &parry3d::math::Vector) -> Vec3 {
 fn draw_collider_gizmos(
     mut gizmos: Gizmos<ColliderGizmoGroup>,
     config: Res<PhysicsOverlayConfig>,
+    mut cache: ResMut<ColliderPreviewCache>,
     colliders: Query<(
         Entity,
         &ColliderConstructor,
@@ -109,54 +128,120 @@ fn draw_collider_gizmos(
         let pos = transform.translation;
         let rot = transform.rotation;
 
-        // Try to compute the actual Collider shape from the constructor.
-        // For mesh-based variants, use BrushMeshCache (combined geometry) or Mesh3d.
-        let self_mesh = mesh3d.and_then(|m| meshes.get(&m.0));
-        let brush_mesh_storage;
+        // Try to get the collider from cache or compute it.
+        let collider = get_or_compute_collider(
+            &mut cache,
+            entity,
+            constructor,
+            mesh3d,
+            brush_cache,
+            &meshes,
+        );
 
-        let mesh: Option<&Mesh> = if self_mesh.is_some() {
-            self_mesh
-        } else if constructor.requires_mesh() {
-            if let Some(cache) = brush_cache {
-                // Build a triangulated mesh from BrushMeshCache
-                let positions: Vec<[f32; 3]> = cache.vertices.iter().map(|v| [v.x, v.y, v.z]).collect();
-                let mut indices: Vec<u32> = Vec::new();
-                for polygon in &cache.face_polygons {
-                    // Fan-triangulate each polygon
-                    if polygon.len() >= 3 {
-                        for i in 1..polygon.len() - 1 {
-                            indices.push(polygon[0] as u32);
-                            indices.push(polygon[i] as u32);
-                            indices.push(polygon[i + 1] as u32);
-                        }
-                    }
-                }
-                let mut m = Mesh::new(bevy::mesh::PrimitiveTopology::TriangleList, bevy::asset::RenderAssetUsages::default());
-                m.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
-                m.insert_indices(bevy::mesh::Indices::U32(indices));
-                brush_mesh_storage = Some(m);
-                brush_mesh_storage.as_ref()
-            } else {
-                None
-            }
-        } else {
-            None
-        };
+        if let Some(c) = &collider {
+            draw_parry_shape(&mut gizmos, c.shape(), pos, rot, color);
+        }
+    }
+}
 
-        let collider = Collider::try_from_constructor(constructor.clone(), mesh);
+/// Get a cached collider or compute and cache a new one.
+/// Uses mesh AssetId for Mesh3d entities, entity ID for brush entities.
+fn get_or_compute_collider(
+    cache: &mut ColliderPreviewCache,
+    entity: Entity,
+    constructor: &ColliderConstructor,
+    mesh3d: Option<&Mesh3d>,
+    brush_cache: Option<&crate::brush::BrushMeshCache>,
+    meshes: &Assets<Mesh>,
+) -> Option<Collider> {
+    // For mesh-asset-backed entities, cache by AssetId
+    if let Some(mesh3d) = mesh3d {
+        let asset_id = mesh3d.0.id();
+        if let Some(entries) = cache.by_mesh.get(&asset_id) {
+            if let Some((_, collider)) = entries.iter().find(|(c, _)| c == constructor) {
+                return Some(collider.clone());
+            }
+        }
+        let mesh = meshes.get(&mesh3d.0)?;
+        let collider = Collider::try_from_constructor(constructor.clone(), Some(mesh))?;
+        cache.by_mesh
+            .entry(asset_id)
+            .or_default()
+            .push((constructor.clone(), collider.clone()));
+        return Some(collider);
+    }
 
-        match &collider {
-            Some(c) => {
-                draw_parry_shape(&mut gizmos, c.shape(), pos, rot, color);
+    // For brush entities, cache by entity
+    if let Some(brush) = brush_cache {
+        if let Some((cached_ctor, cached_collider)) = cache.by_entity.get(&entity) {
+            if cached_ctor == constructor {
+                return Some(cached_collider.clone());
             }
-            None => {
-                // Log once to help debug — mesh might not be loaded
-                if constructor.requires_mesh() {
-                    // Mesh-based variant but no mesh found
-                } else {
-                    warn_once!("Collider::try_from_constructor returned None for {:?}", constructor);
-                }
+        }
+        let mesh = brush_mesh_from_cache(brush)?;
+        let collider = Collider::try_from_constructor(constructor.clone(), Some(&mesh))?;
+        cache.by_entity.insert(entity, (constructor.clone(), collider.clone()));
+        return Some(collider);
+    }
+
+    // Primitive shapes (no mesh needed)
+    if !constructor.requires_mesh() {
+        // Primitives are cheap to construct, but cache by entity anyway
+        if let Some((cached_ctor, cached_collider)) = cache.by_entity.get(&entity) {
+            if cached_ctor == constructor {
+                return Some(cached_collider.clone());
             }
+        }
+        let collider = Collider::try_from_constructor(constructor.clone(), None)?;
+        cache.by_entity.insert(entity, (constructor.clone(), collider.clone()));
+        return Some(collider);
+    }
+
+    None
+}
+
+/// Build a triangulated Mesh from BrushMeshCache.
+fn brush_mesh_from_cache(cache: &crate::brush::BrushMeshCache) -> Option<Mesh> {
+    if cache.vertices.is_empty() {
+        return None;
+    }
+    let positions: Vec<[f32; 3]> = cache.vertices.iter().map(|v| [v.x, v.y, v.z]).collect();
+    let mut indices: Vec<u32> = Vec::new();
+    for polygon in &cache.face_polygons {
+        if polygon.len() >= 3 {
+            for i in 1..polygon.len() - 1 {
+                indices.push(polygon[0] as u32);
+                indices.push(polygon[i] as u32);
+                indices.push(polygon[i + 1] as u32);
+            }
+        }
+    }
+    let mut m = Mesh::new(
+        bevy::mesh::PrimitiveTopology::TriangleList,
+        bevy::asset::RenderAssetUsages::default(),
+    );
+    m.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+    m.insert_indices(bevy::mesh::Indices::U32(indices));
+    Some(m)
+}
+
+/// Evict cache entries for entities that no longer have ColliderConstructor
+/// or mesh assets that were removed.
+fn evict_collider_cache(
+    mut cache: ResMut<ColliderPreviewCache>,
+    colliders: Query<Entity, With<ColliderConstructor>>,
+    mut mesh_events: MessageReader<AssetEvent<Mesh>>,
+) {
+    // Remove entries for despawned/changed entities
+    cache.by_entity.retain(|entity, _| colliders.contains(*entity));
+
+    // Remove entries for removed/changed mesh assets
+    for event in mesh_events.read() {
+        match event {
+            AssetEvent::Removed { id } | AssetEvent::Modified { id } => {
+                cache.by_mesh.remove(id);
+            }
+            _ => {}
         }
     }
 }
