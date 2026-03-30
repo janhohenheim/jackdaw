@@ -1,4 +1,8 @@
-use bevy::prelude::*;
+use bevy::{
+    feathers::cursor::{CursorIconPlugin, EntityCursor, OverrideCursor},
+    prelude::*,
+    window::SystemCursorIcon,
+};
 use bevy_monitors::prelude::{Mutation, NotifyChanged};
 
 #[derive(Component)]
@@ -18,7 +22,14 @@ pub struct SplitPanelPlugin;
 
 impl Plugin for SplitPanelPlugin {
     fn build(&self, app: &mut App) {
+        if !app.is_plugin_added::<CursorIconPlugin>() {
+            app.add_plugins(CursorIconPlugin);
+        }
+
         app.add_observer(on_panel_added)
+            .add_observer(on_handle_added)
+            .add_observer(on_handle_drag_start)
+            .add_observer(on_handle_drag_end)
             .add_systems(Startup, setup_panel_watcher);
     }
 }
@@ -99,5 +110,98 @@ fn recalculate_group(
                 node.min_height = px(0.0);
             }
         }
+    }
+}
+
+fn on_handle_added(
+    trigger: On<Add, PanelHandle>,
+    handles: Query<&ChildOf, With<PanelHandle>>,
+    nodes: Query<(&Children, &Node)>,
+    mut commands: Commands,
+) {
+    let Ok(&ChildOf(parent)) = handles.get(trigger.entity) else {
+        return;
+    };
+
+    let Ok((children, node)) = nodes.get(parent) else {
+        return;
+    };
+
+    let index = children
+        .iter()
+        .position(|e| e == trigger.entity)
+        .unwrap_or(0);
+
+    let cursor_icon = get_drag_icon(node.flex_direction, index, children.len());
+
+    commands
+        .entity(trigger.entity)
+        .insert(EntityCursor::System(cursor_icon));
+}
+
+fn on_handle_drag_start(
+    trigger: On<Pointer<DragStart>>,
+    handles: Query<&ChildOf, With<PanelHandle>>,
+    nodes: Query<(&Children, &Node)>,
+    mut override_cursor: ResMut<OverrideCursor>,
+) {
+    let Ok(&ChildOf(parent)) = handles.get(trigger.event_target()) else {
+        return;
+    };
+
+    let Ok((children, node)) = nodes.get(parent) else {
+        return;
+    };
+
+    let index = children
+        .iter()
+        .position(|e| e == trigger.entity)
+        .unwrap_or(0);
+
+    let cursor_icon = get_drag_icon(node.flex_direction, index, children.len());
+
+    // This is a low priority override, so if anything else is overriding the cursor, we don't need to
+    if override_cursor.is_none() {
+        override_cursor.0 = Some(EntityCursor::System(cursor_icon));
+    }
+}
+
+fn on_handle_drag_end(
+    trigger: On<Pointer<DragEnd>>,
+    handles: Query<&ChildOf, With<PanelHandle>>,
+    nodes: Query<(&Children, &Node)>,
+    mut override_cursor: ResMut<OverrideCursor>,
+) {
+    let Ok(&ChildOf(parent)) = handles.get(trigger.event_target()) else {
+        return;
+    };
+
+    let Ok((children, node)) = nodes.get(parent) else {
+        return;
+    };
+
+    let index = children
+        .iter()
+        .position(|e| e == trigger.entity)
+        .unwrap_or(0);
+
+    let cursor_icon = get_drag_icon(node.flex_direction, index, children.len());
+
+    if override_cursor.0 == Some(EntityCursor::System(cursor_icon)) {
+        override_cursor.0 = None;
+    }
+}
+
+fn get_drag_icon(direction: FlexDirection, index: usize, count: usize) -> SystemCursorIcon {
+    let is_right_half = index > count / 2;
+    match (direction, is_right_half) {
+        (FlexDirection::Row, false) => SystemCursorIcon::EResize,
+        (FlexDirection::Row, true) => SystemCursorIcon::WResize,
+        (FlexDirection::RowReverse, false) => SystemCursorIcon::WResize,
+        (FlexDirection::RowReverse, true) => SystemCursorIcon::EResize,
+        (FlexDirection::Column, false) => SystemCursorIcon::NResize,
+        (FlexDirection::Column, true) => SystemCursorIcon::SResize,
+        (FlexDirection::ColumnReverse, false) => SystemCursorIcon::SResize,
+        (FlexDirection::ColumnReverse, true) => SystemCursorIcon::NResize,
     }
 }
