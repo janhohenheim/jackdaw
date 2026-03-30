@@ -19,10 +19,6 @@ fn is_enum_variant_of(stored_path: &str, base_path: &str) -> bool {
         && !stored_path[base_path.len() + 2..].contains("::")
 }
 
-// ---------------------------------------------------------------------------
-// AST node types — stored as components on entities in SceneBsnAst.world
-// ---------------------------------------------------------------------------
-
 /// A list of patches that together define one BSN entity.
 /// Each child entity has a [`BsnPatch`] component.
 #[derive(Component)]
@@ -90,10 +86,6 @@ pub enum BsnValue {
     List(Vec<BsnValue>),
 }
 
-// ---------------------------------------------------------------------------
-// AST storage — the persistent BSN AST for the loaded scene
-// ---------------------------------------------------------------------------
-
 /// Resource holding the BSN AST for the currently loaded scene.
 /// The AST is stored as entities in a separate [`World`].
 #[derive(Resource, Default)]
@@ -114,10 +106,6 @@ pub struct SceneBsnAst {
 pub struct AstNodeRef {
     pub patches_entity: Entity,
 }
-
-// ---------------------------------------------------------------------------
-// AST manipulation
-// ---------------------------------------------------------------------------
 
 impl SceneBsnAst {
     /// Create a new AST node for an entity with the given patches.
@@ -414,10 +402,6 @@ impl SceneBsnAst {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Conversions: ECS reflect data → BsnValue
-// ---------------------------------------------------------------------------
 
 /// Context for resolving Handle<T> fields to asset paths during BSN emission.
 pub struct BsnAssetContext<'a> {

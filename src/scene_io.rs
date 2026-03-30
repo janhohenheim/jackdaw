@@ -2326,10 +2326,6 @@ pub fn link_single_entity_to_ast(world: &mut World, entity: Entity, parent: Opti
         .insert(AstNodeRef { patches_entity: ast_entity });
 }
 
-// ---------------------------------------------------------------------------
-// Materials BSN helpers
-// ---------------------------------------------------------------------------
-
 /// Collect all unique materials from brush faces and assign names.
 /// Returns a map of `UntypedAssetId → name`.
 fn collect_and_name_materials(world: &mut World) -> HashMap<UntypedAssetId, String> {

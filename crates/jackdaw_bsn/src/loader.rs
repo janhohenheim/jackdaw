@@ -141,10 +141,6 @@ fn spawn_ast_node(
     }
 }
 
-// ---------------------------------------------------------------------------
-// Bevy AST → Jackdaw AST adaptation
-// ---------------------------------------------------------------------------
-
 fn adapt_patches(
     bevy_ast: &BsnAst,
     patches_id: bevy::prelude::Entity,

@@ -1,8 +1,7 @@
-//! Sync helpers: ECS → BSN AST.
+//! Sync helpers for writing ECS component state back to the BSN AST.
 //!
-//! After modifying an ECS component, call `sync_to_ast` to update the
-//! corresponding BSN AST node. This is a one-line addition to existing
-//! editor commands.
+//! Used by reflection-based operations (enum variant switches, component
+//! reverts) where the concrete type is not known at compile time.
 
 use std::any::TypeId;
 

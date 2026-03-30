@@ -1,8 +1,8 @@
-//! Apply AST patches to ECS entities via reflection.
+//! Apply BSN AST patches to ECS entities via reflection.
 //!
-//! When an AST patch changes, insert [`AstDirty`] on the ECS entity. The
-//! [`apply_dirty_ast_patches`] system picks these up in `PostUpdate` and
-//! applies the AST state to ECS using bevy's reflection system.
+//! [`apply_dirty_ast_patches`] processes entities marked [`AstDirty`],
+//! reading their patches from the AST and inserting the corresponding
+//! ECS components. Called explicitly during scene load and paste operations.
 
 use std::any::TypeId;
 
@@ -62,6 +62,17 @@ pub fn apply_ast_to_ecs(world: &mut World, entity: Entity) {
         }
     }
 
+    for patch in &patch_data {
+        let desc = match patch {
+            BsnPatch::Type(tp) => format!("Type({})", tp),
+            BsnPatch::Struct(d) => format!("Struct({})", d.type_path),
+            BsnPatch::TupleStruct(d) => format!("TupleStruct({})", d.type_path),
+            BsnPatch::Name(n) => format!("Name({})", n),
+            _ => "other".to_string(),
+        };
+        info!("  apply patch: {desc}");
+    }
+
     for patch in patch_data {
         match patch {
             BsnPatch::Name(name) => {
@@ -81,10 +92,6 @@ pub fn apply_ast_to_ecs(world: &mut World, entity: Entity) {
         }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Patch application helpers
-// ---------------------------------------------------------------------------
 
 /// Apply a bare type patch (unit struct or enum variant with all defaults).
 fn apply_type_patch(world: &mut World, entity: Entity, type_path: &str) {
@@ -185,45 +192,72 @@ fn apply_struct_patch(world: &mut World, entity: Entity, data: &BsnStructData) {
             return;
         };
 
-        let mut value = reflect_default.default();
+        // Read the EXISTING component if present (preserves current variant).
+        // Only fall back to default() if the component doesn't exist yet.
+        let mut value: Box<dyn PartialReflect> = {
+            let Ok(entity_ref) = world.get_entity(entity) else { return };
+            if let Some(existing) = reflect_component.reflect(entity_ref) {
+                existing.to_dynamic()
+            } else {
+                reflect_default.default().into_partial_reflect()
+            }
+        };
+
         if let ReflectMut::Enum(e) = value.reflect_mut() {
-            // Get variant field type info from the enum's type info,
-            // NOT from the default instance's current variant (which may differ).
-            let variant_field_types: std::collections::HashMap<String, std::any::TypeId> = e
-                .get_represented_type_info()
-                .and_then(|info| {
-                    if let bevy::reflect::TypeInfo::Enum(enum_info) = info {
-                        if let Some(bevy::reflect::enums::VariantInfo::Struct(struct_info)) = enum_info.variant(variant_name) {
-                            let mut map = std::collections::HashMap::new();
-                            for i in 0..struct_info.field_len() {
-                                let fi = struct_info.field_at(i).unwrap();
-                                map.insert(fi.name().to_string(), fi.type_id());
+            if e.variant_name() == variant_name {
+                // Same variant — update fields in place (common case: field edit)
+                for field in &data.fields.0 {
+                    if let Some(target) = e.field_mut(&field.name) {
+                        if let Some(type_info) = target.get_represented_type_info() {
+                            if let Some(reflected) = bsn_value_to_reflect(
+                                &field.value,
+                                type_info.type_id(),
+                                &reg,
+                                asset_server.as_ref(),
+                            ) {
+                                target.apply(&*reflected);
                             }
-                            return Some(map);
                         }
                     }
-                    None
-                })
-                .unwrap_or_default();
-
-            let mut dynamic_struct = bevy::reflect::structs::DynamicStruct::default();
-            for field in &data.fields.0 {
-                let field_type_id = variant_field_types
-                    .get(&field.name)
-                    .copied()
-                    .unwrap_or(std::any::TypeId::of::<f32>());
-                if let Some(reflected) = bsn_value_to_reflect(
-                    &field.value,
-                    field_type_id,
-                    &reg,
-                    asset_server.as_ref(),
-                ) {
-                    dynamic_struct.insert_boxed(&field.name, reflected);
                 }
+            } else {
+                // Different variant — need to switch (variant change via BSN apply)
+                let variant_field_types: std::collections::HashMap<String, std::any::TypeId> = e
+                    .get_represented_type_info()
+                    .and_then(|info| {
+                        if let bevy::reflect::TypeInfo::Enum(enum_info) = info {
+                            if let Some(bevy::reflect::enums::VariantInfo::Struct(struct_info)) = enum_info.variant(variant_name) {
+                                let mut map = std::collections::HashMap::new();
+                                for i in 0..struct_info.field_len() {
+                                    let fi = struct_info.field_at(i).unwrap();
+                                    map.insert(fi.name().to_string(), fi.type_id());
+                                }
+                                return Some(map);
+                            }
+                        }
+                        None
+                    })
+                    .unwrap_or_default();
+
+                let mut dynamic_struct = bevy::reflect::structs::DynamicStruct::default();
+                for field in &data.fields.0 {
+                    let field_type_id = variant_field_types
+                        .get(&field.name)
+                        .copied()
+                        .unwrap_or(std::any::TypeId::of::<f32>());
+                    if let Some(reflected) = bsn_value_to_reflect(
+                        &field.value,
+                        field_type_id,
+                        &reg,
+                        asset_server.as_ref(),
+                    ) {
+                        dynamic_struct.insert_boxed(&field.name, reflected);
+                    }
+                }
+                let dynamic_enum =
+                    DynamicEnum::new(variant_name, DynamicVariant::Struct(dynamic_struct));
+                e.apply(&dynamic_enum);
             }
-            let dynamic_enum =
-                DynamicEnum::new(variant_name, DynamicVariant::Struct(dynamic_struct));
-            e.apply(&dynamic_enum);
         }
 
         reflect_component.insert(
@@ -317,10 +351,6 @@ fn apply_tuple_struct_patch(world: &mut World, entity: Entity, data: &BsnTupleSt
 
     reflect_component.insert(&mut world.entity_mut(entity), value.as_partial_reflect(), &reg);
 }
-
-// ---------------------------------------------------------------------------
-// BsnValue → PartialReflect conversion
-// ---------------------------------------------------------------------------
 
 /// Convert a [`BsnValue`] to a boxed reflected value given the expected type.
 pub fn bsn_value_to_reflect(
@@ -501,10 +531,6 @@ fn list_value_to_reflect(
     Some(Box::new(dynamic_list))
 }
 
-// ---------------------------------------------------------------------------
-// AST field manipulation (for SetBsnField command)
-// ---------------------------------------------------------------------------
-
 /// Set a field value at a dotted path within an entity's AST patches.
 ///
 /// Creates the struct patch and intermediate fields if they don't exist.
@@ -668,10 +694,6 @@ fn get_field_type_path(
     Some(field_reg.type_info().type_path().to_string())
 }
 
-// ---------------------------------------------------------------------------
-// Parse a user-input string → BsnValue
-// ---------------------------------------------------------------------------
-
 /// Parse a string (from inspector text input) into a [`BsnValue`], given the
 /// expected field type.
 pub fn parse_string_to_bsn_value(value_str: &str, expected: TypeId) -> Option<BsnValue> {
@@ -697,10 +719,6 @@ pub fn parse_string_to_bsn_value(value_str: &str, expected: TypeId) -> Option<Bs
         None
     }
 }
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
