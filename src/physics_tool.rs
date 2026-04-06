@@ -82,20 +82,37 @@ fn enter_physics_tool(world: &mut World) {
     state.sim_active = false;
     state.drag = None;
 
-    // Snapshot all RigidBody transforms; disable non-selected ones.
-    let mut bodies: Vec<(Entity, Transform, bool)> = Vec::new();
-    let mut query = world.query_filtered::<(Entity, &Transform), With<RigidBody>>();
-    for (entity, tf) in query.iter(world) {
+    // Log ColliderAabb values to diagnose stale-state fall-through issues
+    {
+        let mut aabb_query = world.query::<(Entity, &avian3d::prelude::ColliderAabb, &RigidBody)>();
+        for (entity, aabb, rb) in aabb_query.iter(world) {
+            info!(
+                "Physics tool entry: entity {entity} ({rb:?}) — ColliderAabb min={:?} max={:?}",
+                aabb.min, aabb.max
+            );
+        }
+    }
+
+    // Snapshot all RigidBody transforms; disable non-selected Dynamic/Kinematic
+    // bodies. Static bodies are NEVER disabled — they need to remain as solid
+    // collision surfaces for the simulated objects to land on.
+    let mut bodies: Vec<(Entity, Transform, RigidBody, bool)> = Vec::new();
+    let mut query = world.query_filtered::<(Entity, &Transform, &RigidBody), With<RigidBody>>();
+    for (entity, tf, rb) in query.iter(world) {
         let is_selected = selected.contains(&entity);
-        bodies.push((entity, *tf, is_selected));
+        bodies.push((entity, *tf, *rb, is_selected));
     }
 
     let mut state = world.resource_mut::<PhysicsToolState>();
-    for &(entity, tf, _) in &bodies {
+    for &(entity, tf, _, _) in &bodies {
         state.snapshots.insert(entity, tf);
     }
 
-    for &(entity, _, is_selected) in &bodies {
+    for &(entity, _, rb, is_selected) in &bodies {
+        if rb == RigidBody::Static {
+            // Static bodies are always solid — never disable them
+            continue;
+        }
         if !is_selected {
             world.resource_mut::<PhysicsToolState>().disabled_by_us.insert(entity);
             if let Ok(mut ec) = world.get_entity_mut(entity) {
@@ -145,18 +162,22 @@ fn exit_physics_tool(world: &mut World) {
 }
 
 /// Toggle `RigidBodyDisabled` when selection changes during Physics mode.
+/// Static bodies are never disabled — they must remain as solid surfaces.
 fn sync_selection_disable_state(
     edit_mode: Res<EditMode>,
     selection: Res<Selection>,
     mut commands: Commands,
     mut tool_state: ResMut<PhysicsToolState>,
-    bodies: Query<Entity, With<RigidBody>>,
+    bodies: Query<(Entity, &RigidBody)>,
 ) {
     if *edit_mode != EditMode::Physics || !selection.is_changed() {
         return;
     }
 
-    for entity in bodies.iter() {
+    for (entity, rb) in bodies.iter() {
+        if *rb == RigidBody::Static {
+            continue;
+        }
         let is_selected = selection.entities.contains(&entity);
         let was_disabled = tool_state.disabled_by_us.contains(&entity);
 

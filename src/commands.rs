@@ -490,15 +490,24 @@ impl EditorCommand for SetJsnField {
         {
             let registry = world.resource::<AppTypeRegistry>().clone();
             let registry = registry.read();
-            world
-                .resource_mut::<jackdaw_jsn::SceneJsnAst>()
-                .set_component_field(
-                    self.entity,
-                    &self.type_path,
-                    &self.field_path,
-                    self.new_value.clone(),
-                    &registry,
-                );
+            let mut ast = world.resource_mut::<jackdaw_jsn::SceneJsnAst>();
+            ast.set_component_field(
+                self.entity,
+                &self.type_path,
+                &self.field_path,
+                self.new_value.clone(),
+                &registry,
+            );
+            // If the user explicitly edits a derived component, promote it to
+            // "authored" so the change persists on save.
+            if let Some(node) = ast.node_for_entity_mut(self.entity) {
+                if node.derived_components.remove(&self.type_path) {
+                    info!(
+                        "Promoted derived component '{}' to authored (user edited it)",
+                        self.type_path
+                    );
+                }
+            }
         }
         apply_jsn_field_to_ecs(
             world,
@@ -749,9 +758,19 @@ pub fn sync_required_to_ast(world: &mut World, entity: Entity) -> Vec<String> {
     let promoted: Vec<String> = to_add.iter().map(|(path, _)| path.clone()).collect();
 
     if !promoted.is_empty() {
+        info!(
+            "sync_required_to_ast: {} derived components promoted for entity {entity}",
+            promoted.len()
+        );
         let mut ast = world.resource_mut::<jackdaw_jsn::SceneJsnAst>();
         for (type_path, value) in to_add {
             ast.set_component(entity, &type_path, value);
+        }
+        // Mark as derived — displayed in inspector but NOT persisted on save.
+        if let Some(node) = ast.node_for_entity_mut(entity) {
+            for path in &promoted {
+                node.derived_components.insert(path.clone());
+            }
         }
     }
 

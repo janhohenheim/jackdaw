@@ -35,6 +35,16 @@ pub struct JsnEntityNode {
     /// All component data keyed by type path (e.g. `"bevy_transform::components::transform::Transform"`).
     /// Includes Name, Transform, Visibility — everything is a component.
     pub components: HashMap<String, serde_json::Value>,
+    /// Components auto-added via Bevy's `#[require]` attributes (e.g., avian's
+    /// `Position`, `ColliderAabb`, `ComputedMass`, etc.). These are:
+    ///
+    /// - **Displayed** in the inspector (for debugging / advanced editing)
+    /// - **NOT serialized** to the scene file (they're recreated at runtime)
+    /// - **Promoted to authored** if the user explicitly edits one (removed from
+    ///   this set → persisted on next save)
+    ///
+    /// Populated by `sync_required_to_ast` after `AddComponent`.
+    pub derived_components: HashSet<String>,
     /// The ECS entity used to preview this node in the viewport.
     pub ecs_entity: Option<Entity>,
 }
@@ -57,6 +67,7 @@ impl SceneJsnAst {
                 JsnEntityNode {
                     parent: jsn.parent,
                     components: jsn.components.clone(),
+                    derived_components: HashSet::new(),
                     ecs_entity,
                 }
             })
@@ -130,6 +141,7 @@ impl SceneJsnAst {
         self.nodes.push(JsnEntityNode {
             parent: parent_idx,
             components: HashMap::new(),
+            derived_components: HashSet::new(),
             ecs_entity: Some(ecs_entity),
         });
         self.ecs_to_jsn.insert(ecs_entity, idx);

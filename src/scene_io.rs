@@ -1062,6 +1062,8 @@ fn build_scene_snapshot(
         TypeId::of::<Children>(),
     ]);
 
+    let ast = world.resource::<jackdaw_jsn::SceneJsnAst>();
+
     entities
         .iter()
         .map(|&entity| {
@@ -1071,8 +1073,16 @@ fn build_scene_snapshot(
                 .get::<ChildOf>()
                 .and_then(|c| entity_to_index.get(&c.parent()).copied());
 
+            // Derived components for this entity — skip them during save
+            let derived = ast
+                .node_for_entity(entity)
+                .map(|n| &n.derived_components)
+                .cloned()
+                .unwrap_or_default();
+
             // All components (including Name, Transform, Visibility) via reflection
             let mut components = HashMap::new();
+            let mut skipped_derived = 0u32;
 
             for registration in registry.iter() {
                 if skip_ids.contains(&registration.type_id()) {
@@ -1082,6 +1092,13 @@ fn build_scene_snapshot(
                 let type_path = registration.type_info().type_path_table().path();
 
                 if should_skip_component(type_path) {
+                    continue;
+                }
+
+                // Skip derived (auto-added via #[require]) components —
+                // they contain stale runtime state and are recreated fresh.
+                if derived.contains(type_path) {
+                    skipped_derived += 1;
                     continue;
                 }
 
@@ -1098,6 +1115,12 @@ fn build_scene_snapshot(
                 if let Ok(value) = serde_json::to_value(&serializer) {
                     components.insert(type_path.to_string(), value);
                 }
+            }
+
+            if skipped_derived > 0 {
+                info!(
+                    "Scene save: entity {entity} — skipped {skipped_derived} derived components"
+                );
             }
 
             JsnEntity { parent, components }
