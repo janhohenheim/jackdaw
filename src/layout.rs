@@ -120,7 +120,7 @@ pub fn editor_layout(icon_font: &IconFont) -> impl Bundle {
                 ..Default::default()
             },
             BackgroundColor(tokens::WINDOW_BG),
-            BorderColor::all(Color::srgb(0.192, 0.192, 0.192)), // #313131
+            BorderColor::all(tokens::BORDER_SUBTLE),
             children![
             // Integrated window header: menu bar + scene tabs + controls
             window_header(),
@@ -463,7 +463,7 @@ fn toolbar(icon_font: Handle<Font>) -> impl Bundle {
             flex_shrink: 0.0,
             ..Default::default()
         },
-        BackgroundColor(tokens::TOOLBAR_BG),
+        BackgroundColor(tokens::PANEL_HEADER_BG),
         children![
             // Gizmo mode buttons
             toolbar_button(
@@ -1115,7 +1115,7 @@ fn entity_heiarchy(icon_font: Handle<Font>) -> impl Bundle {
                                 Text::new(String::from(Icon::PackagePlus.unicode())),
                                 TextFont {
                                     font: add_entity_icon_font,
-                                    font_size: 15.0,
+                                    font_size: tokens::ICON_SM,
                                     ..Default::default()
                                 },
                                 TextColor(tokens::TEXT_PRIMARY),
@@ -1547,7 +1547,7 @@ fn entity_inspector(icon_font: Handle<Font>) -> impl Bundle {
                                         Text::new(String::from(Icon::PackagePlus.unicode())),
                                         TextFont {
                                             font: icon_font.clone(),
-                                            font_size: 15.0,
+                                            font_size: tokens::ICON_SM,
                                             ..Default::default()
                                         },
                                         TextColor(tokens::TEXT_PRIMARY),

@@ -37,7 +37,7 @@ pub struct SplitPanelPlugin;
 impl Plugin for SplitPanelPlugin {
     fn build(&self, app: &mut App) {
         app.add_observer(set_background_on_with::<Pointer<Over>, With<PanelHandle>>(
-            Color::srgba(1.0, 1.0, 1.0, 0.15),
+            crate::tokens::PANEL_BORDER,
         ))
         .add_observer(set_background_on_with::<Pointer<Out>, With<PanelHandle>>(
             Color::NONE,

@@ -61,7 +61,7 @@ pub(super) fn spawn_physics_section(
                 y_offset: Val::ZERO,
                 blur_radius: Val::Px(1.0),
                 spread_radius: Val::ZERO,
-                color: Color::srgba(0.0, 0.0, 0.0, 0.88),
+                color: tokens::SHADOW_COLOR,
             }]),
             ChildOf(inspector_entity),
         ))

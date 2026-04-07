@@ -11,7 +11,8 @@ pub use bevy_ui_text_input::{TextInputBuffer, TextInputQueue};
 use crate::cursor::{ActiveCursor, HoverCursor};
 use crate::icons::EditorFont;
 use crate::tokens::{
-    BORDER_COLOR, PRIMARY_COLOR, TEXT_BODY_COLOR, TEXT_MUTED_COLOR, TEXT_SIZE, TEXT_SIZE_SM,
+    BORDER_COLOR, ELEVATED_BG, PRIMARY_COLOR, SHADOW_COLOR_LIGHT, TEXT_BODY_COLOR,
+    TEXT_MUTED_COLOR, TEXT_SIZE, TEXT_SIZE_SM,
 };
 
 pub fn plugin(app: &mut App) {
@@ -256,9 +257,9 @@ pub fn text_edit(props: TextEditProps) -> impl Bundle {
         Node {
             flex_direction: FlexDirection::Column,
             row_gap: px(3),
-            flex_grow: if grow { 1.0 } else { 0.0 },
+            flex_grow: 1.0,
             flex_shrink: 1.0,
-            flex_basis: px(0),
+            min_width: px(0),
             ..default()
         },
         TextEditConfig {
@@ -320,15 +321,20 @@ fn setup_text_edit_input(
                 Node {
                     width: percent(100),
                     height: px(INPUT_HEIGHT),
-                    padding: UiRect::all(px(6)),
-                    border: UiRect::all(px(1)),
-                    border_radius: BorderRadius::all(px(2)),
+                    padding: UiRect::axes(px(8), px(4)),
+                    border_radius: BorderRadius::all(px(4)),
                     align_items: AlignItems::Center,
                     column_gap: px(6),
                     ..default()
                 },
-                BackgroundColor(Color::NONE),
-                BorderColor::all(BORDER_COLOR),
+                BackgroundColor(ELEVATED_BG),
+                BoxShadow(vec![ShadowStyle {
+                    x_offset: Val::ZERO,
+                    y_offset: Val::ZERO,
+                    blur_radius: Val::Px(1.0),
+                    spread_radius: Val::Px(1.0),
+                    color: SHADOW_COLOR_LIGHT,
+                }]),
                 Interaction::None,
                 Hovered::default(),
                 HoverCursor(bevy::window::SystemCursorIcon::Text),

@@ -3,7 +3,6 @@ use std::sync::{Mutex, mpsc};
 
 use bevy::{
     asset::RenderAssetUsages,
-    feathers::theme::ThemedText,
     image::{CompressedImageFormats, ImageSampler, ImageType},
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureSampleType},
@@ -95,6 +94,7 @@ impl Plugin for AssetBrowserPlugin {
                     extract_array_layers,
                     update_preview_panel,
                     check_watcher_events,
+                    remove_incompatible_image_nodes,
                 )
                     .run_if(in_state(crate::AppState::Editor)),
             )
@@ -144,6 +144,10 @@ pub struct AssetBrowserState {
     pub view_mode: BrowserViewMode,
     pub needs_refresh: bool,
     pub entries: Vec<DirEntry>,
+    /// Currently selected file path (shown in breadcrumb, highlighted in grid).
+    pub selected_file: Option<String>,
+    /// Timestamp of last click for double-click detection.
+    pub last_click_time: f64,
 }
 
 impl Default for AssetBrowserState {
@@ -156,6 +160,8 @@ impl Default for AssetBrowserState {
             view_mode: BrowserViewMode::Grid,
             needs_refresh: true,
             entries: Vec::new(),
+            selected_file: None,
+            last_click_time: 0.0,
         }
     }
 }
@@ -197,9 +203,6 @@ pub struct AssetBrowserContent;
 
 #[derive(Component)]
 pub struct AssetBrowserBreadcrumb;
-
-#[derive(Component)]
-struct AssetBrowserRootLabel;
 
 #[derive(Component)]
 struct PreviewPanelContainer;
@@ -269,7 +272,6 @@ fn refresh_browser_on_change(
     asset_server: Res<AssetServer>,
     content_query: Query<(Entity, Option<&Children>), With<AssetBrowserContent>>,
     breadcrumb_query: Query<(Entity, Option<&Children>), With<AssetBrowserBreadcrumb>>,
-    mut root_label_query: Query<&mut Text, With<AssetBrowserRootLabel>>,
 ) {
     if !state.needs_refresh {
         return;
@@ -513,15 +515,40 @@ fn refresh_browser_on_change(
                     .id(),
             };
 
+            // Apply selected highlight if this item is the selected file
+            let is_selected = state.selected_file.as_deref()
+                == Some(entry.path.to_string_lossy().as_ref());
+            if is_selected {
+                commands.entity(item_entity).insert(
+                    BackgroundColor(tokens::ELEVATED_BG),
+                );
+            }
+
             commands
                 .entity(item_entity)
                 .observe(highlight_on_hover)
                 .observe(unhighlight_on_out)
-                .observe(move |_: On<Pointer<Click>>, mut commands: Commands| {
-                    commands.trigger(FileItemDoubleClicked {
-                        path: path_for_click.clone(),
-                        is_directory: is_dir,
-                    });
+                .observe(move |_: On<Pointer<Click>>,
+                               mut state: ResMut<AssetBrowserState>,
+                               time: Res<Time>| {
+                    let now = time.elapsed_secs_f64();
+                    let is_double = state.selected_file.as_deref() == Some(&path_for_click)
+                        && (now - state.last_click_time) < 0.4;
+
+                    if is_double && is_dir {
+                        // Double-click on directory: navigate
+                        state.current_directory = PathBuf::from(&path_for_click);
+                        state.selected_file = None;
+                        state.needs_refresh = true;
+                    } else if is_double && !is_dir {
+                        // Double-click on file: open/apply
+                        // (handled by FileItemDoubleClicked observer)
+                    } else {
+                        // Single-click: select
+                        state.selected_file = Some(path_for_click.clone());
+                        state.last_click_time = now;
+                        state.needs_refresh = true;
+                    }
                 });
         }
     }
@@ -536,95 +563,98 @@ fn refresh_browser_on_change(
         }
     }
 
-    let relative = state
-        .current_directory
-        .strip_prefix(&state.root_directory)
-        .unwrap_or(&state.current_directory);
-    let path_str = relative.to_string_lossy().to_string();
+    // Build breadcrumb from the full current directory path.
+    // Each path component is a clickable button that navigates to that directory.
+    let current_dir = state.current_directory.to_string_lossy().to_string();
 
-    // Build asset breadcrumb buttons
-    // Flex Root
     commands
         .spawn((
             Node {
                 width: percent(100),
-                align_items: AlignItems::FlexStart,
+                align_items: AlignItems::Center,
                 justify_content: JustifyContent::FlexStart,
+                column_gap: Val::Px(2.0),
                 ..default()
             },
             ChildOf(breadcrumb_entity),
         ))
         .with_children(|parent| {
-            let mut path = state.root_directory.to_string_lossy().to_string();
-            let mut temp_path = path.clone(); // Borrow checker sheningans
-            // "root" base button
-            parent
-                .spawn((
-                    Button,
-                    ThemedText,
-                    Text::new("root"),
-                    Node {
-                        border_radius: BorderRadius::all(percent(10)),
-                        height: Val::Px(tokens::FONT_SM),
-                        ..default()
-                    },
-                    TextFont {
-                        font_size: tokens::FONT_SM,
-                        ..Default::default()
-                    },
-                ))
-                .observe(move |_: On<Pointer<Click>>, mut commands: Commands| {
-                    commands.trigger(FileItemDoubleClicked {
-                        path: temp_path.clone(),
-                        is_directory: true,
-                    });
-                })
-                .observe(highlight_on_hover)
-                .observe(unhighlight_on_out);
+            // Split the absolute path into components and build up cumulative paths
+            let components: Vec<&str> = current_dir
+                .split(std::path::MAIN_SEPARATOR)
+                .filter(|s| !s.is_empty())
+                .collect();
 
-            for folder_name in path_str.split(std::path::MAIN_SEPARATOR) {
-                path += std::path::MAIN_SEPARATOR_STR;
-                path += folder_name;
-                temp_path = path.clone();
-                // "/" Separator
-                parent.spawn((
-                    Text::new("/"),
-                    ThemedText,
-                    TextFont {
-                        font_size: tokens::FONT_SM,
-                        ..Default::default()
-                    },
-                ));
-                // Actual folder_name button
+            let mut cumulative = String::new();
+            for (i, component) in components.iter().enumerate() {
+                cumulative += std::path::MAIN_SEPARATOR_STR;
+                cumulative += component;
+                let nav_path = cumulative.clone();
+
+                // Separator (skip before first)
+                if i > 0 {
+                    parent.spawn((
+                        Text::new(" / "),
+                        TextFont {
+                            font_size: tokens::FONT_MD,
+                            ..Default::default()
+                        },
+                        TextColor(tokens::TEXT_SECONDARY),
+                    ));
+                }
+
+                // Clickable path segment
                 parent
                     .spawn((
                         Button,
-                        ThemedText,
-                        Text::new(folder_name),
+                        Text::new(*component),
                         Node {
-                            border_radius: BorderRadius::all(percent(10)),
-                            height: Val::Px(tokens::FONT_SM),
+                            border_radius: BorderRadius::all(Val::Px(3.0)),
+                            padding: UiRect::axes(Val::Px(2.0), Val::Px(1.0)),
                             ..default()
                         },
                         TextFont {
-                            font_size: tokens::FONT_SM,
+                            font_size: tokens::FONT_MD,
                             ..Default::default()
                         },
+                        TextColor(tokens::TEXT_TERTIARY),
                     ))
                     .observe(move |_: On<Pointer<Click>>, mut commands: Commands| {
                         commands.trigger(FileItemDoubleClicked {
-                            path: temp_path.clone(),
+                            path: nav_path.clone(),
                             is_directory: true,
                         });
                     })
                     .observe(highlight_on_hover)
                     .observe(unhighlight_on_out);
             }
-        });
 
-    for mut text in root_label_query.iter_mut() {
-        **text = state.root_directory.to_string_lossy().to_string();
-    }
+            // If a file is selected, show its name at the end of the breadcrumb
+            if let Some(ref selected) = state.selected_file {
+                let file_name = Path::new(selected)
+                    .file_name()
+                    .map(|f| f.to_string_lossy().to_string())
+                    .unwrap_or_default();
+                if !file_name.is_empty() {
+                    parent.spawn((
+                        Text::new(" / "),
+                        TextFont {
+                            font_size: tokens::FONT_MD,
+                            ..Default::default()
+                        },
+                        TextColor(tokens::TEXT_SECONDARY),
+                    ));
+                    parent.spawn((
+                        Text::new(file_name),
+                        TextFont {
+                            font_size: tokens::FONT_MD,
+                            ..Default::default()
+                        },
+                        TextColor(tokens::TEXT_PRIMARY),
+                    ));
+                }
+            }
+        });
 }
 
 fn highlight_on_hover(hover: On<Pointer<Over>>, mut bg: Query<&mut BackgroundColor>) {
@@ -644,6 +674,24 @@ fn load_thumbnail(path: &Path, asset_server: &AssetServer) -> Option<Handle<Imag
     Some(asset_server.load(abs))
 }
 
+/// Removes `ImageNode` from entities whose loaded image uses an incompatible
+/// texture format (e.g. R16Uint) that would crash Bevy's UI renderer.
+fn remove_incompatible_image_nodes(
+    mut commands: Commands,
+    image_nodes: Query<(Entity, &ImageNode)>,
+    images: Res<Assets<Image>>,
+) {
+    use bevy::render::render_resource::TextureSampleType;
+    for (entity, image_node) in &image_nodes {
+        if let Some(image) = images.get(&image_node.image) {
+            let sample = image.texture_descriptor.format.sample_type(None, None);
+            if !matches!(sample, Some(TextureSampleType::Float { .. })) {
+                commands.entity(entity).remove::<ImageNode>();
+            }
+        }
+    }
+}
+
 fn handle_file_double_click(
     event: On<FileItemDoubleClicked>,
     mut state: ResMut<AssetBrowserState>,
@@ -651,6 +699,7 @@ fn handle_file_double_click(
 ) {
     if event.is_directory {
         state.current_directory = PathBuf::from(&event.path);
+        state.selected_file = None; // Clear selection when navigating
         state.needs_refresh = true;
         return;
     }
@@ -1165,10 +1214,7 @@ fn poll_asset_browser_folder(world: &mut World) {
         let mut commands = world.commands();
         setup_directory_watcher(&path, &mut commands);
 
-        let mut label_query = world.query_filtered::<&mut Text, With<AssetBrowserRootLabel>>();
-        for mut text in label_query.iter_mut(world) {
-            **text = path.to_string_lossy().to_string();
-        }
+        // Breadcrumb will be rebuilt on next refresh
     }
 }
 
@@ -1232,7 +1278,7 @@ pub fn asset_browser_panel(icon_font: Handle<Font>) -> impl Bundle {
                                     Text::new(String::from(icons::Icon::Terminal.unicode())),
                                     TextFont {
                                         font: sidebar_font.clone(),
-                                        font_size: 17.0,
+                                        font_size: tokens::ICON_MD,
                                         ..Default::default()
                                     },
                                     TextColor(tokens::TAB_INACTIVE_TEXT),
@@ -1253,7 +1299,7 @@ pub fn asset_browser_panel(icon_font: Handle<Font>) -> impl Bundle {
                                     Text::new(String::from(icons::Icon::FolderOpen.unicode())),
                                     TextFont {
                                         font: sidebar_font.clone(),
-                                        font_size: 17.0,
+                                        font_size: tokens::ICON_MD,
                                         ..Default::default()
                                     },
                                     TextColor(tokens::TEXT_PRIMARY),
@@ -1272,7 +1318,7 @@ pub fn asset_browser_panel(icon_font: Handle<Font>) -> impl Bundle {
                                     Text::new(String::from(icons::Icon::Plus.unicode())),
                                     TextFont {
                                         font: sidebar_font.clone(),
-                                        font_size: 15.0,
+                                        font_size: tokens::ICON_SM,
                                         ..Default::default()
                                     },
                                     TextColor(tokens::TAB_INACTIVE_TEXT),
@@ -1309,7 +1355,7 @@ pub fn asset_browser_panel(icon_font: Handle<Font>) -> impl Bundle {
                     ..Default::default()
                 },
                 children![
-            // Breadcrumb bar with path + search on right
+            // Breadcrumb bar: path on left, search + folder button on right
             (
                 Node {
                     flex_direction: FlexDirection::Row,
@@ -1319,19 +1365,17 @@ pub fn asset_browser_panel(icon_font: Handle<Font>) -> impl Bundle {
                     height: Val::Px(34.0),
                     padding: UiRect::axes(Val::Px(tokens::SPACING_MD), Val::Px(tokens::SPACING_SM)),
                     flex_shrink: 0.0,
-                    border: UiRect::top(Val::Px(1.0)),
                     ..Default::default()
                 },
-                BorderColor::all(Color::srgba(1.0, 1.0, 1.0, 0.1)),
                 children![
-                    // Left: breadcrumb path + root label + folder button
+                    // Left: breadcrumb path
                     (
                         Node {
                             flex_direction: FlexDirection::Row,
                             align_items: AlignItems::Center,
-                            column_gap: Val::Px(tokens::SPACING_MD),
                             overflow: Overflow::clip(),
                             flex_shrink: 1.0,
+                            flex_grow: 1.0,
                             ..Default::default()
                         },
                         children![
@@ -1344,22 +1388,38 @@ pub fn asset_browser_panel(icon_font: Handle<Font>) -> impl Bundle {
                                     ..Default::default()
                                 },
                             ),
-                            (
-                                AssetBrowserRootLabel,
-                                Text::new(""),
-                                TextFont {
-                                    font_size: tokens::FONT_SM,
-                                    ..Default::default()
-                                },
-                                TextColor(tokens::TEXT_TERTIARY),
-                            ),
                         ],
                     ),
-                    // Right: folder button
-                    asset_folder_button(folder_icon_font),
+                    // Right: Search input + folder button
+                    (
+                        Node {
+                            flex_direction: FlexDirection::Row,
+                            align_items: AlignItems::Center,
+                            column_gap: Val::Px(tokens::SPACING_SM),
+                            flex_shrink: 0.0,
+                            ..Default::default()
+                        },
+                        children![
+                            // Search... input (matching Figma: 200px width)
+                            (
+                                Node {
+                                    width: Val::Px(200.0),
+                                    ..Default::default()
+                                },
+                                children![(
+                                    jackdaw_feathers::text_edit::text_edit(
+                                        jackdaw_feathers::text_edit::TextEditProps::default()
+                                            .with_placeholder("Search...")
+                                            .allow_empty()
+                                    ),
+                                )],
+                            ),
+                            asset_folder_button(folder_icon_font),
+                        ],
+                    ),
                 ],
             ),
-            // Main row: content grid + preview panel
+            // Main row: content grid + preview panel (separator at top per Figma)
             (
                 EditorEntity,
                 Node {
@@ -1367,8 +1427,10 @@ pub fn asset_browser_panel(icon_font: Handle<Font>) -> impl Bundle {
                     width: Val::Percent(100.0),
                     flex_grow: 1.0,
                     min_height: Val::Px(0.0),
+                    border: UiRect::top(Val::Px(1.0)),
                     ..Default::default()
                 },
+                BorderColor::all(tokens::BORDER_SUBTLE),
                 children![
                     // Content area (grid of files)
                     (

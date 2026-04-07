@@ -233,7 +233,9 @@ pub(crate) fn build_inspector_displays(
                 Node {
                     flex_direction: FlexDirection::Row,
                     align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
                     column_gap: Val::Px(tokens::SPACING_SM),
+                    width: Val::Percent(100.0),
                     padding: UiRect::new(
                         Val::Px(tokens::SPACING_XS),
                         Val::ZERO,
@@ -248,7 +250,7 @@ pub(crate) fn build_inspector_displays(
                         Text::new(String::from(group_icon.unicode())),
                         TextFont {
                             font: icon_font.0.clone(),
-                            font_size: 13.0,
+                            font_size: tokens::TEXT_SIZE,
                             ..Default::default()
                         },
                         TextColor(tokens::TEXT_SECONDARY),
@@ -545,7 +547,7 @@ pub(crate) fn spawn_component_display(
                 y_offset: Val::ZERO,
                 blur_radius: Val::Px(1.0),
                 spread_radius: Val::ZERO,
-                color: Color::srgba(0.0, 0.0, 0.0, 0.88),
+                color: tokens::SHADOW_COLOR,
             }]),
         ))
         .id();
@@ -600,7 +602,7 @@ pub(crate) fn spawn_component_display(
         Text::new(String::from(Icon::Move3d.unicode())),
         TextFont {
             font: font.clone(),
-            font_size: 13.0,
+            font_size: tokens::TEXT_SIZE,
             ..Default::default()
         },
         TextColor(tokens::TEXT_SECONDARY),

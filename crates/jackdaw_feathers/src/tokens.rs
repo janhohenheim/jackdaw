@@ -13,29 +13,29 @@ pub const CORNER_RADIUS_LG: Val = Val::Px(4.0);
 // ---------------------------------------------------------------------------
 
 pub const PRIMARY_COLOR: Srgba = tailwind::BLUE_500;
-/// Accent blue used for selections, active tabs, and highlights.
-pub const ACCENT_BLUE: Color = Color::srgb(0.0, 0.447, 0.843); // #0072D7
+/// Accent blue used for selections, active tabs, and highlights (#206EC8).
+pub const ACCENT_BLUE: Color = Color::srgb(0.126, 0.431, 0.784);
 
 // ---------------------------------------------------------------------------
-// Backgrounds — from Figma CSS
+// Backgrounds — from Figma CSS (updated palette, slightly bluer tones)
 // ---------------------------------------------------------------------------
 
-/// Root window background (#171717)
-pub const WINDOW_BG: Color = Color::srgb(0.090, 0.090, 0.090);
-/// Panel body / content background (#2A2A2A)
-pub const PANEL_BG: Color = Color::srgb(0.165, 0.165, 0.165);
-/// Panel header / tab bar background — same as window (#171717)
-pub const PANEL_HEADER_BG: Color = Color::srgb(0.090, 0.090, 0.090);
-/// Toolbar background (#2A2A2A)
-pub const TOOLBAR_BG: Color = Color::srgb(0.165, 0.165, 0.165);
-/// Text input / elevated input background (#404040)
-pub const INPUT_BG: Color = Color::srgb(0.251, 0.251, 0.251);
-/// Context menu / dropdown background (#2A2A2A with near-opaque alpha)
-pub const MENU_BG: Color = Color::srgba(0.165, 0.165, 0.165, 0.98);
-/// Status bar background (#2A2A2A)
-pub const STATUS_BAR_BG: Color = Color::srgb(0.165, 0.165, 0.165);
-/// Inactive toolbar button background
-pub const TOOLBAR_BUTTON_BG: Color = Color::srgb(0.165, 0.165, 0.165);
+/// Root window / frame background (#1F1F24)
+pub const WINDOW_BG: Color = Color::srgb(0.122, 0.122, 0.141);
+/// Panel body / content background (#2A2A2E)
+pub const PANEL_BG: Color = Color::srgb(0.165, 0.165, 0.180);
+/// Panel header / tab bar background (#1F1F24)
+pub const PANEL_HEADER_BG: Color = Color::srgb(0.122, 0.122, 0.141);
+/// Toolbar background (#2A2A2E)
+pub const TOOLBAR_BG: Color = Color::srgb(0.165, 0.165, 0.180);
+/// Text input background (#36373B)
+pub const INPUT_BG: Color = Color::srgb(0.212, 0.216, 0.231);
+/// Context menu / dropdown background (#2A2A2E with near-opaque alpha)
+pub const MENU_BG: Color = Color::srgba(0.165, 0.165, 0.180, 0.98);
+/// Status bar background (#2A2A2E)
+pub const STATUS_BAR_BG: Color = Color::srgb(0.165, 0.165, 0.180);
+/// Inactive toolbar button background (#2A2A2E)
+pub const TOOLBAR_BUTTON_BG: Color = Color::srgb(0.165, 0.165, 0.180);
 /// General background color (for widgets)
 pub const BACKGROUND_COLOR: Srgba = tailwind::ZINC_800;
 
@@ -43,25 +43,25 @@ pub const BACKGROUND_COLOR: Srgba = tailwind::ZINC_800;
 // Component card backgrounds (inspector)
 // ---------------------------------------------------------------------------
 
-/// Component card body (#2A2A2A)
-pub const COMPONENT_CARD_BG: Color = Color::srgb(0.165, 0.165, 0.165);
-/// Component card header bar (#404040)
-pub const COMPONENT_CARD_HEADER_BG: Color = Color::srgb(0.251, 0.251, 0.251);
-/// Component card border — rgba(255,255,255,0.1)
-pub const COMPONENT_CARD_BORDER: Color = Color::srgba(1.0, 1.0, 1.0, 0.1);
+/// Component card body (#2A2A2E)
+pub const COMPONENT_CARD_BG: Color = Color::srgb(0.165, 0.165, 0.180);
+/// Component card header bar (#36373B)
+pub const COMPONENT_CARD_HEADER_BG: Color = Color::srgb(0.212, 0.216, 0.231);
+/// Component card border (#414142)
+pub const COMPONENT_CARD_BORDER: Color = Color::srgb(0.255, 0.255, 0.259);
 
 // ---------------------------------------------------------------------------
 // Panel / tab styling
 // ---------------------------------------------------------------------------
 
-/// Panel header border — rgba(255,255,255,0.15)
-pub const PANEL_BORDER: Color = Color::srgba(1.0, 1.0, 1.0, 0.15);
-/// Active tab background — flat approximation of Figma gradient (#2A2A2A + slight white)
-pub const TAB_ACTIVE_BG: Color = Color::srgb(0.175, 0.175, 0.175);
-/// Active tab top border accent (#0072D7)
-pub const TAB_ACTIVE_BORDER: Color = Color::srgb(0.0, 0.447, 0.843);
-/// Inactive tab text (#A4A4A6)
-pub const TAB_INACTIVE_TEXT: Color = Color::srgb(0.643, 0.643, 0.651);
+/// Panel header border (#303030)
+pub const PANEL_BORDER: Color = Color::srgb(0.188, 0.188, 0.188);
+/// Active tab background (#2A2A2E)
+pub const TAB_ACTIVE_BG: Color = Color::srgb(0.165, 0.165, 0.180);
+/// Active tab top border accent (#206EC8)
+pub const TAB_ACTIVE_BORDER: Color = Color::srgb(0.126, 0.431, 0.784);
+/// Inactive tab text (#A8A8A8)
+pub const TAB_INACTIVE_TEXT: Color = Color::srgb(0.659, 0.659, 0.659);
 
 // ---------------------------------------------------------------------------
 // Viewport-specific backgrounds
@@ -76,17 +76,17 @@ pub const VIEWPORT_CONTROL_BG: Color = Color::srgb(0.165, 0.165, 0.180);
 // Elevated / input surfaces
 // ---------------------------------------------------------------------------
 
-/// Elevated background for inputs and interactive elements (#404040)
-pub const ELEVATED_BG: Color = Color::srgb(0.251, 0.251, 0.251);
-/// Active toolbar button background (#515151)
-pub const TOOLBAR_ACTIVE_BG: Color = Color::srgb(0.318, 0.318, 0.318);
+/// Elevated background for inputs and interactive elements (#36373B)
+pub const ELEVATED_BG: Color = Color::srgb(0.212, 0.216, 0.231);
+/// Active toolbar button background (#505050)
+pub const TOOLBAR_ACTIVE_BG: Color = Color::srgb(0.314, 0.314, 0.314);
 
 // ---------------------------------------------------------------------------
 // Borders
 // ---------------------------------------------------------------------------
 
-/// Subtle border / separator (#404040)
-pub const BORDER_SUBTLE: Color = Color::srgb(0.251, 0.251, 0.251);
+/// Subtle border / separator (#414142)
+pub const BORDER_SUBTLE: Color = Color::srgb(0.255, 0.255, 0.259);
 /// Strong / emphasized border (#525252)
 pub const BORDER_STRONG: Color = Color::Srgba(tailwind::ZINC_600);
 /// Standard border color (for widgets)
@@ -96,12 +96,12 @@ pub const BORDER_COLOR: Srgba = tailwind::ZINC_700;
 // Interaction states
 // ---------------------------------------------------------------------------
 
-/// Hovered row / item background
+/// Hovered row / item background (white 8% alpha)
 pub const HOVER_BG: Color = Color::srgba(1.0, 1.0, 1.0, 0.08);
 /// Selected item background
 pub const SELECTED_BG: Color = Color::srgba(0.0, 0.204, 0.431, 1.0);
-/// Selected item border (#0072D7)
-pub const SELECTED_BORDER: Color = Color::srgb(0.0, 0.447, 0.843);
+/// Selected item border (#206EC8)
+pub const SELECTED_BORDER: Color = Color::srgb(0.126, 0.431, 0.784);
 /// Active / pressed background
 pub const ACTIVE_BG: Color = Color::Srgba(tailwind::ZINC_600);
 /// Drag-drop target highlight
@@ -127,6 +127,28 @@ pub const CONTAINER_DROP_TARGET_BG: Color = Color::Srgba(Srgba {
 });
 /// Tree connection line color
 pub const CONNECTION_LINE: Color = Color::srgba(1.0, 1.0, 1.0, 0.2);
+/// Disabled text color
+pub const TEXT_DISABLED: Color = Color::srgba(0.4, 0.4, 0.4, 0.5);
+
+// ---------------------------------------------------------------------------
+// Dialog / modal
+// ---------------------------------------------------------------------------
+
+/// Dialog backdrop overlay color (40% black)
+pub const DIALOG_BACKDROP: Color = Color::srgba(0.0, 0.0, 0.0, 0.4);
+/// Default dialog width
+pub const DIALOG_WIDTH: f32 = 400.0;
+/// Default dialog max height
+pub const DIALOG_MAX_HEIGHT: f32 = 500.0;
+
+// ---------------------------------------------------------------------------
+// Shadow colors
+// ---------------------------------------------------------------------------
+
+/// Component card / element shadow (#000000 88%)
+pub const SHADOW_COLOR: Color = Color::srgba(0.0, 0.0, 0.0, 0.88);
+/// Light shadow for elevated inputs (#000000 5%)
+pub const SHADOW_COLOR_LIGHT: Color = Color::srgba(0.0, 0.0, 0.0, 0.05);
 
 // ---------------------------------------------------------------------------
 // Entity category colors (hierarchy icons)
@@ -147,12 +169,12 @@ pub const CATEGORY_ENTITY: Color = Color::srgba(0.259, 0.725, 0.514, 1.0);
 // Text colors
 // ---------------------------------------------------------------------------
 
-/// Primary text (#E6E6E6)
-pub const TEXT_PRIMARY: Color = Color::srgb(0.902, 0.902, 0.902);
-/// Secondary / dimmed text (#A4A4A6)
-pub const TEXT_SECONDARY: Color = Color::srgb(0.643, 0.643, 0.651);
-/// Tertiary text — breadcrumbs, field values (#CDCBCB)
-pub const TEXT_TERTIARY: Color = Color::srgb(0.804, 0.796, 0.796);
+/// Primary text (#ECECEC)
+pub const TEXT_PRIMARY: Color = Color::srgb(0.925, 0.925, 0.925);
+/// Secondary / dimmed text (#A8A8A8)
+pub const TEXT_SECONDARY: Color = Color::srgb(0.659, 0.659, 0.659);
+/// Tertiary text — breadcrumbs, field values (#C8C8C8)
+pub const TEXT_TERTIARY: Color = Color::srgb(0.784, 0.784, 0.784);
 /// Accent / link text
 pub const TEXT_ACCENT: Color = Color::Srgba(tailwind::BLUE_400);
 /// Accent hover — lighter blue
@@ -180,15 +202,15 @@ pub const TYPE_ENTITY: Color = Color::Srgba(tailwind::ZINC_300);
 pub const TYPE_ENUM: Color = Color::srgb(0.72, 0.55, 0.82);
 
 // ---------------------------------------------------------------------------
-// XYZ axis colors (for vector field labels)
+// XYZ axis colors (from updated Figma CSS)
 // ---------------------------------------------------------------------------
 
-/// X axis color — red (#CC4341)
-pub const AXIS_X_COLOR: Color = Color::srgb(0.800, 0.263, 0.255);
-/// Y axis color — green (#269C33)
-pub const AXIS_Y_COLOR: Color = Color::srgb(0.149, 0.612, 0.200);
-/// Z axis color — blue (#0072D7)
-pub const AXIS_Z_COLOR: Color = Color::srgb(0.0, 0.447, 0.843);
+/// X axis color — red (#AB4051)
+pub const AXIS_X_COLOR: Color = Color::srgb(0.671, 0.251, 0.318);
+/// Y axis color — green (#5D8D0A)
+pub const AXIS_Y_COLOR: Color = Color::srgb(0.365, 0.553, 0.039);
+/// Z axis color — blue (#2160A3)
+pub const AXIS_Z_COLOR: Color = Color::srgb(0.129, 0.376, 0.639);
 
 // ---------------------------------------------------------------------------
 // File browser icon colors
@@ -212,6 +234,16 @@ pub const TEXT_SIZE_XL: f32 = 18.0;
 pub const FONT_SM: f32 = TEXT_SIZE_SM;
 pub const FONT_MD: f32 = TEXT_SIZE;
 pub const FONT_LG: f32 = TEXT_SIZE_LG;
+
+// ---------------------------------------------------------------------------
+// Icon sizes (Lucide frame sizes)
+// ---------------------------------------------------------------------------
+
+/// Small icon size — standard Lucide icons (15px frame)
+pub const ICON_SM: f32 = 15.0;
+/// Medium icon size — sidebar icons (17px)
+pub const ICON_MD: f32 = 17.0;
+/// Large icon size (24px)
 pub const ICON_LG: f32 = 24.0;
 
 // ---------------------------------------------------------------------------
@@ -239,6 +271,12 @@ pub const PANEL_TAB_HEIGHT: f32 = 30.0;
 pub const PANEL_GAP: f32 = 4.0;
 /// Component card corner radius (Figma: 5px)
 pub const COMPONENT_CARD_RADIUS: f32 = 5.0;
+/// Breadcrumb bar height
+pub const BREADCRUMB_HEIGHT: f32 = 34.0;
+/// Asset browser sidebar width
+pub const SIDEBAR_WIDTH: f32 = 30.0;
+/// Search input default width
+pub const SEARCH_INPUT_WIDTH: f32 = 200.0;
 
 // ---------------------------------------------------------------------------
 // Border radii (numeric)

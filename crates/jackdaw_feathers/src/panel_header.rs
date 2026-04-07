@@ -203,7 +203,7 @@ fn setup_panel_tab_bars(
                         Text::new(String::from(Icon::Plus.unicode())),
                         TextFont {
                             font: font_handle.clone(),
-                            font_size: 15.0,
+                            font_size: tokens::ICON_SM,
                             ..Default::default()
                         },
                         TextColor(tokens::TAB_INACTIVE_TEXT),
@@ -226,7 +226,7 @@ fn setup_panel_tab_bars(
                             Text::new(String::from(Icon::GripVertical.unicode())),
                             TextFont {
                                 font: font_handle.clone(),
-                                font_size: 15.0,
+                                font_size: tokens::ICON_SM,
                                 ..Default::default()
                             },
                             TextColor(tokens::TAB_INACTIVE_TEXT),

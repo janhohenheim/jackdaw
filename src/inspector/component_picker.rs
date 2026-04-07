@@ -149,11 +149,13 @@ pub(crate) fn on_add_component_button_click(
     }
 
     // Spawn as a centered blocking dialog overlay
-    // First spawn a backdrop that blocks interaction and dims the background
+    // Backdrop absorbs all pointer events and dims the background
     let backdrop = commands
         .spawn((
             ComponentPicker,
             crate::EditorEntity,
+            Interaction::default(),
+            bevy::ui::FocusPolicy::Block,
             Node {
                 position_type: PositionType::Absolute,
                 width: Val::Percent(100.0),
@@ -162,9 +164,19 @@ pub(crate) fn on_add_component_button_click(
                 align_items: AlignItems::Center,
                 ..Default::default()
             },
-            BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.4)),
+            BackgroundColor(tokens::DIALOG_BACKDROP),
             GlobalZIndex(100),
             crate::BlocksCameraInput,
+            // Click on backdrop to close
+            observe(
+                |_: On<Pointer<Click>>,
+                 mut commands: Commands,
+                 pickers: Query<Entity, With<ComponentPicker>>| {
+                    for picker in &pickers {
+                        commands.entity(picker).despawn();
+                    }
+                },
+            ),
         ))
         .id();
 
@@ -172,20 +184,20 @@ pub(crate) fn on_add_component_button_click(
         .spawn((
             Node {
                 flex_direction: FlexDirection::Column,
-                width: Val::Px(400.0),
-                max_height: Val::Px(500.0),
+                width: Val::Px(tokens::DIALOG_WIDTH),
+                max_height: Val::Px(tokens::DIALOG_MAX_HEIGHT),
                 border: UiRect::all(Val::Px(1.0)),
                 border_radius: BorderRadius::all(Val::Px(tokens::BORDER_RADIUS_LG)),
                 ..Default::default()
             },
             BackgroundColor(tokens::PANEL_BG),
-            BorderColor::all(Color::srgb(0.192, 0.192, 0.192)),
+            BorderColor::all(tokens::PANEL_BORDER),
             BoxShadow(vec![ShadowStyle {
                 x_offset: Val::ZERO,
                 y_offset: Val::Px(4.0),
                 blur_radius: Val::Px(16.0),
                 spread_radius: Val::ZERO,
-                color: Color::srgba(0.0, 0.0, 0.0, 0.5),
+                color: tokens::SHADOW_COLOR,
             }]),
             ChildOf(backdrop),
         ))
@@ -321,7 +333,9 @@ pub(crate) fn on_add_component_button_click(
                     ChildOf(list),
                     observe({
                         let type_path_full = type_path_full.clone();
-                        move |_: On<Pointer<Click>>, mut commands: Commands| {
+                        move |mut click: On<Pointer<Click>>,
+                              mut commands: Commands| {
+                            click.propagate(false); // Don't let click through to backdrop
                             let tp = type_path_full.clone();
                             commands.queue(move |world: &mut World| {
                                 let cmd = crate::commands::AddComponent::new(
@@ -339,6 +353,17 @@ pub(crate) fn on_add_component_button_click(
 
                                 // Signal the inspector to rebuild
                                 world.entity_mut(source_entity).insert(InspectorDirty);
+
+                                // Close the picker dialog
+                                let pickers: Vec<Entity> = world
+                                    .query_filtered::<Entity, With<ComponentPicker>>()
+                                    .iter(world)
+                                    .collect();
+                                for picker in pickers {
+                                    if let Ok(ec) = world.get_entity_mut(picker) {
+                                        ec.despawn();
+                                    }
+                                }
                             });
                         }
                     }),
@@ -460,6 +485,19 @@ pub(crate) fn filter_component_picker(
             } else {
                 Display::None
             };
+        }
+    }
+}
+
+/// Close the component picker dialog when ESC is pressed.
+pub(crate) fn close_picker_on_escape(
+    keys: Res<ButtonInput<KeyCode>>,
+    pickers: Query<Entity, With<ComponentPicker>>,
+    mut commands: Commands,
+) {
+    if keys.just_pressed(KeyCode::Escape) && !pickers.is_empty() {
+        for picker in &pickers {
+            commands.entity(picker).despawn();
         }
     }
 }
