@@ -21,13 +21,13 @@ use jackdaw_widgets::collapsible::{
     CollapsibleBody, CollapsibleHeader, CollapsibleSection, ToggleCollapsible,
 };
 
-use jackdaw_feathers::text_edit::{self, TextEditProps, TextEditValue};
+use jackdaw_feathers::text_edit::TextEditValue;
 use std::collections::HashSet;
 
 use bevy_monitors::prelude::{Addition, Monitor, NotifyAdded};
 
 use super::{
-    AddComponentButton, CollapseAllButton, ComponentDisplay, ComponentDisplayBody, ComponentName,
+    AddComponentButton, ComponentDisplay, ComponentDisplayBody, ComponentName,
     ComponentPicker, Inspector, InspectorDirty, InspectorGroupSection, InspectorSearch,
     InspectorTarget, ReflectDisplayable, ReflectEditorMeta, brush_display, custom_props_display,
     extract_module_group, material_display, reflect_fields,
@@ -130,96 +130,6 @@ pub(crate) fn build_inspector_displays(
         ));
     }
 
-    // Search bar + collapse-all row
-    let search_row = commands
-        .spawn((
-            Node {
-                flex_direction: FlexDirection::Row,
-                align_items: AlignItems::Center,
-                width: Val::Percent(100.0),
-                column_gap: Val::Px(tokens::SPACING_SM),
-                padding: UiRect::axes(Val::Px(tokens::SPACING_SM), Val::Px(tokens::SPACING_XS)),
-                ..Default::default()
-            },
-            ComponentDisplay,
-            ChildOf(inspector_entity),
-        ))
-        .id();
-
-    commands.spawn((
-        InspectorSearch,
-        text_edit::text_edit(
-            TextEditProps::default()
-                .with_placeholder("Filter components...")
-                .allow_empty()
-                .grow(),
-        ),
-        ChildOf(search_row),
-    ));
-
-    // Collapse-all / expand-all button
-    let collapse_btn = commands
-        .spawn((
-            CollapseAllButton,
-            Node {
-                padding: UiRect::all(Val::Px(tokens::SPACING_XS)),
-                ..Default::default()
-            },
-            BackgroundColor(Color::NONE),
-            ChildOf(search_row),
-        ))
-        .id();
-
-    commands.spawn((
-        Text::new(String::from(Icon::ChevronsUpDown.unicode())),
-        TextFont {
-            font: icon_font.0.clone(),
-            font_size: tokens::FONT_MD,
-            ..Default::default()
-        },
-        TextColor(tokens::TEXT_SECONDARY),
-        ChildOf(collapse_btn),
-    ));
-
-    commands.entity(collapse_btn).observe(
-        |_: On<Pointer<Click>>,
-         mut sections: Query<(&mut CollapsibleSection, &Children), With<ComponentDisplay>>,
-         mut nodes: Query<&mut Node, With<CollapsibleBody>>| {
-            // If any section is expanded, collapse all; otherwise expand all
-            let any_expanded = sections.iter().any(|(s, _)| !s.collapsed);
-            let target_collapsed = any_expanded;
-
-            for (mut section, children) in &mut sections {
-                section.collapsed = target_collapsed;
-                for child in children.iter() {
-                    if let Ok(mut node) = nodes.get_mut(child) {
-                        node.display = if target_collapsed {
-                            Display::None
-                        } else {
-                            Display::Flex
-                        };
-                    }
-                }
-            }
-        },
-    );
-
-    // Hover effect on collapse button
-    commands.entity(collapse_btn).observe(
-        |hover: On<Pointer<Over>>, mut bg: Query<&mut BackgroundColor>| {
-            if let Ok(mut bg) = bg.get_mut(hover.event_target()) {
-                bg.0 = tokens::HOVER_BG;
-            }
-        },
-    );
-    commands.entity(collapse_btn).observe(
-        |out: On<Pointer<Out>>, mut bg: Query<&mut BackgroundColor>| {
-            if let Ok(mut bg) = bg.get_mut(out.event_target()) {
-                bg.0 = Color::NONE;
-            }
-        },
-    );
-
     // Physics section -- always visible, combines RigidBody + AvianCollider
     super::physics_display::spawn_physics_section(
         commands,
@@ -307,98 +217,33 @@ pub(crate) fn build_inspector_displays(
             .then_with(|| a.0.to_lowercase().cmp(&b.0.to_lowercase()))
     });
 
-    // Group by module and spawn with group headers
+    // Spawn components with subtle group dividers
     let mut current_group = String::new();
-    let mut group_container = inspector_entity;
-
     for (name, module_group, component_id) in &comp_list {
-        // Start a new group section if the module changed
+        // Small text divider when group changes
         if *module_group != current_group {
             current_group = module_group.clone();
-            let section = commands
-                .spawn((
-                    ComponentDisplay,
-                    InspectorGroupSection,
-                    CollapsibleSection { collapsed: false },
-                    Node {
-                        flex_direction: FlexDirection::Column,
-                        width: Val::Percent(100.0),
-                        ..Default::default()
-                    },
-                    ChildOf(inspector_entity),
-                ))
-                .id();
-
-            let header = commands
-                .spawn((
-                    CollapsibleHeader,
-                    Node {
-                        flex_direction: FlexDirection::Row,
-                        align_items: AlignItems::Center,
-                        width: Val::Percent(100.0),
-                        padding: UiRect::axes(
-                            Val::Px(tokens::SPACING_XS),
-                            Val::Px(tokens::SPACING_SM),
-                        ),
-                        column_gap: Val::Px(tokens::SPACING_SM),
-                        ..Default::default()
-                    },
-                    ChildOf(section),
-                ))
-                .id();
-
-            let section_for_toggle = section;
-            commands.entity(header).observe(
-                move |_: On<Pointer<Click>>, mut commands: Commands| {
-                    commands.trigger(ToggleCollapsible {
-                        entity: section_for_toggle,
-                    });
-                },
-            );
-
-            // Group icon
-            let (group_icon, icon_color) = if custom_groups.contains(module_group) {
-                (Icon::Tag, tokens::CATEGORY_ENTITY)
-            } else {
-                (Icon::Package, tokens::TEXT_SECONDARY)
-            };
-
             commands.spawn((
-                Text::new(String::from(group_icon.unicode())),
-                TextFont {
-                    font: icon_font.0.clone(),
-                    font_size: tokens::FONT_MD,
-                    ..Default::default()
-                },
-                TextColor(icon_color),
-                ChildOf(header),
-            ));
-
-            // Group name
-            commands.spawn((
+                ComponentDisplay,
                 Text::new(module_group.clone()),
                 TextFont {
                     font: editor_font.0.clone(),
-                    font_size: tokens::FONT_MD,
-                    weight: FontWeight::BOLD,
+                    font_size: tokens::FONT_SM,
+                    weight: FontWeight::MEDIUM,
                     ..Default::default()
                 },
                 TextColor(tokens::TEXT_SECONDARY),
-                ChildOf(header),
+                Node {
+                    padding: UiRect::new(
+                        Val::Px(tokens::SPACING_XS),
+                        Val::ZERO,
+                        Val::Px(tokens::SPACING_SM),
+                        Val::ZERO,
+                    ),
+                    ..Default::default()
+                },
+                ChildOf(inspector_entity),
             ));
-
-            group_container = commands
-                .spawn((
-                    CollapsibleBody,
-                    Node {
-                        flex_direction: FlexDirection::Column,
-                        width: Val::Percent(100.0),
-                        row_gap: Val::Px(tokens::SPACING_SM),
-                        ..Default::default()
-                    },
-                    ChildOf(section),
-                ))
-                .id();
         }
 
         let component_id = *component_id;
@@ -435,7 +280,7 @@ pub(crate) fn build_inspector_displays(
         );
         commands
             .entity(display_entity)
-            .insert(ChildOf(group_container));
+            .insert(ChildOf(inspector_entity));
 
         // Try Displayable first, then reflection, then fallback
         let type_id = components

@@ -120,7 +120,7 @@ pub fn editor_layout(icon_font: &IconFont) -> impl Bundle {
                 ..Default::default()
             },
             BackgroundColor(tokens::WINDOW_BG),
-            BorderColor::all(Color::srgb(0.251, 0.251, 0.251)), // #404040
+            BorderColor::all(Color::srgb(0.192, 0.192, 0.192)), // #313131
             children![
             // Integrated window header: menu bar + scene tabs + controls
             window_header(),
@@ -1082,6 +1082,7 @@ fn entity_heiarchy(icon_font: Handle<Font>) -> impl Bundle {
                     // Add Entity button (matching Figma reference)
                     (
                         Interaction::default(),
+                        Hovered::default(),
                         Node {
                             flex_direction: FlexDirection::Row,
                             justify_content: JustifyContent::Center,
@@ -1095,6 +1096,20 @@ fn entity_heiarchy(icon_font: Handle<Font>) -> impl Bundle {
                             ..Default::default()
                         },
                         BackgroundColor(tokens::ELEVATED_BG),
+                        observe(
+                            |hover: On<Pointer<Over>>, mut bg: Query<&mut BackgroundColor>| {
+                                if let Ok(mut bg) = bg.get_mut(hover.event_target()) {
+                                    bg.0 = tokens::TOOLBAR_ACTIVE_BG;
+                                }
+                            },
+                        ),
+                        observe(
+                            |out: On<Pointer<Out>>, mut bg: Query<&mut BackgroundColor>| {
+                                if let Ok(mut bg) = bg.get_mut(out.event_target()) {
+                                    bg.0 = tokens::ELEVATED_BG;
+                                }
+                            },
+                        ),
                         children![
                             (
                                 Text::new(String::from(Icon::PackagePlus.unicode())),
@@ -1129,6 +1144,21 @@ fn entity_heiarchy(icon_font: Handle<Font>) -> impl Bundle {
                         },
                         BackgroundColor(Color::NONE),
                         tree_container_drop_observers(),
+                    ),
+                    // Scene stats footer
+                    (
+                        crate::status_bar::SceneStatsText,
+                        Text::new(""),
+                        TextFont {
+                            font_size: tokens::FONT_SM,
+                            ..Default::default()
+                        },
+                        TextColor(tokens::TEXT_SECONDARY),
+                        Node {
+                            padding: UiRect::all(px(tokens::SPACING_XS)),
+                            flex_shrink: 0.0,
+                            ..Default::default()
+                        },
                     )
                 ],
             ),
@@ -1403,7 +1433,7 @@ fn editor_status_bar() -> impl Bundle {
             flex_shrink: 0.0,
             ..Default::default()
         },
-        BackgroundColor(tokens::STATUS_BAR_BG),
+        BackgroundColor(tokens::WINDOW_BG),
         children![
             (
                 status_bar::StatusBarLeft,
@@ -1499,8 +1529,9 @@ fn entity_inspector(icon_font: Handle<Font>) -> impl Bundle {
                                         .allow_empty()
                                 ),
                             ),
-                            // Add Component button
+                            // Add Component button — wired to component_picker observer
                             (
+                                crate::inspector::AddComponentButton,
                                 Interaction::default(),
                                 Node {
                                     flex_direction: FlexDirection::Row,
@@ -1514,6 +1545,22 @@ fn entity_inspector(icon_font: Handle<Font>) -> impl Bundle {
                                     ..Default::default()
                                 },
                                 BackgroundColor(tokens::ELEVATED_BG),
+                                observe(
+                                    |hover: On<Pointer<Over>>,
+                                     mut bg: Query<&mut BackgroundColor>| {
+                                        if let Ok(mut bg) = bg.get_mut(hover.event_target()) {
+                                            bg.0 = tokens::TOOLBAR_ACTIVE_BG;
+                                        }
+                                    },
+                                ),
+                                observe(
+                                    |out: On<Pointer<Out>>,
+                                     mut bg: Query<&mut BackgroundColor>| {
+                                        if let Ok(mut bg) = bg.get_mut(out.event_target()) {
+                                            bg.0 = tokens::ELEVATED_BG;
+                                        }
+                                    },
+                                ),
                                 children![
                                     (
                                         Text::new(String::from(Icon::PackagePlus.unicode())),
@@ -1534,6 +1581,15 @@ fn entity_inspector(icon_font: Handle<Font>) -> impl Bundle {
                                         TextColor(tokens::TEXT_PRIMARY),
                                     ),
                                 ],
+                                observe(
+                                    |click: On<Pointer<Click>>, mut commands: Commands| {
+                                        commands.trigger(
+                                            jackdaw_feathers::button::ButtonClickEvent {
+                                                entity: click.event_target(),
+                                            },
+                                        );
+                                    },
+                                ),
                             ),
                         ],
                     ),

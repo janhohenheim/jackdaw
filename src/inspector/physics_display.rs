@@ -10,7 +10,9 @@ use jackdaw_feathers::{
     icons::Icon,
     tokens,
 };
-use jackdaw_widgets::collapsible::{CollapsibleBody, CollapsibleHeader, CollapsibleSection};
+use jackdaw_widgets::collapsible::{
+    CollapsibleBody, CollapsibleHeader, CollapsibleSection, ToggleCollapsible,
+};
 
 use crate::commands::{AddComponent, CommandGroup, CommandHistory, EditorCommand};
 use crate::inspector::FieldBinding;
@@ -107,6 +109,16 @@ pub(super) fn spawn_physics_section(
         TextColor(tokens::TEXT_SECONDARY),
         ChildOf(header),
     ));
+
+    // Click to collapse/expand
+    let section_for_toggle = section;
+    commands
+        .entity(header)
+        .observe(move |_: On<Pointer<Click>>, mut commands: Commands| {
+            commands.trigger(ToggleCollapsible {
+                entity: section_for_toggle,
+            });
+        });
 
     // Body
     let body = commands
@@ -416,6 +428,16 @@ fn spawn_advanced_section(
         TextColor(tokens::TEXT_SECONDARY),
         ChildOf(header),
     ));
+
+    // Click to collapse/expand Advanced
+    let adv_section = section;
+    commands
+        .entity(header)
+        .observe(move |_: On<Pointer<Click>>, mut commands: Commands| {
+            commands.trigger(ToggleCollapsible {
+                entity: adv_section,
+            });
+        });
 
     let adv_body = commands
         .spawn((

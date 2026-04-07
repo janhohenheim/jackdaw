@@ -178,7 +178,7 @@ pub struct ComponentDisplay;
 pub(super) struct ComponentDisplayBody;
 
 #[derive(Component)]
-pub(super) struct AddComponentButton;
+pub struct AddComponentButton;
 
 /// Marker for the component picker panel
 #[derive(Component)]
@@ -206,10 +206,6 @@ pub(super) struct ComponentPickerSectionHeader {
 /// Marker for the search input in the inspector.
 #[derive(Component)]
 pub(super) struct InspectorSearch;
-
-/// Marker for the collapse-all / expand-all toggle button.
-#[derive(Component)]
-pub(super) struct CollapseAllButton;
 
 /// Stores the component short name on a `ComponentDisplay` for search filtering.
 #[derive(Component)]
