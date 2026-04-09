@@ -8,9 +8,12 @@
 
 
 A 3D editor built for and with [Bevy](https://bevyengine.org/).
-Very early in dev, expect bugs and changes! A BSN-friendly branch exists on the bsn-editor branch (the flow is to read/write to the BSN AST and then sync to the ECS for rendering the UI and viewport)
+Very early in dev, expect bugs and changes! A BSN-friendly branch exists on the bsn-editor branch (the flow is to read/write to the BSN AST and then sync to the ECS for rendering the UI and viewport).
 
-<img width="1917" height="1033" alt="image" src="https://github.com/user-attachments/assets/fa53542b-de0a-420b-bde0-bdcb180992a5" />
+We have also recently refactored our UX/UI to be _very_ similar to the official Bevy Editor Figma design, to keep things consistent. [Link here](https://www.figma.com/design/fkYfFPSBgnGkhbQd3HOMsL/Bevy-Editor?node-id=90-2)
+
+<img width="1899" height="1014" alt="image" src="https://github.com/user-attachments/assets/3a6611b3-0974-42dc-af78-a6087c222c4d" />
+
 
 
 
@@ -33,6 +36,14 @@ https://github.com/user-attachments/assets/929c893a-4959-4cc1-bec7-5217c4d33eba
 - **Extensible** register custom components, add inspector panels, integrate with your game
 
 ## Usage
+
+Standalone install:
+```sh
+cargo install jackdaw
+```
+Open Jackdaw, and point to a new project!
+<img width="943" height="1018" alt="image" src="https://github.com/user-attachments/assets/3bda18cc-9cad-4d2c-b976-ca2e6e454314" />
+
 
 Add `jackdaw` to your project:
 
