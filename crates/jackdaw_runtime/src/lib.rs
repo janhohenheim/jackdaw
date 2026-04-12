@@ -17,30 +17,6 @@ use serde::de::{DeserializeSeed, Visitor};
 
 pub use jackdaw_jsn::{Brush, BrushFaceData, CustomProperties, GltfSource, PropertyValue};
 
-/// Runtime plugin for loading Jackdaw editor scenes in your game.
-///
-/// Registers an asset loader for `.jsn` scene files and systems for spawning
-/// scene entities and generating brush meshes.
-///
-/// ```rust,no_run
-/// use bevy::prelude::*;
-/// use jackdaw_runtime::{JackdawPlugin, JackdawSceneRoot};
-///
-/// fn main() {
-///     App::new()
-///         .add_plugins((DefaultPlugins, JackdawPlugin))
-///         .add_systems(Startup, setup)
-///         .run();
-/// }
-///
-/// fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-///     commands.spawn(JackdawSceneRoot(asset_server.load("levels/my_level.jsn")));
-///     commands.spawn((
-///         Camera3d::default(),
-///         Transform::from_xyz(5.0, 5.0, 5.0).looking_at(Vec3::ZERO, Vec3::Y),
-///     ));
-/// }
-/// ```
 pub struct JackdawPlugin;
 
 impl Plugin for JackdawPlugin {
@@ -64,23 +40,18 @@ impl Plugin for JackdawPlugin {
     }
 }
 
-// ─────────────────────────────────────── Asset ───────────────────────────────────────
-
 #[derive(Asset, TypePath)]
 pub struct JackdawScene {
     jsn: JsnScene,
     parent_path: PathBuf,
 }
 
-/// Spawn this component on an entity to load and instantiate a Jackdaw scene.
-/// All scene entities become children of this entity.
+/// Scene entities become children of the entity this is spawned on.
 #[derive(Component, Deref)]
 pub struct JackdawSceneRoot(pub Handle<JackdawScene>);
 
 #[derive(Component)]
 struct SceneSpawned;
-
-// ─────────────────────────────────── Asset Loader ────────────────────────────────────
 
 #[derive(Debug, TypePath)]
 struct JackdawSceneLoader;
@@ -141,8 +112,6 @@ pub enum JackdawLoadError {
     #[error("Parse error: {0}")]
     Parse(String),
 }
-
-// ──────────────────────────────── Scene Spawning ─────────────────────────────────────
 
 fn spawn_loaded_scenes(world: &mut World) {
     let mut query = world.query_filtered::<(Entity, &JackdawSceneRoot), Without<SceneSpawned>>();
@@ -230,7 +199,6 @@ fn spawn_scene_entities(
     }
     drop(registry_guard);
 
-    // Trigger GLTF scene loading for GltfSource entities
     let gltf_entities: Vec<(Entity, String, usize)> = spawned
         .iter()
         .filter_map(|&e| {
@@ -252,8 +220,6 @@ fn spawn_scene_entities(
     }
 }
 
-// ────────────────────────────── Inline Asset Loading ─────────────────────────────────
-
 fn load_inline_assets(
     world: &mut World,
     assets: &JsnAssets,
@@ -265,7 +231,6 @@ fn load_inline_assets(
     let registry_guard = registry.read();
     let asset_server = world.resource::<AssetServer>().clone();
 
-    // First pass: external file references (string entries)
     for (type_path, named_entries) in &assets.0 {
         for (name, json_value) in named_entries {
             let serde_json::Value::String(rel_path) = json_value else {
@@ -304,7 +269,6 @@ fn load_inline_assets(
         }
     }
 
-    // Second pass: inline asset definitions (object entries like materials)
     for (type_path, named_entries) in &assets.0 {
         let Some(registration) = registry_guard.get_with_type_path(type_path) else {
             warn!("Unknown asset type '{type_path}' in inline assets -- skipping");
@@ -365,8 +329,6 @@ fn collect_linear_image_names(assets: &JsnAssets) -> HashSet<String> {
     linear_names
 }
 
-// ─────────────────────────── Deserialization Processor ────────────────────────────────
-
 struct RuntimeDeserializerProcessor<'a> {
     asset_server: &'a AssetServer,
     parent_path: &'a Path,
@@ -384,7 +346,6 @@ impl ReflectDeserializerProcessor for RuntimeDeserializerProcessor<'_> {
     where
         D: Deserializer<'de>,
     {
-        // Non-finite floats: round-trip through strings ("inf", "-inf", "NaN")
         if registration.type_id() == TypeId::of::<f32>() {
             let val = deserializer
                 .deserialize_any(F32Visitor)
@@ -398,12 +359,8 @@ impl ReflectDeserializerProcessor for RuntimeDeserializerProcessor<'_> {
             return Ok(Ok(Box::new(val).into_partial_reflect()));
         }
 
-        // Handle<T> -- resolve from inline #Name, external path, or null
         if registration.data::<ReflectHandle>().is_some() {
-            let path_str = match deserializer.deserialize_any(StringOrNullVisitor) {
-                Ok(p) => p,
-                Err(e) => return Err(e),
-            };
+            let path_str = deserializer.deserialize_any(StringOrNullVisitor)?;
 
             if path_str.is_empty() {
                 if let Some(rd) = registration.data::<ReflectDefault>() {
@@ -439,7 +396,6 @@ impl ReflectDeserializerProcessor for RuntimeDeserializerProcessor<'_> {
             return Ok(Ok(Box::new(handle).into_partial_reflect()));
         }
 
-        // Entity -- resolve from scene-local index
         if registration.type_id() == TypeId::of::<Entity>() {
             let idx_str = match deserializer.deserialize_any(StringOrNullVisitor) {
                 Ok(s) => s,
@@ -459,8 +415,6 @@ impl ReflectDeserializerProcessor for RuntimeDeserializerProcessor<'_> {
         Ok(Err(deserializer))
     }
 }
-
-// ────────────────────────────── Visitor Helpers ──────────────────────────────────────
 
 struct StringOrNullVisitor;
 

@@ -1,11 +1,11 @@
-//! Minimal example: load a `.jsn` scene exported from the Jackdaw editor.
+//! Load a `.jsn` scene exported from the Jackdaw editor.
 //!
-//! Place a scene file at `assets/examples/scenes/scene.jsn` (use the editor's
-//! Ctrl+S to export one), then run:
+//! 1. Add `jackdaw_runtime` to your `Cargo.toml`
+//! 2. Add `JackdawPlugin` to your app
+//! 3. Spawn a `JackdawSceneRoot` with an asset server load
 //!
-//! ```sh
-//! cargo run --example jsn_load
-//! ```
+//! The scene includes lights, brushes, and any other entities
+//! saved from the editor. You only need to provide a camera.
 
 use bevy::prelude::*;
 use jackdaw_runtime::{JackdawPlugin, JackdawSceneRoot};
