@@ -5,7 +5,7 @@
 //! existing AST command primitives in the main editor:
 //!
 //! - **Create clip / track / keyframe** — `SpawnEntity` with the
-//!   matching reflected components ([`Clip`], [`AnimTrack`],
+//!   matching reflected components ([`Clip`], [`AnimationTrack`],
 //!   [`Vec3Keyframe`] / [`QuatKeyframe`] / [`F32Keyframe`]).
 //! - **Edit any field** — `SetJsnField` on the relevant component and
 //!   field path. For instance, moving a keyframe in time is
@@ -19,7 +19,7 @@
 //! the main editor crate when implementing new editing features.
 //!
 //! [`Clip`]: crate::clip::Clip
-//! [`AnimTrack`]: crate::clip::AnimTrack
+//! [`AnimationTrack`]: crate::clip::AnimationTrack
 //! [`Vec3Keyframe`]: crate::clip::Vec3Keyframe
 //! [`QuatKeyframe`]: crate::clip::QuatKeyframe
 //! [`F32Keyframe`]: crate::clip::F32Keyframe

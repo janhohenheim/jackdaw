@@ -20,8 +20,9 @@ use jackdaw_feathers::icons::IconFont;
 use jackdaw_feathers::tokens;
 use lucide_icons::Icon;
 
+use crate::blend_graph::AnimationBlendGraph;
 use crate::clip::{
-    AnimTrack, Clip, F32Keyframe, QuatKeyframe, SelectedClip, SelectedKeyframes, TimelineSnap,
+    AnimationTrack, Clip, F32Keyframe, QuatKeyframe, SelectedClip, SelectedKeyframes, TimelineSnap,
     TimelineSnapHint, Vec3Keyframe,
 };
 use crate::compile::clip_display_duration;
@@ -65,6 +66,13 @@ pub struct TimelineStopButton;
 /// `on_create_clip_for_selection` observer to `SpawnEntity` a new clip.
 #[derive(Component, Clone, Copy)]
 pub struct TimelineCreateClipButton;
+
+/// Marker for the placeholder "Create Blend Graph" button. Clicking
+/// hands off to the main editor's `on_create_blend_graph_for_selection`
+/// observer which spawns a `Clip + AnimationBlendGraph + NodeGraph` entity
+/// with a default Output node.
+#[derive(Component, Clone, Copy)]
+pub struct TimelineCreateBlendGraphButton;
 
 /// Marker for the "add keyframe" button on a track row. Carries the
 /// track entity so the observer can read the track's target + field
@@ -123,30 +131,48 @@ pub fn timeline_panel() -> impl Bundle {
 }
 
 /// Flag the timeline as dirty whenever any authored animation data
-/// changes this frame. Runs before [`rebuild_timeline`] so
-/// inspector-driven edits (e.g. typing a new `Clip.duration` in the
-/// component inspector, or moving a `Vec3Keyframe.time` via
-/// `SetJsnField`) repaint the widget immediately instead of waiting
-/// for the user to deselect and reselect the entity.
+/// changes (or goes away) this frame. Runs before [`rebuild_timeline`]
+/// so inspector edits, keyframe adds, and keyframe deletes all
+/// repaint the widget immediately instead of waiting for the user
+/// to deselect and reselect.
 ///
-/// The query set matches the one `compile_clips` watches, so the
+/// Watches both `Changed<T>` (mutations) and `RemovedComponents<T>`
+/// (despawns). The despawn half is load-bearing: when a keyframe
+/// entity is despawned via the editor's `DespawnEntity` command,
+/// nothing fires `Changed<Vec3Keyframe>` — the entity just stops
+/// existing. Without the removal check the timeline would still
+/// show a diamond for the now-dead entity until something else
+/// triggered a rebuild.
+///
+/// The type set matches what `compile_clips` watches, so the
 /// visual rebuild and the Bevy-asset rebuild stay in lockstep — if
 /// the compile step had something to recompile this frame, the
 /// timeline widget will redraw on the same frame.
+#[allow(clippy::too_many_arguments)]
 pub fn mark_timeline_dirty_on_data_change(
     mut dirty: ResMut<TimelineDirty>,
     changed_clips: Query<(), Changed<Clip>>,
-    changed_tracks: Query<(), Changed<AnimTrack>>,
+    changed_tracks: Query<(), Changed<AnimationTrack>>,
     changed_vec3: Query<(), Changed<Vec3Keyframe>>,
     changed_quat: Query<(), Changed<QuatKeyframe>>,
     changed_f32: Query<(), Changed<F32Keyframe>>,
+    mut removed_clips: RemovedComponents<Clip>,
+    mut removed_tracks: RemovedComponents<AnimationTrack>,
+    mut removed_vec3: RemovedComponents<Vec3Keyframe>,
+    mut removed_quat: RemovedComponents<QuatKeyframe>,
+    mut removed_f32: RemovedComponents<F32Keyframe>,
 ) {
-    if !changed_clips.is_empty()
+    let any_changed = !changed_clips.is_empty()
         || !changed_tracks.is_empty()
         || !changed_vec3.is_empty()
         || !changed_quat.is_empty()
-        || !changed_f32.is_empty()
-    {
+        || !changed_f32.is_empty();
+    let any_removed = removed_clips.read().next().is_some()
+        || removed_tracks.read().next().is_some()
+        || removed_vec3.read().next().is_some()
+        || removed_quat.read().next().is_some()
+        || removed_f32.read().next().is_some();
+    if any_changed || any_removed {
         dirty.0 = true;
     }
 }
@@ -162,7 +188,8 @@ pub fn rebuild_timeline(
     mut dirty: ResMut<TimelineDirty>,
     panels: Query<(Entity, Option<&Children>), With<TimelinePanelRoot>>,
     clips: Query<(&Clip, Option<&Children>)>,
-    tracks: Query<(&AnimTrack, Option<&Children>)>,
+    blend_graphs: Query<(), With<AnimationBlendGraph>>,
+    tracks: Query<(&AnimationTrack, Option<&Children>)>,
     vec3_keyframes: Query<&Vec3Keyframe>,
     quat_keyframes: Query<&QuatKeyframe>,
     f32_keyframes: Query<&F32Keyframe>,
@@ -208,27 +235,65 @@ pub fn rebuild_timeline(
                     panel_entity,
                     clip_entity,
                     &clip_name,
-                    cursor.time,
+                    cursor.seek_time,
                     duration,
                     &icon_font,
                 );
-                spawn_body(
-                    &mut commands,
-                    panel_entity,
-                    clip_entity,
-                    duration,
-                    clip_children,
-                    &tracks,
-                    &vec3_keyframes,
-                    &quat_keyframes,
-                    &f32_keyframes,
-                );
+                if blend_graphs.contains(clip_entity) {
+                    // Blend graph clip → node canvas in place of the
+                    // keyframe body. The canvas sync systems backfill
+                    // UI for any pre-existing nodes/connections when
+                    // the canvas world appears.
+                    spawn_blend_graph_body(&mut commands, panel_entity, clip_entity);
+                } else {
+                    spawn_body(
+                        &mut commands,
+                        panel_entity,
+                        clip_entity,
+                        duration,
+                        clip_children,
+                        &tracks,
+                        &vec3_keyframes,
+                        &quat_keyframes,
+                        &f32_keyframes,
+                    );
+                }
             }
         }
     }
 
     *last_built_for = selected.0;
     dirty.0 = false;
+}
+
+/// Spawn the canvas viewport + world as the dock body when the
+/// selected clip is a blend graph. The `clip_entity` itself is the
+/// graph root — it already carries `NodeGraph` + `GraphCanvasView`
+/// from the creation step — so the canvas bundle just points at it.
+fn spawn_blend_graph_body(commands: &mut Commands, parent: Entity, clip_entity: Entity) {
+    // Wrapper with flex_grow so the canvas fills the space below
+    // the header. The canvas() bundle already includes its own Node
+    // (width/height 100%, overflow clip), so we can't merge ours
+    // into it — two-entity pattern avoids the duplicate-Node panic.
+    let wrapper = commands
+        .spawn((
+            Node {
+                width: Val::Percent(100.0),
+                flex_grow: 1.0,
+                ..default()
+            },
+            ChildOf(parent),
+        ))
+        .id();
+    let canvas_root = commands
+        .spawn((
+            jackdaw_node_graph::canvas(clip_entity),
+            ChildOf(wrapper),
+        ))
+        .id();
+    commands
+        .spawn(jackdaw_node_graph::canvas_world(clip_entity))
+        .insert(ChildOf(canvas_root));
 }
 
 fn spawn_placeholder(commands: &mut Commands, parent: Entity) {
@@ -256,6 +321,21 @@ fn spawn_placeholder(commands: &mut Commands, parent: Entity) {
         },
         ChildOf(wrapper),
     ));
+
+    // Buttons row: Create Clip (authored keyframes) +
+    // Create Blend Graph (node canvas). Both hand off to main-editor
+    // observers that spawn the right entity tree for the primary
+    // selection.
+    let button_row = commands
+        .spawn((
+            Node {
+                flex_direction: FlexDirection::Row,
+                column_gap: Val::Px(tokens::SPACING_MD),
+                ..default()
+            },
+            ChildOf(wrapper),
+        ))
+        .id();
     commands.spawn((
         TimelineCreateClipButton,
         button(
@@ -263,7 +343,16 @@ fn spawn_placeholder(commands: &mut Commands, parent: Entity) {
                 .with_variant(ButtonVariant::Default)
                 .with_left_icon(Icon::Plus),
         ),
-        ChildOf(wrapper),
+        ChildOf(button_row),
+    ));
+    commands.spawn((
+        TimelineCreateBlendGraphButton,
+        button(
+            ButtonProps::new("Create Blend Graph")
+                .with_variant(ButtonVariant::Ghost)
+                .with_left_icon(Icon::GitBranch),
+        ),
+        ChildOf(button_row),
     ));
 }
 
@@ -385,7 +474,7 @@ fn spawn_body(
     clip_entity: Entity,
     duration: f32,
     clip_children: Option<&Children>,
-    tracks: &Query<(&AnimTrack, Option<&Children>)>,
+    tracks: &Query<(&AnimationTrack, Option<&Children>)>,
     vec3_keyframes: &Query<&Vec3Keyframe>,
     quat_keyframes: &Query<&QuatKeyframe>,
     f32_keyframes: &Query<&F32Keyframe>,
@@ -569,7 +658,12 @@ fn spawn_ruler_ticks(
 
 /// Pick a "nice" tick interval for the given duration. Aims for
 /// between 4 and 10 labels across the visible range.
-fn pick_tick_step(duration: f32) -> f32 {
+/// Step size used by the ruler tick generator. Also used by the
+/// main editor's arrow-key scrub handler so left/right stepping
+/// lands on the same tick marks the ruler draws — that way the
+/// playhead visibly snaps from tick to tick as the user holds an
+/// arrow key.
+pub fn pick_tick_step(duration: f32) -> f32 {
     const CANDIDATES: &[f32] = &[
         0.01, 0.05, 0.1, 0.25, 0.5, 1.0, 2.0, 5.0, 10.0, 30.0, 60.0,
     ];
@@ -618,7 +712,7 @@ fn spawn_track_label(
     commands: &mut Commands,
     parent: Entity,
     track_entity: Entity,
-    track: &AnimTrack,
+    track: &AnimationTrack,
 ) {
     let row = commands
         .spawn((
@@ -736,7 +830,7 @@ pub fn update_playhead_position(
     for (scrubber, children) in &scrubbers {
         let duration = clip_display_duration(scrubber.clip, &clips);
         let percent = if duration > 0.0 {
-            (cursor.time / duration).clamp(0.0, 1.0) * 100.0
+            (cursor.seek_time / duration).clamp(0.0, 1.0) * 100.0
         } else {
             0.0
         };
@@ -768,7 +862,7 @@ pub fn handle_transport_button_click(
 }
 
 /// Observer for clicks on the per-track `+` button. Reads the track's
-/// `AnimTrack.property_path()`, looks up the target entity by name,
+/// `AnimationTrack.property_path()`, looks up the target entity by name,
 /// snapshots the current value of the target's animated field, and
 /// `SpawnEntity`-s the right typed keyframe component at the cursor
 /// time. This is the one place in the widget layer that bridges
@@ -788,10 +882,10 @@ pub fn handle_add_keyframe_click(
     commands.queue(move |world: &mut World| {
         let cursor_time = world
             .get_resource::<TimelineCursor>()
-            .map(|c| c.time)
+            .map(|c| c.seek_time)
             .unwrap_or(0.0);
 
-        let Some(track) = world.get::<AnimTrack>(track_entity).cloned() else {
+        let Some(track) = world.get::<AnimationTrack>(track_entity).cloned() else {
             return;
         };
 
@@ -884,7 +978,7 @@ pub fn handle_scrubber_click(
     mut event: On<Pointer<Click>>,
     scrubbers: Query<(&TimelineScrubber, &ComputedNode, &UiGlobalTransform)>,
     clips: Query<(&Clip, Option<&Children>)>,
-    tracks: Query<(&AnimTrack, Option<&Children>)>,
+    tracks: Query<(&AnimationTrack, Option<&Children>)>,
     vec3_keyframes: Query<&Vec3Keyframe>,
     quat_keyframes: Query<&QuatKeyframe>,
     f32_keyframes: Query<&F32Keyframe>,
@@ -929,7 +1023,7 @@ pub fn handle_scrubber_drag(
     mut event: On<Pointer<Drag>>,
     scrubbers: Query<(&TimelineScrubber, &ComputedNode, &UiGlobalTransform)>,
     clips: Query<(&Clip, Option<&Children>)>,
-    tracks: Query<(&AnimTrack, Option<&Children>)>,
+    tracks: Query<(&AnimationTrack, Option<&Children>)>,
     vec3_keyframes: Query<&Vec3Keyframe>,
     quat_keyframes: Query<&QuatKeyframe>,
     f32_keyframes: Query<&F32Keyframe>,
@@ -977,7 +1071,7 @@ fn resolve_snap(
     snap: &TimelineSnap,
     keys: &ButtonInput<KeyCode>,
     clips: &Query<(&Clip, Option<&Children>)>,
-    tracks: &Query<(&AnimTrack, Option<&Children>)>,
+    tracks: &Query<(&AnimationTrack, Option<&Children>)>,
     vec3_keyframes: &Query<&Vec3Keyframe>,
     quat_keyframes: &Query<&QuatKeyframe>,
     f32_keyframes: &Query<&F32Keyframe>,
@@ -1133,7 +1227,7 @@ fn apply_snap(
 fn all_keyframes_for_clip(
     clip_entity: Entity,
     clips: &Query<(&Clip, Option<&Children>)>,
-    tracks: &Query<(&AnimTrack, Option<&Children>)>,
+    tracks: &Query<(&AnimationTrack, Option<&Children>)>,
     vec3_keyframes: &Query<&Vec3Keyframe>,
     quat_keyframes: &Query<&QuatKeyframe>,
     f32_keyframes: &Query<&F32Keyframe>,
@@ -1157,29 +1251,6 @@ fn all_keyframes_for_clip(
         }
     }
     out
-}
-
-/// Observer: clicking a keyframe diamond toggles the keyframe's
-/// selection in [`SelectedKeyframes`]. Ctrl+click toggles; plain
-/// click replaces the selection with just that keyframe. Stops
-/// propagation so the underlying scrubber doesn't also receive the
-/// click and seek to the diamond's time.
-pub fn handle_keyframe_click(
-    mut event: On<Pointer<Click>>,
-    handles: Query<&TimelineKeyframeHandle>,
-    mut selected: ResMut<SelectedKeyframes>,
-    keys: Res<ButtonInput<KeyCode>>,
-) {
-    let Ok(handle) = handles.get(event.event_target()) else {
-        return;
-    };
-    let multi = keys.pressed(KeyCode::ControlLeft) || keys.pressed(KeyCode::ControlRight);
-    if multi {
-        selected.toggle(handle.keyframe);
-    } else {
-        selected.select_only(handle.keyframe);
-    }
-    event.propagate(false);
 }
 
 /// Paint every rendered keyframe diamond based on its state:
@@ -1212,27 +1283,3 @@ pub fn update_keyframe_highlight(
     }
 }
 
-/// Keyboard handler: `Delete` or `Backspace` despawns every entity
-/// in [`SelectedKeyframes`] via `DespawnEntity` commands so the edit
-/// is undo-aware. Cleared after handling. Clears its own selection
-/// set on completion; the [`compile_clips`] + `mark_timeline_dirty`
-/// pipeline then rebuilds the clip asset and the widget.
-pub fn handle_delete_selected_keyframes(
-    keys: Res<ButtonInput<KeyCode>>,
-    mut selected: ResMut<SelectedKeyframes>,
-    mut dirty: ResMut<TimelineDirty>,
-    mut commands: Commands,
-) {
-    if !keys.just_pressed(KeyCode::Delete) && !keys.just_pressed(KeyCode::Backspace) {
-        return;
-    }
-    if selected.entities.is_empty() {
-        return;
-    }
-    let to_delete: Vec<Entity> = selected.entities.iter().copied().collect();
-    selected.clear();
-    for entity in to_delete {
-        commands.entity(entity).despawn();
-    }
-    dirty.0 = true;
-}

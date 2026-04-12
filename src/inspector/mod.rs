@@ -139,6 +139,7 @@ impl Plugin for InspectorPlugin {
                     brush_display::update_brush_face_properties,
                     component_display::filter_inspector_components,
                     anim_diamond::decorate_animatable_fields,
+                    anim_diamond::update_anim_diamond_highlights,
                 )
                     .run_if(in_state(crate::AppState::Editor)),
             );

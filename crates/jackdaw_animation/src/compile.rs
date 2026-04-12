@@ -2,7 +2,7 @@
 //!
 //! For each [`Clip`] entity whose authored data changed this frame,
 //! rebuild a real [`AnimationClip`] + [`AnimationGraph`] from the
-//! `(AnimTrack, typed-keyframe)` tree under it. The output is stored on
+//! `(AnimationTrack, typed-keyframe)` tree under it. The output is stored on
 //! the clip entity as a runtime-only [`CompiledClip`] component and is
 //! never serialized.
 //!
@@ -29,10 +29,12 @@ use bevy::animation::{
     animation_curves::{AnimatableCurve, AnimatableKeyframeCurve},
     graph::{AnimationGraph, AnimationNodeIndex},
 };
+use bevy::gltf::Gltf;
 use bevy::prelude::*;
 
+use crate::blend_graph::{AnimationBlendGraph, ClipNodeRef, OutputNode};
 use crate::clip::{
-    AnimTrack, Clip, F32Keyframe, Interpolation, QuatKeyframe, Vec3Keyframe,
+    AnimationTrack, Clip, F32Keyframe, GltfClipRef, Interpolation, QuatKeyframe, Vec3Keyframe,
 };
 
 // Well-known property paths we know how to animate. These constants
@@ -75,7 +77,7 @@ pub fn compile_clips(
         Entity,
         Or<(
             Changed<Clip>,
-            Changed<AnimTrack>,
+            Changed<AnimationTrack>,
             Changed<Vec3Keyframe>,
             Changed<QuatKeyframe>,
             Changed<F32Keyframe>,
@@ -85,7 +87,9 @@ pub fn compile_clips(
     parents: Query<&ChildOf>,
     existing_compiled: Query<&CompiledClip>,
     clips: Query<(&Clip, Option<&Children>)>,
-    tracks: Query<(&AnimTrack, Option<&Children>)>,
+    gltf_refs: Query<&GltfClipRef>,
+    blend_graphs: Query<(), With<AnimationBlendGraph>>,
+    tracks: Query<(&AnimationTrack, Option<&Children>)>,
     vec3_keyframes: Query<&Vec3Keyframe>,
     quat_keyframes: Query<&QuatKeyframe>,
     f32_keyframes: Query<&F32Keyframe>,
@@ -102,6 +106,14 @@ pub fn compile_clips(
     }
 
     for clip_entity in dirty {
+        // glTF-sourced and blend-graph-sourced clips are handled by
+        // `compile_gltf_clips` / `compile_blend_graphs`. Skipping here
+        // also means those clips never have their imported
+        // `AnimationClip` handle overwritten by an empty authored
+        // rebuild.
+        if gltf_refs.contains(clip_entity) || blend_graphs.contains(clip_entity) {
+            continue;
+        }
         let Ok((clip_meta, clip_children)) = clips.get(clip_entity) else {
             continue;
         };
@@ -174,6 +186,167 @@ pub fn compile_clips(
     }
 }
 
+/// Compile [`AnimationBlendGraph`] clips into [`CompiledClip`] by walking
+/// the node canvas subtree and resolving it to a Bevy
+/// [`AnimationGraph`]. Runs every frame, but cheap — only walks when
+/// a blend graph clip doesn't yet have a `CompiledClip` or when its
+/// canvas contents changed.
+///
+/// **Scope (Phase 5D MVP):** single-clip passthrough only. If the
+/// graph has exactly one `anim.clip_ref` node connected to one
+/// `anim.output` node and the referenced clip has a `CompiledClip`,
+/// this system clones the referenced clip's compiled handles onto
+/// the blend graph clip. More complex topologies (actual blends,
+/// additive, chained graphs) warn and leave the blend graph
+/// un-compiled until a later phase adds the proper tree walker.
+///
+/// [`AnimationBlendGraph`]: crate::blend_graph::AnimationBlendGraph
+/// [`AnimationGraph`]: bevy::animation::graph::AnimationGraph
+#[allow(clippy::too_many_arguments)]
+pub fn compile_blend_graphs(
+    blend_graphs: Query<(Entity, Option<&Children>), (With<Clip>, With<AnimationBlendGraph>)>,
+    existing_compiled: Query<&CompiledClip>,
+    graph_nodes: Query<&jackdaw_node_graph::GraphNode>,
+    connections: Query<&jackdaw_node_graph::Connection>,
+    clip_refs: Query<&ClipNodeRef>,
+    outputs: Query<(), With<OutputNode>>,
+    mut commands: Commands,
+) {
+    for (clip_entity, clip_children) in &blend_graphs {
+        let Some(children) = clip_children else {
+            // No graph yet — leave any previous CompiledClip alone so
+            // an already-working blend graph keeps playing while the
+            // user mid-edits the canvas.
+            continue;
+        };
+
+        // Collect all graph nodes + connections under this clip.
+        let mut output_node: Option<Entity> = None;
+        let mut clip_ref_nodes: Vec<Entity> = Vec::new();
+        let mut blend_graph_conns: Vec<&jackdaw_node_graph::Connection> = Vec::new();
+        for &child in children.iter().collect::<Vec<_>>().iter() {
+            if graph_nodes.contains(child) {
+                if outputs.contains(child) {
+                    output_node = Some(child);
+                }
+                if clip_refs.contains(child) {
+                    clip_ref_nodes.push(child);
+                }
+            } else if let Ok(conn) = connections.get(child) {
+                blend_graph_conns.push(conn);
+            }
+        }
+
+        let Some(output_entity) = output_node else {
+            // No output node yet — user still building the graph.
+            continue;
+        };
+
+        // Find the incoming connection to the output's single input.
+        let incoming: Vec<&jackdaw_node_graph::Connection> = blend_graph_conns
+            .iter()
+            .filter(|c| c.target_node == output_entity)
+            .copied()
+            .collect();
+        if incoming.len() != 1 {
+            // Zero or multiple incoming — ambiguous or incomplete.
+            continue;
+        }
+        let source_node = incoming[0].source_node;
+
+        // Source must be a clip_ref for the MVP passthrough case.
+        let Ok(clip_ref) = clip_refs.get(source_node) else {
+            warn!(
+                "Blend graph {clip_entity}: only direct Clip Reference → \
+                 Output is supported in MVP; got source node {source_node}"
+            );
+            continue;
+        };
+        let referenced_clip = clip_ref.clip_entity;
+        if referenced_clip == Entity::PLACEHOLDER {
+            continue;
+        }
+        let Ok(compiled) = existing_compiled.get(referenced_clip) else {
+            // Referenced clip hasn't compiled yet. Retry next frame.
+            continue;
+        };
+
+        // Passthrough: clone the referenced clip's compiled handles
+        // onto this blend graph clip. Unconditionally overwrite any
+        // prior CompiledClip so canvas edits (e.g. swapping the
+        // referenced clip) propagate to the bound player next frame.
+        let target = existing_compiled
+            .get(clip_entity)
+            .map(|prior| prior.clip != compiled.clip || prior.root_node != compiled.root_node)
+            .unwrap_or(true);
+        if target {
+            commands.entity(clip_entity).insert(compiled.clone());
+        }
+    }
+}
+
+/// Resolve glTF-sourced clips by looking up their Bevy
+/// [`AnimationClip`] handle in the loaded [`Gltf`] asset and wrapping
+/// it in a [`CompiledClip`]. Mirrors [`compile_clips`] for imported
+/// data: no keyframes, no tracks, just a direct handle → graph
+/// conversion.
+///
+/// Runs every frame but only touches un-compiled glTF clips
+/// (`Without<CompiledClip>`) — once a clip is compiled it falls out of
+/// the query. If the Gltf asset isn't loaded yet, or the named
+/// animation can't be found, the clip is left un-compiled and the
+/// system retries next frame.
+#[allow(clippy::too_many_arguments)]
+pub fn compile_gltf_clips(
+    uncompiled: Query<(Entity, &GltfClipRef), (With<Clip>, Without<CompiledClip>)>,
+    asset_server: Res<AssetServer>,
+    gltfs: Res<Assets<Gltf>>,
+    clip_store: Res<Assets<AnimationClip>>,
+    mut graph_store: ResMut<Assets<AnimationGraph>>,
+    mut clip_meta: Query<&mut Clip>,
+    mut commands: Commands,
+) {
+    for (clip_entity, gltf_ref) in &uncompiled {
+        // Request the Gltf asset (dedup if already loading); we don't
+        // need to hold the handle — the scene's GltfSource entity
+        // keeps it alive.
+        let handle: Handle<Gltf> = asset_server.load(&gltf_ref.gltf_path);
+        let Some(gltf) = gltfs.get(&handle) else {
+            continue;
+        };
+        let Some(clip_handle) = gltf.named_animations.get(gltf_ref.clip_name.as_str()) else {
+            warn!(
+                "glTF clip '{}' not found in {} — available: {:?}",
+                gltf_ref.clip_name,
+                gltf_ref.gltf_path,
+                gltf.named_animations.keys().collect::<Vec<_>>(),
+            );
+            continue;
+        };
+        let Some(clip_data) = clip_store.get(clip_handle) else {
+            continue;
+        };
+
+        // Sync the authored `Clip::duration` from the imported clip so
+        // the timeline widget shows the right range without requiring
+        // the user to type it in manually.
+        if let Ok(mut clip) = clip_meta.get_mut(clip_entity) {
+            let imported = clip_data.duration();
+            if (clip.duration - imported).abs() > f32::EPSILON {
+                clip.duration = imported;
+            }
+        }
+
+        let (graph, root_node) = AnimationGraph::from_clip(clip_handle.clone());
+        let graph_handle = graph_store.add(graph);
+        commands.entity(clip_entity).insert(CompiledClip {
+            clip: clip_handle.clone(),
+            graph: graph_handle,
+            root_node,
+        });
+    }
+}
+
 /// Dispatch table: given a track and its child keyframes, collect the
 /// right keyframe component type, sort by time, and call Bevy's
 /// `animated_field!` macro with the matching concrete type. This is
@@ -181,7 +354,7 @@ pub fn compile_clips(
 /// property in the AST" to "compile-time-typed curve constructor in
 /// Bevy" — every other step is generic.
 fn build_curve_for_track(
-    track: &AnimTrack,
+    track: &AnimationTrack,
     target_id: AnimationTargetId,
     track_children: Option<&Children>,
     vec3_keyframes: &Query<&Vec3Keyframe>,
@@ -304,7 +477,7 @@ pub fn clip_display_duration(
 pub fn max_keyframe_time(
     clip_entity: Entity,
     clips: &Query<(&Clip, Option<&Children>)>,
-    tracks: &Query<(&AnimTrack, Option<&Children>)>,
+    tracks: &Query<(&AnimationTrack, Option<&Children>)>,
     vec3_keyframes: &Query<&Vec3Keyframe>,
     quat_keyframes: &Query<&QuatKeyframe>,
     f32_keyframes: &Query<&F32Keyframe>,

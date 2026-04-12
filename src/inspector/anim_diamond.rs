@@ -4,7 +4,7 @@
 //! animatable allowlist of `(component_type_path, field_path)` pairs,
 //! appends a small diamond icon button next to the row. Clicking the
 //! diamond finds-or-creates a [`jackdaw_animation::Clip`] child of the
-//! field's source entity, finds-or-creates an [`AnimTrack`] for the
+//! field's source entity, finds-or-creates an [`AnimationTrack`] for the
 //! bound property under that clip, and spawns the correct typed
 //! keyframe at the current cursor time.
 //!
@@ -20,17 +20,25 @@
 //!
 //! [`FieldBinding`]: super::FieldBinding
 //! [`jackdaw_animation::Clip`]: jackdaw_animation::Clip
-//! [`AnimTrack`]: jackdaw_animation::AnimTrack
+//! [`AnimationTrack`]: jackdaw_animation::AnimationTrack
 
 use bevy::prelude::*;
 use jackdaw_animation::{
-    AnimTrack, Clip, F32Keyframe, QuatKeyframe, SelectedClip, TimelineCursor, TimelineDirty,
+    AnimationTrack, Clip, F32Keyframe, QuatKeyframe, SelectedClip, TimelineCursor, TimelineDirty,
     Vec3Keyframe,
 };
 use jackdaw_feathers::button::{ButtonClickEvent, ButtonProps, ButtonSize, ButtonVariant, button};
 use jackdaw_feathers::icons::Icon;
 
 use super::InspectorFieldRow;
+
+/// Epsilon (in seconds) for "is the cursor on this keyframe?".
+/// Roughly one frame at 60fps — anything closer than this to an
+/// existing keyframe time counts as "you're on it." Tight enough
+/// that the user has to deliberately land on a keyframe for the
+/// amber state to appear; loose enough to not demand floating-point
+/// exactness.
+const CURSOR_ON_KEYFRAME_EPS: f32 = 0.02;
 
 const TRANSFORM: &str = "bevy_transform::components::transform::Transform";
 
@@ -134,7 +142,7 @@ pub fn on_diamond_click(
     commands.queue(move |world: &mut World| {
         let cursor_time = world
             .get_resource::<TimelineCursor>()
-            .map(|c| c.time)
+            .map(|c| c.seek_time)
             .unwrap_or(0.0);
 
         // Step 1: find or create a Clip as a child of the source
@@ -215,7 +223,7 @@ fn find_or_create_clip(world: &mut World, source_entity: Entity) -> Option<Entit
     Some(clip)
 }
 
-/// Return an existing `AnimTrack` child of `clip_entity` matching
+/// Return an existing `AnimationTrack` child of `clip_entity` matching
 /// `(component_type_path, field_path)`, or spawn a new one.
 fn find_or_create_track(
     world: &mut World,
@@ -226,7 +234,7 @@ fn find_or_create_track(
     if let Some(children) = world.get::<Children>(clip_entity) {
         let children_vec: Vec<Entity> = children.iter().collect();
         for child in children_vec {
-            if let Some(track) = world.get::<AnimTrack>(child) {
+            if let Some(track) = world.get::<AnimationTrack>(child) {
                 if track.component_type_path == component_type_path
                     && track.field_path == field_path
                 {
@@ -239,7 +247,7 @@ fn find_or_create_track(
     let label = format!("/ {field_path}");
     world
         .spawn((
-            AnimTrack::new(component_type_path.to_string(), field_path.to_string()),
+            AnimationTrack::new(component_type_path.to_string(), field_path.to_string()),
             Name::new(label),
             ChildOf(clip_entity),
         ))
@@ -309,4 +317,151 @@ fn spawn_typed_keyframe(
             );
         }
     }
+}
+
+/// State of an animatable field, used to style its diamond icon.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DiamondState {
+    /// No track exists yet for this `(source, component, field)`.
+    /// The diamond reads "click me to start animating this."
+    NoTrack,
+    /// A track exists and has keyframes, but the cursor isn't
+    /// sitting on any of them — clicking adds a new keyframe.
+    HasTrack,
+    /// The cursor is exactly on an existing keyframe — clicking
+    /// would replace it (currently spawns a duplicate, but the
+    /// compile step dedupes on time).
+    OnKeyframe,
+}
+
+/// Per-frame highlight updater: walks each diamond button's source
+/// entity → `Clip` child → matching `AnimationTrack` → keyframes, and
+/// paints the diamond icon with the right state color.
+///
+/// Runs every frame. Cheap because there are only a handful of
+/// diamonds on screen (one per animatable Transform field on the
+/// inspected entity) and the tree walk is shallow.
+pub fn update_anim_diamond_highlights(
+    buttons: Query<(Entity, &AnimDiamondButton)>,
+    children_query: Query<&Children>,
+    clips: Query<(), With<Clip>>,
+    tracks: Query<&AnimationTrack>,
+    vec3_keyframes: Query<&Vec3Keyframe>,
+    quat_keyframes: Query<&QuatKeyframe>,
+    f32_keyframes: Query<&F32Keyframe>,
+    cursor: Res<TimelineCursor>,
+    mut text_colors: Query<&mut TextColor>,
+) {
+    for (btn_entity, btn) in &buttons {
+        let state = compute_diamond_state(
+            btn,
+            &children_query,
+            &clips,
+            &tracks,
+            &vec3_keyframes,
+            &quat_keyframes,
+            &f32_keyframes,
+            cursor.seek_time,
+        );
+        let color = match state {
+            // Dim and slightly transparent — the field isn't
+            // animated yet. Still clickable, just unobtrusive.
+            DiamondState::NoTrack => Color::srgba(0.55, 0.55, 0.55, 0.65),
+            // Accent blue — matches the track strip diamonds in
+            // the timeline. "There's a track here; click to add a
+            // keyframe at the current cursor time."
+            DiamondState::HasTrack => Color::srgb(0.38, 0.72, 1.0),
+            // Amber — "you're standing on an existing keyframe."
+            // Same color the timeline widget uses for selected
+            // keyframes, so the visual language is consistent.
+            DiamondState::OnKeyframe => Color::srgb(1.0, 0.78, 0.12),
+        };
+
+        // The feathers `button()` bundle spawns an icon child
+        // (`Text` + `TextFont`) via `setup_button`. Walk the
+        // button's children and recolor any text nodes we find —
+        // there should be exactly one (the Diamond glyph).
+        recolor_button_icon(btn_entity, color, &children_query, &mut text_colors);
+    }
+}
+
+fn recolor_button_icon(
+    root: Entity,
+    color: Color,
+    children_query: &Query<&Children>,
+    text_colors: &mut Query<&mut TextColor>,
+) {
+    let Ok(children) = children_query.get(root) else {
+        return;
+    };
+    for child in children.iter() {
+        if let Ok(mut tc) = text_colors.get_mut(child) {
+            tc.0 = color;
+        }
+        // Feathers sometimes wraps the icon in an extra container;
+        // recurse one level to be safe.
+        recolor_button_icon(child, color, children_query, text_colors);
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn compute_diamond_state(
+    btn: &AnimDiamondButton,
+    children_query: &Query<&Children>,
+    clips: &Query<(), With<Clip>>,
+    tracks: &Query<&AnimationTrack>,
+    vec3_keyframes: &Query<&Vec3Keyframe>,
+    quat_keyframes: &Query<&QuatKeyframe>,
+    f32_keyframes: &Query<&F32Keyframe>,
+    cursor_time: f32,
+) -> DiamondState {
+    // Step 1: find the `Clip` child of the source entity.
+    let Ok(source_children) = children_query.get(btn.source_entity) else {
+        return DiamondState::NoTrack;
+    };
+    let clip_entity = source_children
+        .iter()
+        .find(|c| clips.contains(*c));
+    let Some(clip_entity) = clip_entity else {
+        return DiamondState::NoTrack;
+    };
+
+    // Step 2: find an `AnimationTrack` under that clip matching this
+    // button's (component_type_path, field_path).
+    let Ok(clip_children) = children_query.get(clip_entity) else {
+        return DiamondState::NoTrack;
+    };
+    let track_entity = clip_children.iter().find(|c| {
+        tracks
+            .get(*c)
+            .map(|t| {
+                t.component_type_path == btn.component_type_path
+                    && t.field_path == btn.field_path
+            })
+            .unwrap_or(false)
+    });
+    let Some(track_entity) = track_entity else {
+        return DiamondState::NoTrack;
+    };
+
+    // Step 3: walk the track's keyframes and check if any lands
+    // on the cursor time within the epsilon.
+    let Ok(track_children) = children_query.get(track_entity) else {
+        return DiamondState::HasTrack;
+    };
+    for kf in track_children.iter() {
+        let t = vec3_keyframes
+            .get(kf)
+            .map(|k| k.time)
+            .or_else(|_| quat_keyframes.get(kf).map(|k| k.time))
+            .or_else(|_| f32_keyframes.get(kf).map(|k| k.time))
+            .ok();
+        if let Some(t) = t {
+            if (t - cursor_time).abs() < CURSOR_ON_KEYFRAME_EPS {
+                return DiamondState::OnKeyframe;
+            }
+        }
+    }
+
+    DiamondState::HasTrack
 }

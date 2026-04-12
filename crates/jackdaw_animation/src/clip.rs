@@ -11,20 +11,49 @@
 //! crate interprets keyframes or samples curves — we build Bevy's
 //! data structures and hand them off.
 //!
-//! | Jackdaw authoring type       | Bevy runtime type / function                                     | Where the bridge happens               |
-//! |------------------------------|-------------------------------------------------------------------|-----------------------------------------|
-//! | [`Clip`] (component)          | [`bevy_animation::AnimationClip`] (asset)                        | [`compile_clips`] in `compile.rs`       |
-//! | [`AnimTrack`] (component)     | one [`AnimatableCurve`] per track, wrapped in the clip           | [`build_curve_for_track`] dispatch      |
-//! | [`Vec3Keyframe`] / [`QuatKeyframe`] / [`F32Keyframe`] | `(f32, T)` samples fed to [`AnimatableKeyframeCurve::new`] | `collect_vec3_keyframes` / `collect_quat_keyframes` |
-//! | `ChildOf(clip) → Clip.parent` | [`AnimationTargetId::from_name`] derived from the parent's `Name` | [`target_for_clip`] in `compile.rs`     |
-//! | [`Interpolation::Linear`]     | [`AnimatableKeyframeCurve`] + `Animatable::interpolate`           | compile dispatch                         |
-//! | [`Interpolation::Step`]       | future `StepCurve<T>` — scaffolded, not yet compiled              | compile dispatch (warns today)           |
-//! | [`CompiledClip`] (runtime)    | `(Handle<AnimationClip>, Handle<AnimationGraph>, AnimationNodeIndex)` | `compile_clips` output                  |
-//! | [`SelectedClip`] (resource)   | no Bevy analog — editor UI state                                  | manipulated by `follow_scene_selection_to_clip` |
-//! | [`TimelineCursor`] (resource) | mirrors [`ActiveAnimation::seek_time`]                            | `sync_cursor_from_player`                |
-//! | [`TimelineEngagement`] (resource) | no Bevy analog — gates whether the target is driven          | `auto_bind_player` reads it              |
-//! | [`ActiveAnimationTarget`] (resource) | tracks which entity has Bevy's [`AnimationPlayer`] installed | `auto_bind_player` maintains it          |
-//! | [`AnimationPlay`] / [`AnimationPause`] / [`AnimationStop`] / [`AnimationSeek`] messages | [`AnimationPlayer::play`] / [`ActiveAnimation::pause`] / [`AnimationPlayer::stop_all`] / [`ActiveAnimation::seek_to`] | transport observers in `player.rs`       |
+//! | Jackdaw authoring type                                | Bevy runtime type / function                                                          | Where the bridge happens                            |
+//! |-------------------------------------------------------|----------------------------------------------------------------------------------------|-----------------------------------------------------|
+//! | [`Clip`] (component)                                   | [`bevy_animation::AnimationClip`] (asset)                                              | [`compile_clips`] in `compile.rs`                    |
+//! | [`AnimationTrack`] (component)                         | one [`AnimatableCurve`] per track, wrapped in the clip                                 | [`build_curve_for_track`] dispatch                   |
+//! | [`Vec3Keyframe`] / [`QuatKeyframe`] / [`F32Keyframe`]  | `(f32, T)` samples fed to [`AnimatableKeyframeCurve::new`]                             | `collect_vec3_keyframes` / `collect_quat_keyframes`  |
+//! | `ChildOf(clip) → Clip.parent`                          | [`AnimationTargetId::from_name`] derived from the parent's `Name`                      | [`target_for_clip`] in `compile.rs`                  |
+//! | [`Interpolation::Linear`]                              | [`AnimatableKeyframeCurve`] + `Animatable::interpolate`                                | compile dispatch                                     |
+//! | [`Interpolation::Step`]                                | future `StepCurve<T>` — scaffolded, not yet compiled                                   | compile dispatch (warns today)                       |
+//! | [`AnimationBlendGraph`] (component)                    | [`bevy_animation::graph::AnimationGraph`] (asset)                                      | [`compile_blend_graphs`] in `compile.rs`             |
+//! | [`GltfClipRef`] (component)                            | `Gltf::named_animations[name]` → `Handle<AnimationClip>`                               | [`compile_gltf_clips`] in `compile.rs`               |
+//! | [`CompiledClip`] (runtime)                             | `(Handle<AnimationClip>, Handle<AnimationGraph>, AnimationNodeIndex)`                  | `compile_clips` output                               |
+//! | [`SelectedClip`] (resource)                            | no Bevy analog — editor UI state                                                       | manipulated by `follow_scene_selection_to_clip`      |
+//! | [`TimelineCursor`] (resource) — field `seek_time`      | mirrors [`ActiveAnimation::seek_time`]                                                 | `sync_cursor_from_player`                            |
+//! | [`TimelineEngagement`] (resource)                      | no Bevy analog — gates whether the target is driven                                    | `auto_bind_player` reads it                          |
+//! | [`ActiveClipBinding`] (resource)                       | tracks which entity currently has Bevy's [`AnimationPlayer`] + `AnimationGraphHandle`   | `auto_bind_player` maintains it                      |
+//! | [`AnimationPlay`] / [`AnimationPause`] / [`AnimationStop`] / [`AnimationSeek`] messages | [`AnimationPlayer::play`] / [`ActiveAnimation::pause`] / [`AnimationPlayer::stop_all`] / [`ActiveAnimation::seek_to`] | transport observers in `player.rs` |
+//!
+//! ## Known gaps vs Bevy's runtime API
+//!
+//! The authoring layer doesn't yet expose every control Bevy's
+//! runtime supports. When these land, use the Bevy names verbatim
+//! rather than inventing Jackdaw synonyms:
+//!
+//! - **Repeat behavior**: Bevy's [`RepeatAnimation::{Never, Count, Forever}`]
+//!   lives on [`ActiveAnimation::set_repeat`]. Jackdaw always plays
+//!   once. A future `Clip::repeat: RepeatAnimation` field would map
+//!   straight through.
+//! - **Playback speed**: [`ActiveAnimation::set_speed`] — no Jackdaw
+//!   analog yet. Future `TimelineCursor::speed: f32` (default 1.0)
+//!   would thread through the transport.
+//! - **Per-animation weight**: [`ActiveAnimation::weight`] and graph
+//!   node weights. Blend graph nodes will expose these when Phase 5D
+//!   grows beyond single-clip passthrough.
+//! - **Animation events**: [`AnimationClip::add_event_to_target`] +
+//!   the `AnimationEvent` trait. A future `AnimationEventKeyframe`
+//!   component paired with an `event` track kind would compile into
+//!   Bevy's event dispatch.
+//!
+//! [`ActiveAnimation::set_repeat`]: bevy::animation::ActiveAnimation::set_repeat
+//! [`ActiveAnimation::set_speed`]: bevy::animation::ActiveAnimation::set_speed
+//! [`ActiveAnimation::weight`]: bevy::animation::ActiveAnimation::weight
+//! [`AnimationClip::add_event_to_target`]: bevy::animation::AnimationClip::add_event_to_target
+//! [`RepeatAnimation::{Never, Count, Forever}`]: bevy::animation::RepeatAnimation
 //!
 //! ## Design rules
 //!
@@ -54,12 +83,12 @@
 //! ```text
 //! (Door: Transform + Mesh + Name("Door"))
 //!   ├── (Clip + Name("Door Open") + duration: 2.0)
-//!   │     ├── (AnimTrack { component_type_path: "..Transform",
+//!   │     ├── (AnimationTrack { component_type_path: "..Transform",
 //!   │     │                 field_path: "translation",
 //!   │     │                 interpolation: Linear })
 //!   │     │     ├── (Vec3Keyframe { time: 0.0, value: [0,0,0] })
 //!   │     │     └── (Vec3Keyframe { time: 2.0, value: [2,0,0] })
-//!   │     └── (AnimTrack { ..., field_path: "rotation", ... })
+//!   │     └── (AnimationTrack { ..., field_path: "rotation", ... })
 //!   │           └── (QuatKeyframe { time: 1.0, value: ... })
 //!   └── (Clip + Name("Door Close") + ... )
 //! ```
@@ -77,17 +106,21 @@
 //! [`AnimationTargetId::from_name`]: bevy::animation::AnimationTargetId::from_name
 //! [`bevy_animation::AnimationClip`]: bevy::animation::AnimationClip
 //! [`Name`]: bevy::prelude::Name
-//! [`ActiveAnimationTarget`]: crate::ActiveAnimationTarget
+//! [`ActiveClipBinding`]: crate::ActiveClipBinding
+//! [`AnimationBlendGraph`]: crate::AnimationBlendGraph
 //! [`AnimationPause`]: crate::AnimationPause
 //! [`AnimationPlay`]: crate::AnimationPlay
 //! [`AnimationSeek`]: crate::AnimationSeek
 //! [`AnimationStop`]: crate::AnimationStop
 //! [`CompiledClip`]: crate::CompiledClip
+//! [`GltfClipRef`]: crate::GltfClipRef
 //! [`SelectedClip`]: crate::SelectedClip
 //! [`TimelineCursor`]: crate::TimelineCursor
 //! [`TimelineEngagement`]: crate::TimelineEngagement
 //! [`build_curve_for_track`]: crate::compile
+//! [`compile_blend_graphs`]: crate::compile::compile_blend_graphs
 //! [`compile_clips`]: crate::compile_clips
+//! [`compile_gltf_clips`]: crate::compile::compile_gltf_clips
 //! [`target_for_clip`]: crate::target_for_clip
 
 use bevy::prelude::*;
@@ -104,7 +137,7 @@ use serde::{Deserialize, Serialize};
 /// clicked instead of always appearing at the right edge.
 ///
 /// The clip's display name lives in Bevy's standard [`Name`] component;
-/// tracks are child entities with [`AnimTrack`]; keyframes are in turn
+/// tracks are child entities with [`AnimationTrack`]; keyframes are in turn
 /// child entities of their track.
 ///
 /// [`Name`]: bevy::prelude::Name
@@ -120,7 +153,7 @@ impl Default for Clip {
     }
 }
 
-/// Interpolation mode for an [`AnimTrack`]. `Linear` is what you want
+/// Interpolation mode for an [`AnimationTrack`]. `Linear` is what you want
 /// for smooth Transform animation; `Step` is for discrete values like
 /// booleans, enums, or "portal-jump" Vec3 positions that should snap
 /// between keyframes rather than blend.
@@ -156,13 +189,13 @@ pub enum Interpolation {
 /// [`AnimationTargetId::from_name`]: bevy::animation::AnimationTargetId::from_name
 #[derive(Component, Reflect, Serialize, Deserialize, Debug, Clone, Default)]
 #[reflect(Component, Serialize, Deserialize)]
-pub struct AnimTrack {
+pub struct AnimationTrack {
     pub component_type_path: String,
     pub field_path: String,
     pub interpolation: Interpolation,
 }
 
-impl AnimTrack {
+impl AnimationTrack {
     /// Convenience constructor — most call sites want `Linear` interp.
     pub fn new(
         component_type_path: impl Into<String>,
@@ -225,6 +258,36 @@ impl Default for QuatKeyframe {
 pub struct F32Keyframe {
     pub time: f32,
     pub value: f32,
+}
+
+/// Marker on a [`Clip`] entity whose source is a clip imported from a
+/// glTF file. Instead of building the Bevy `AnimationClip` from
+/// authored [`AnimationTrack`] + keyframe children, the compile step loads
+/// the Gltf asset at `gltf_path` and uses the handle stored in
+/// `Gltf::named_animations[clip_name]` directly. That means:
+///
+/// - The clip is **read-only** — the Jackdaw timeline can still scrub
+///   and play it, but the usual authoring operations (add keyframe,
+///   drag diamond) are silently no-ops on imported tracks. Editing
+///   would require converting the imported clip to an authored one.
+/// - Persistence is just `(gltf_path, clip_name)` — two strings. On
+///   scene reload the glTF is re-fetched and the clip handle is
+///   resolved by name, so nothing in the JSN AST captures the raw
+///   keyframe data.
+/// - Target binding works unchanged: the clip lives as a child of
+///   the glTF root entity, and [`auto_bind_player`] walks up via
+///   `ChildOf` exactly as for authored clips.
+///
+/// [`auto_bind_player`]: crate::auto_bind_player
+#[derive(Component, Reflect, Serialize, Deserialize, Debug, Clone, Default)]
+#[reflect(Component, Serialize, Deserialize)]
+pub struct GltfClipRef {
+    /// Asset path to the glTF file, in the same format
+    /// `jackdaw_jsn::GltfSource::path` uses.
+    pub gltf_path: String,
+    /// Key into `Gltf::named_animations` — the animation name as
+    /// declared in the glTF file.
+    pub clip_name: String,
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -306,4 +369,35 @@ impl Default for TimelineSnap {
 #[derive(Resource, Default, Debug, Clone, Copy)]
 pub struct TimelineSnapHint {
     pub hovered_keyframe: Option<Entity>,
+}
+
+/// Typed value for a keyframe in the copy/paste clipboard. Mirrors
+/// the keyframe component variants so paste can re-spawn the right
+/// component type without introspecting reflection.
+#[derive(Debug, Clone, Copy)]
+pub enum KeyframeValue {
+    Vec3(Vec3),
+    Quat(Quat),
+    F32(f32),
+}
+
+/// A snapshot of a keyframe held in the clipboard. Stores the
+/// property address (`component_type_path`, `field_path`) so paste
+/// can re-target any clip that has a matching track, and the time
+/// **relative** to the earliest copied keyframe so paste preserves
+/// the spacing of a multi-selection anchored at the current cursor.
+#[derive(Debug, Clone)]
+pub struct KeyframeClipboardEntry {
+    pub component_type_path: String,
+    pub field_path: String,
+    pub relative_time: f32,
+    pub value: KeyframeValue,
+}
+
+/// Editor-state resource: the last set of keyframes the user copied
+/// with Ctrl+C. Ctrl+V re-spawns them on the current [`SelectedClip`]
+/// at the playhead. Not persisted; cleared on editor close.
+#[derive(Resource, Default, Debug, Clone)]
+pub struct KeyframeClipboard {
+    pub entries: Vec<KeyframeClipboardEntry>,
 }
