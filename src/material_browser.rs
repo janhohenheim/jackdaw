@@ -327,8 +327,8 @@ fn detect_and_create_materials(
                         occlusion_texture = Some(img);
                     }
                 }
-                "metallic" | "metalness" | "metal" | "mtl" | "roughness" | "rough" | "rgh" => {
-                    if metallic_roughness_texture.is_none() {
+                "metallic" | "metalness" | "metal" | "mtl" | "roughness" | "rough" | "rgh"
+                    if metallic_roughness_texture.is_none() => {
                         metallic_roughness_texture = Some(
                             asset_server.load_with_settings::<Image, ImageLoaderSettings>(
                                 asset_path.clone(),
@@ -336,7 +336,6 @@ fn detect_and_create_materials(
                             ),
                         );
                     }
-                }
                 "emission" | "emissive" | "emit" => {
                     emissive_texture = Some(asset_server.load::<Image>(asset_path.clone()));
                 }
@@ -348,10 +347,10 @@ fn detect_and_create_materials(
                         ),
                     );
                 }
-                "displacement" | "displace" | "disp" | "dsp" | "height" | "heightmap" => {
+                "displacement" | "displace" | "disp" | "dsp" | "height" | "heightmap"
                     // Skip 16-bit integer PNGs. Bevy decodes them as R16Uint which
                     // is incompatible with StandardMaterial's float-filterable depth_map slot.
-                    if !is_16bit_png(Path::new(asset_path)) {
+                    if !is_16bit_png(Path::new(asset_path)) => {
                         depth_map = Some(
                             asset_server.load_with_settings::<Image, ImageLoaderSettings>(
                                 asset_path.clone(),
@@ -359,7 +358,6 @@ fn detect_and_create_materials(
                             ),
                         );
                     }
-                }
                 _ => {}
             }
         }

@@ -60,6 +60,7 @@ fn close_menu_on_action(
 
 fn close_menu_on_click_outside(
     keyboard: Res<ButtonInput<KeyCode>>,
+    mouse: Res<ButtonInput<MouseButton>>,
     mut commands: Commands,
     mut state: ResMut<MenuBarState>,
 ) {
@@ -67,8 +68,8 @@ fn close_menu_on_click_outside(
         return;
     }
 
-    // Close on Escape
-    if keyboard.just_pressed(KeyCode::Escape) {
+    // Close on Escape or left-click outside
+    if mouse.just_pressed(MouseButton::Left) || keyboard.just_pressed(KeyCode::Escape) {
         if let Some(dropdown) = state.dropdown_entity.take() {
             commands.entity(dropdown).despawn();
         }

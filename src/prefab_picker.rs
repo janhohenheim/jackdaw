@@ -57,7 +57,7 @@ pub fn open_prefab_picker(world: &mut World) {
 
     let mut prefabs: Vec<(String, String)> = Vec::new(); // (path, display_name)
     scan_jsn_files(&assets_dir, &assets_dir, &mut prefabs);
-    prefabs.sort_by(|a, b| a.1.to_lowercase().cmp(&b.1.to_lowercase()));
+    prefabs.sort_by_key(|a| a.1.to_lowercase());
 
     // Find the viewport entity to parent the picker to
     let viewport_entity = world
