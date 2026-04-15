@@ -85,27 +85,14 @@ fn on_panel_added(
 }
 
 fn recalculate_changed_panels(
-    changed: Query<(Entity, &ChildOf), Changed<Panel>>,
+    changed: Query<&ChildOf, Changed<Panel>>,
     mut queries: ParamSet<(
         Query<(&Node, &Children), With<PanelGroup>>,
         Query<(&mut Node, &Panel)>,
     )>,
 ) {
-    let count = changed.iter().count();
-    if count > 0 {
-        info!(
-            target: "collapse_debug",
-            "recalculate_changed_panels detected {count} Changed<Panel> entities"
-        );
-        for (e, co) in &changed {
-            info!(
-                target: "collapse_debug",
-                "  changed panel {e:?} parent={:?}", co.parent()
-            );
-        }
-    }
     let mut seen = std::collections::HashSet::new();
-    for (_, parent_ref) in &changed {
+    for parent_ref in &changed {
         let parent = parent_ref.parent();
         if seen.insert(parent) {
             recalculate_group(parent, &mut queries);
@@ -136,18 +123,6 @@ fn recalculate_group(
         .map(|(_, panel)| panel.ratio)
         .sum();
 
-    let visible_count = panels_ro
-        .iter_many(&child_entities)
-        .filter(|(node, _)| node.display != Display::None)
-        .count();
-    let total_count = panels_ro.iter_many(&child_entities).count();
-
-    info!(
-        target: "collapse_debug",
-        "recalculate_group group={group_entity:?} flex={flex_direction:?} total_ratio={total} visible_panels={visible_count}/{total_count} children={}",
-        child_entities.len()
-    );
-
     if total <= 0.0 {
         return;
     }
@@ -156,10 +131,6 @@ fn recalculate_group(
     let mut iterator = panels.iter_many_mut(&child_entities);
     while let Some((mut node, panel)) = iterator.fetch_next() {
         if node.display == Display::None {
-            info!(
-                target: "collapse_debug",
-                "  panel hidden (skipped) ratio={}", panel.ratio
-            );
             continue;
         }
         let pct = (panel.ratio / total) * 100.;
@@ -167,18 +138,10 @@ fn recalculate_group(
             FlexDirection::Row | FlexDirection::RowReverse => {
                 node.width = percent(pct);
                 node.min_width = px(0.0);
-                info!(
-                    target: "collapse_debug",
-                    "  panel visible ratio={} => width={}%", panel.ratio, pct
-                );
             }
             FlexDirection::Column | FlexDirection::ColumnReverse => {
                 node.height = percent(pct);
                 node.min_height = px(0.0);
-                info!(
-                    target: "collapse_debug",
-                    "  panel visible ratio={} => height={}%", panel.ratio, pct
-                );
             }
         }
     }

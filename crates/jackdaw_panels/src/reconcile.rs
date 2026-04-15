@@ -16,7 +16,6 @@ use jackdaw_feathers::tokens;
 use crate::area::{
     ActiveDockWindow, DockArea, DockAreaStyle, DockTab, DockTabContent, DockWindow,
 };
-use crate::drag::DockDragState;
 use crate::registry::WindowRegistry;
 use crate::sidebar::{self, DockSidebarIcon};
 use crate::split::{Panel, PanelGroup, PanelHandle};
@@ -44,7 +43,6 @@ impl Plugin for ReconcilePlugin {
             (
                 seed_anchors_from_hosts,
                 reconcile_tree,
-                show_empty_anchors_during_drag,
                 sync_leaf_visuals,
             )
                 .chain(),
@@ -373,82 +371,10 @@ fn collect_split_children(
     Some((a, h, b))
 }
 
-/// While a drag is in progress, force every empty anchor host to be
-/// visible so the user can drop a window back into it. On the transition
-/// out of dragging, re-hide them (the reconciler also handles this on
-/// successful drops, but cancels and no-op drops don't trigger the tree).
-fn show_empty_anchors_during_drag(
-    drag_state: Res<DockDragState>,
-    mut prev_dragging: Local<bool>,
-    hosts: Query<(Entity, &NodeBinding, &ChildOf), With<AnchorHost>>,
-    children_query: Query<&Children>,
-    handle_marker: Query<(), With<PanelHandle>>,
-    mut nodes: Query<&mut Node>,
-    mut panels: Query<&mut Panel>,
-    tree: Res<DockTree>,
-) {
-    let now_dragging = matches!(*drag_state, DockDragState::Dragging { .. });
-    let state_changed = now_dragging != *prev_dragging;
-    *prev_dragging = now_dragging;
-
-    if !state_changed && !now_dragging {
-        return;
-    }
-
-    let target = if now_dragging {
-        Display::Flex
-    } else {
-        Display::None
-    };
-
-    for (host, binding, child_of) in &hosts {
-        let Some(leaf) = tree.get(binding.0).and_then(|n| n.as_leaf()) else {
-            continue;
-        };
-        if !leaf.windows.is_empty() {
-            continue;
-        }
-
-        let parent = child_of.parent();
-        let adjacent_handle = children_query.get(parent).ok().and_then(|siblings| {
-            let idx = siblings.iter().position(|e| e == host)?;
-            [idx.checked_sub(1), Some(idx + 1)]
-                .into_iter()
-                .flatten()
-                .filter_map(|i| siblings.get(i).copied())
-                .find(|&e| handle_marker.contains(e))
-        });
-
-        let mut display_changed = false;
-        for e in std::iter::once(host).chain(adjacent_handle) {
-            if let Ok(mut node) = nodes.get_mut(e) {
-                if node.display != target {
-                    node.display = target;
-                    display_changed = true;
-                }
-            }
-        }
-        if display_changed {
-            if let Ok(mut p) = panels.get_mut(host) {
-                p.set_changed();
-            }
-        }
-    }
-}
-
 /// Show or hide a host entity and its adjacent `PanelHandle` sibling so
 /// an empty anchor doesn't leave a stub panel + dangling resize handle.
 fn set_host_visible(world: &mut World, entity: Entity, visible: bool) {
     let target = if visible { Display::Flex } else { Display::None };
-    let anchor_id = world
-        .entity(entity)
-        .get::<AnchorHost>()
-        .map(|h| h.anchor_id.clone())
-        .unwrap_or_else(|| format!("<entity {entity:?}>"));
-    info!(
-        target: "collapse_debug",
-        "set_host_visible START anchor={anchor_id} visible={visible}"
-    );
 
     // Find the adjacent PanelHandle sibling (index ±1 in the parent's
     // children) so we can hide/show it alongside the host.
@@ -516,58 +442,30 @@ fn set_host_visible(world: &mut World, entity: Entity, visible: bool) {
     }
 
     // Bump Panel's change tick so the surrounding `recalculate_group`
-    // re-runs. Two possible component types on the host entity:
-    //   1. `jackdaw_widgets::split_panel::Panel` — the outer
-    //      three-column flex uses these (editor's `panel(1)` etc.).
-    //   2. `jackdaw_panels::split::Panel` — reconciler-spawned
-    //      splits inside an anchor host use our own type.
-    // Try both; only one should exist per entity. Using explicit
-    // `DerefMut` via `ratio = ratio` — `set_changed()` via
-    // `EntityWorldMut::get_mut` doesn't reliably flag `Changed<Panel>`
-    // for filter queries in later systems in Bevy 0.18.
+    // re-runs. The host entity carries one of two Panel types:
+    //   1. `jackdaw_widgets::split_panel::Panel` — for editor-spawned
+    //      outer hosts (three-column's `panel(1)` etc.).
+    //   2. `jackdaw_panels::split::Panel` — for reconciler-spawned
+    //      split children inside an anchor host.
+    // Try both; only one is ever present. Using an explicit `DerefMut`
+    // via `ratio = ratio` instead of `Mut::set_changed()` because in
+    // Bevy 0.18 `set_changed` through `EntityWorldMut::get_mut` doesn't
+    // reliably flag `Changed<Panel>` for filter queries in later
+    // systems.
+    #[allow(clippy::almost_swapped, reason = "intentional DerefMut to bump change tick")]
     if any_changed {
-        let mut bumped = false;
         if let Some(mut panel) = world
             .entity_mut(entity)
             .get_mut::<jackdaw_widgets::split_panel::Panel>()
         {
             let r = panel.ratio;
             panel.ratio = r;
-            info!(
-                target: "collapse_debug",
-                "  bumped widgets::Panel.ratio={r} on {anchor_id}"
-            );
-            bumped = true;
         }
         if let Some(mut panel) = world.entity_mut(entity).get_mut::<Panel>() {
             let r = panel.ratio;
             panel.ratio = r;
-            info!(
-                target: "collapse_debug",
-                "  bumped jackdaw_panels::Panel.ratio={r} on {anchor_id}"
-            );
-            bumped = true;
-        }
-        if !bumped {
-            info!(
-                target: "collapse_debug",
-                "  WARN: no Panel found on {anchor_id} to bump"
-            );
         }
     }
-
-    let (final_display, final_width, final_height) = {
-        let node = world.entity(entity).get::<Node>();
-        (
-            node.map(|n| n.display),
-            node.map(|n| n.width),
-            node.map(|n| n.height),
-        )
-    };
-    info!(
-        target: "collapse_debug",
-        "set_host_visible END   anchor={anchor_id} any_changed={any_changed} display={final_display:?} width={final_width:?} height={final_height:?}"
-    );
 }
 
 fn despawn_children(world: &mut World, entity: Entity) {

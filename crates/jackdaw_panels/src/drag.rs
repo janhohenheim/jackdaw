@@ -35,7 +35,16 @@ pub enum DockDragState {
 #[derive(Clone, Debug)]
 pub enum DropTarget {
     TabBar(Entity),
-    AreaEdge { area: Entity, edge: DropEdge },
+    AreaEdge {
+        area: Entity,
+        edge: DropEdge,
+    },
+    /// Dropped on the editor viewport's edge. Routes to the anchor
+    /// associated with that edge (left/right_sidebar/bottom_dock).
+    ViewportEdge {
+        anchor_id: String,
+        edge: DropEdge,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -51,6 +60,12 @@ pub struct DragGhost;
 
 #[derive(Component)]
 pub struct DropOverlay;
+
+/// Marks the editor viewport entity as a drop target. The viewport is
+/// not an `AnchorHost` — dropping on its edge re-populates one of the
+/// side anchors (`left`, `right_sidebar`, `bottom_dock`) instead.
+#[derive(Component)]
+pub struct ViewportDropTarget;
 
 pub struct DockDragPlugin;
 
@@ -167,6 +182,7 @@ fn on_drag_move(
     mut drag_state: ResMut<DockDragState>,
     mut commands: Commands,
     areas: Query<(Entity, &ComputedNode, &UiGlobalTransform), With<DockArea>>,
+    viewports: Query<(&ComputedNode, &UiGlobalTransform), With<ViewportDropTarget>>,
     parent_query: Query<&ChildOf>,
 ) {
     let drag_event = trigger.event();
@@ -340,6 +356,76 @@ fn on_drag_move(
                 break;
             }
 
+            // Fall through to viewport hit-test when the cursor isn't
+            // over any DockArea. Lets a tab drop on the viewport's edge
+            // re-populate a collapsed side panel.
+            if new_target.is_none() {
+                for (computed, ui_transform) in &viewports {
+                    if !computed.contains_point(*ui_transform, cursor) {
+                        continue;
+                    }
+
+                    let size = computed.size() * computed.inverse_scale_factor();
+                    let (_scale, _angle, center) =
+                        ui_transform.to_scale_angle_translation();
+                    let top_left = center - size / 2.0;
+
+                    let rel = cursor - top_left;
+                    let frac_x = rel.x / size.x;
+                    let frac_y = rel.y / size.y;
+
+                    // No top anchor above the viewport — skip Top. The
+                    // center region (25–75% on both axes) is a no-op.
+                    let edge = if frac_y > 0.75 {
+                        Some(DropEdge::Bottom)
+                    } else if frac_x < 0.25 {
+                        Some(DropEdge::Left)
+                    } else if frac_x > 0.75 {
+                        Some(DropEdge::Right)
+                    } else {
+                        None
+                    };
+
+                    let Some(edge) = edge else { break };
+                    let anchor_id = match edge {
+                        DropEdge::Left => "left",
+                        DropEdge::Right => "right_sidebar",
+                        DropEdge::Bottom => "bottom_dock",
+                        DropEdge::Top => unreachable!(),
+                    };
+
+                    new_target = Some(DropTarget::ViewportEdge {
+                        anchor_id: anchor_id.to_string(),
+                        edge,
+                    });
+
+                    let (overlay_pos, overlay_size) =
+                        edge_overlay_rect(top_left, size, edge);
+                    let overlay = commands
+                        .spawn((
+                            DropOverlay,
+                            Node {
+                                position_type: PositionType::Absolute,
+                                left: Val::Px(overlay_pos.x),
+                                top: Val::Px(overlay_pos.y),
+                                width: Val::Px(overlay_size.x),
+                                height: Val::Px(overlay_size.y),
+                                border: UiRect::all(Val::Px(2.0)),
+                                border_radius: BorderRadius::all(Val::Px(4.0)),
+                                ..default()
+                            },
+                            BackgroundColor(
+                                Color::srgba(0.126, 0.431, 0.784, 0.25),
+                            ),
+                            BorderColor::all(tokens::ACCENT_BLUE),
+                            GlobalZIndex(150),
+                        ))
+                        .id();
+                    new_overlay = Some(overlay);
+                    break;
+                }
+            }
+
             if let DockDragState::Dragging {
                 drop_target,
                 overlay_entity,
@@ -392,6 +478,12 @@ fn on_drag_end(
                         let wid = window_id.clone();
                         commands.queue(move |world: &mut World| {
                             drop_on_edge(world, &wid, area, edge);
+                        });
+                    }
+                    DropTarget::ViewportEdge { anchor_id, edge } => {
+                        let wid = window_id.clone();
+                        commands.queue(move |world: &mut World| {
+                            drop_on_viewport_edge(world, &wid, &anchor_id, edge);
                         });
                     }
                 }
@@ -462,6 +554,47 @@ fn drop_on_edge(world: &mut World, window_id: &str, target_area: Entity, edge: D
     let mut tree = world.resource_mut::<DockTree>();
     tree.remove_window(window_id);
     tree.split(binding.0, tree_edge, window_id.to_string());
+}
+
+/// Drop `window_id` onto the viewport's `edge`, routing into the anchor
+/// that owns that edge (e.g. `Right` → `right_sidebar`). If the anchor's
+/// first leaf is empty (collapsed panel), the window is added to it so
+/// the reconciler un-hides the host next tick. Otherwise the leaf is
+/// split at `edge` to create a sibling leaf holding the window.
+fn drop_on_viewport_edge(
+    world: &mut World,
+    window_id: &str,
+    anchor_id: &str,
+    edge: DropEdge,
+) {
+    let mut tree = world.resource_mut::<DockTree>();
+    let Some(root) = tree.anchor(anchor_id) else {
+        return;
+    };
+    let Some((leaf_id, leaf_is_empty)) = tree
+        .leaves_under(root)
+        .first()
+        .map(|(id, leaf)| (*id, leaf.windows.is_empty()))
+    else {
+        return;
+    };
+
+    tree.remove_window(window_id);
+
+    if leaf_is_empty {
+        if let Some(crate::tree::DockNode::Leaf(l)) = tree.get_mut(leaf_id) {
+            l.windows.push(window_id.to_string());
+            l.active = Some(window_id.to_string());
+        }
+    } else {
+        let tree_edge = match edge {
+            DropEdge::Top => TreeEdge::Top,
+            DropEdge::Bottom => TreeEdge::Bottom,
+            DropEdge::Left => TreeEdge::Left,
+            DropEdge::Right => TreeEdge::Right,
+        };
+        tree.split(leaf_id, tree_edge, window_id.to_string());
+    }
 }
 
 fn find_parent_area(

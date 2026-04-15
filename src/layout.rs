@@ -480,6 +480,7 @@ fn center_column(icon_font: Handle<Font>) -> impl Bundle {
 fn viewport_with_toolbar(icon_font: Handle<Font>) -> impl Bundle {
     (
         EditorEntity,
+        jackdaw_panels::drag::ViewportDropTarget,
         Node {
             height: percent(100),
             flex_direction: FlexDirection::Column,
