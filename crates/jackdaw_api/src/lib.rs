@@ -26,7 +26,11 @@
 //!     }
 //! }
 //!
-//! fn place_cube(mut _buffer: ResMut<OperatorCommandBuffer>) -> OperatorResult {
+//! // Operators are plain Bevy systems. Mutate the world however you
+//! // like; the dispatcher snapshots the scene before invoke and diffs
+//! // after, so a single Ctrl+Z reverses the entire call.
+//! fn place_cube(mut commands: Commands) -> OperatorResult {
+//!     commands.spawn((Name::new("Cube"), Transform::default()));
 //!     OperatorResult::Finished
 //! }
 //!
@@ -54,6 +58,7 @@
 pub mod lifecycle;
 mod operator;
 mod registries;
+pub mod snapshot;
 
 use std::sync::Arc;
 
@@ -63,24 +68,27 @@ use jackdaw_panels::{
     DockWindowDescriptor, WindowRegistry, WorkspaceDescriptor, WorkspaceRegistry,
 };
 
+pub use jackdaw_api_macros::operator;
 pub use lifecycle::{
-    ActiveModalOperator, Extension, ExtensionCatalog, ExtensionCtor, ExtensionKind, OperatorEntity,
-    OperatorIndex, RegisteredMenuEntry, RegisteredPanelExtension, RegisteredWindow,
-    RegisteredWorkspace, disable_extension, enable_extension, register_extension,
-    tick_modal_operator, unload_extension,
+    ActiveModalOperator, CallOperatorError, CallOperatorSettings, Extension, ExtensionCatalog,
+    ExtensionCtor, ExtensionKind, OperatorEntity, OperatorIndex, OperatorSession, OperatorWorldExt,
+    RegisteredMenuEntry, RegisteredPanelExtension, RegisteredWindow, RegisteredWorkspace,
+    disable_extension, enable_extension, register_extension, tick_modal_operator, unload_extension,
 };
-pub use operator::{Operator, OperatorCommandBuffer, OperatorResult, Trigger};
+pub use operator::{Operator, OperatorResult};
 pub use registries::PanelExtensionRegistry;
+pub use snapshot::{ActiveSnapshotter, SceneSnapshot, SceneSnapshotter};
 
 /// Re-exports plugin authors will want in one import.
 pub mod prelude {
     pub use crate::lifecycle::{
-        Extension, ExtensionCatalog, ExtensionKind, OperatorEntity, OperatorIndex,
+        CallOperatorError, CallOperatorSettings, Extension, ExtensionCatalog, ExtensionKind,
+        OperatorEntity, OperatorIndex, OperatorWorldExt,
     };
-    pub use crate::operator::{Operator, OperatorCommandBuffer, OperatorResult, Trigger};
+    pub use crate::operator::{Operator, OperatorResult};
     pub use crate::{
         ExtensionContext, ExtensionPoint, JackdawExtension, MenuEntryDescriptor, PanelContext,
-        SectionBuildFn, WindowDescriptor,
+        SectionBuildFn, WindowDescriptor, operator,
     };
     // BEI types extension authors need for `actions!` / `bindings!` / observers.
     pub use bevy_enhanced_input::prelude::*;
@@ -205,27 +213,24 @@ impl<'a> ExtensionContext<'a> {
         ec
     }
 
-    /// Register an operator. Spawns an [`OperatorEntity`] as a child of
-    /// the extension entity and, based on the operator's
-    /// [`Operator::TRIGGER`], an observer that dispatches the operator
-    /// on `Start`, `Fire`, or `Complete`. `Trigger::Manual` skips the
-    /// observer; the caller is expected to invoke the operator through
-    /// [`crate::lifecycle::dispatch_operator_by_id`].
+    /// Register an operator. Spawns an [`OperatorEntity`] as a child
+    /// of the extension entity and, unless [`Operator::MANUAL`] is
+    /// `true`, a `Fire<O>` observer that dispatches the operator
+    /// through [`crate::OperatorWorldExt::call_operator`]. BEI binding
+    /// modifiers on the actions shape timing (press / release / hold).
     pub fn register_operator<O: Operator>(&mut self) {
         let ext = self.extension_entity;
 
-        // Register execute/invoke/poll as real Bevy systems.
-        let (execute, invoke, poll) = {
+        let (execute, invoke, availability_check) = {
             let mut queue = bevy::ecs::world::CommandQueue::default();
             let mut commands = Commands::new(&mut queue, self.world);
             let execute = O::register_execute(&mut commands);
             let invoke = O::register_invoke(&mut commands);
-            let poll = O::register_poll(&mut commands);
+            let availability_check = O::register_availability_check(&mut commands);
             queue.apply(self.world);
-            (execute, invoke, poll)
+            (execute, invoke, availability_check)
         };
 
-        // Spawn the operator entity as a child of the extension.
         let op_entity = self
             .world
             .spawn((
@@ -235,47 +240,25 @@ impl<'a> ExtensionContext<'a> {
                     description: O::DESCRIPTION,
                     execute,
                     invoke,
-                    poll,
+                    availability_check,
                     modal: O::MODAL,
                 },
                 ChildOf(ext),
             ))
             .id();
 
-        // Spawn the BEI observer for the configured trigger. The
-        // observer is parented to the operator entity so despawning the
-        // operator drops it automatically. `Trigger::Manual` skips the
-        // observer; callers dispatch through `dispatch_operator_by_id`.
-        use bevy_enhanced_input::prelude::{Complete, Fire, Start};
-        match O::TRIGGER {
-            crate::operator::Trigger::Start => {
-                self.spawn_trigger_observer::<O, Start<O>>(op_entity);
-            }
-            crate::operator::Trigger::Fire => {
-                self.spawn_trigger_observer::<O, Fire<O>>(op_entity);
-            }
-            crate::operator::Trigger::Complete => {
-                self.spawn_trigger_observer::<O, Complete<O>>(op_entity);
-            }
-            crate::operator::Trigger::Manual => {}
+        if !O::MANUAL {
+            let observer = Observer::new(
+                move |_: bevy::prelude::On<bevy_enhanced_input::prelude::Fire<O>>,
+                      mut commands: Commands| {
+                    commands.queue(move |world: &mut World| {
+                        use crate::OperatorWorldExt;
+                        let _ = world.call_operator(O::ID);
+                    });
+                },
+            );
+            self.world.spawn((observer, ChildOf(op_entity)));
         }
-    }
-
-    /// Helper used by [`Self::register_operator`] to spawn a BEI observer
-    /// that dispatches the operator through
-    /// [`crate::lifecycle::dispatch_operator_by_id`]. Generic over the
-    /// event type so one body covers `Start<O>`, `Fire<O>`, and
-    /// `Complete<O>`.
-    fn spawn_trigger_observer<O: Operator, E: bevy::ecs::event::EntityEvent>(
-        &mut self,
-        op_entity: Entity,
-    ) {
-        let observer = Observer::new(move |_: bevy::prelude::On<E>, mut commands: Commands| {
-            commands.queue(move |world: &mut World| {
-                crate::lifecycle::dispatch_operator_by_id(world, O::ID, true);
-            });
-        });
-        self.world.spawn((observer, ChildOf(op_entity)));
     }
 
     /// Inject a section into an existing panel (e.g. add a sub-section to

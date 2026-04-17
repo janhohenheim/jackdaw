@@ -83,6 +83,7 @@ jackdaw_avian_integration = { version = "0.4.0", path = "crates/jackdaw_avian_in
 jackdaw_runtime = { version = "0.4.0", path = "crates/jackdaw_runtime" }
 jackdaw_panels = { version = "0.4.0", path = "crates/jackdaw_panels" }
 jackdaw_api = { version = "0.4.0", path = "crates/jackdaw_api" }
+jackdaw_api_macros = { version = "0.4.0", path = "crates/jackdaw_api_macros" }
 bevy_enhanced_input = "0.24"
 rfd = "0.15"
 bevy_rerecast = { version = "0.4", default-features = true }

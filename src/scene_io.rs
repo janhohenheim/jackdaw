@@ -1631,34 +1631,38 @@ fn collect_editor_entities(world: &mut World) -> HashSet<Entity> {
 
 /// Remove scene entities from the world (named non-editor entities + their descendants).
 pub(crate) fn clear_scene_entities(world: &mut World) {
-    // Clear the AST
     world.resource_mut::<jackdaw_jsn::SceneJsnAst>().clear();
 
-    // Clear selection first to prevent on_entity_deselected observer from
-    // firing on stale/despawned tree row entities.
     world
         .resource_mut::<crate::selection::Selection>()
         .entities
         .clear();
 
-    // Clear hierarchy tree rows and TreeIndex before despawning scene entities.
     crate::hierarchy::clear_all_tree_rows(world);
 
-    // Clear undo/redo stacks  -- they hold entity references that become stale.
+    // Clear undo/redo stacks; they hold entity references that become
+    // stale when the scene is dropped. Callers who want to preserve
+    // history (e.g. undo/redo itself) use `despawn_scene_entities`
+    // directly.
     let mut history = world.resource_mut::<jackdaw_commands::CommandHistory>();
     history.undo_stack.clear();
     history.redo_stack.clear();
 
+    despawn_scene_entities(world);
+}
+
+/// Despawn every non-editor scene entity, leaving editor infrastructure
+/// (cameras, grids, gizmos) and the undo/redo stacks intact. Used by
+/// snapshot apply during undo/redo.
+pub(crate) fn despawn_scene_entities(world: &mut World) {
     let editor_set = collect_editor_entities(world);
 
-    // Collect named non-editor entities as roots
     let roots: Vec<Entity> = world
         .query_filtered::<Entity, With<Name>>()
         .iter(world)
         .filter(|e| !editor_set.contains(e))
         .collect();
 
-    // Expand to include all descendants
     let mut scene_set = HashSet::new();
     let mut stack = roots;
     while let Some(entity) = stack.pop() {
@@ -1675,6 +1679,37 @@ pub(crate) fn clear_scene_entities(world: &mut World) {
             entity_mut.despawn();
         }
     }
+}
+
+/// Replace the current world's scene with the one encoded in `ast`.
+///
+/// Despawns existing scene entities (without touching undo/redo
+/// history), serialises the AST back to a `JsnScene`, and runs it
+/// through the regular load path so the snapshot apply doesn't have
+/// its own parallel spawn logic to maintain.
+pub fn apply_ast_to_world(world: &mut World, ast: &jackdaw_jsn::SceneJsnAst) {
+    use jackdaw_jsn::format::JsnMetadata;
+
+    // Clear selection + tree rows before touching entities so observers
+    // don't fire on stale references.
+    world
+        .resource_mut::<crate::selection::Selection>()
+        .entities
+        .clear();
+    crate::hierarchy::clear_all_tree_rows(world);
+
+    despawn_scene_entities(world);
+
+    let scene = ast.to_jsn_scene(JsnMetadata::default());
+    let parent_path = world
+        .get_resource::<crate::project::ProjectRoot>()
+        .map(|p| p.root.clone())
+        .unwrap_or_else(|| PathBuf::from("."));
+    let local_assets = load_inline_assets(world, &scene.assets, &parent_path);
+    let spawned = load_scene_from_jsn(world, &scene.scene, &parent_path, &local_assets);
+
+    *world.resource_mut::<jackdaw_jsn::SceneJsnAst>() =
+        jackdaw_jsn::SceneJsnAst::from_jsn_scene(&scene, &spawned);
 }
 
 /// ISO 8601 timestamp (simplified  -- no chrono dependency).

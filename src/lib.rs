@@ -38,6 +38,7 @@ pub mod snapping;
 pub mod status_bar;
 pub mod terrain;
 pub mod texture_browser;
+pub mod undo_snapshot;
 pub mod view_modes;
 pub mod viewport;
 pub mod viewport_overlays;
@@ -2086,7 +2087,8 @@ fn handle_menu_action(event: On<MenuAction>, mut commands: Commands) {
             // keybind-triggered operators.
             let operator_id = action.strip_prefix("op:").unwrap().to_string();
             commands.queue(move |world: &mut World| {
-                jackdaw_api::lifecycle::dispatch_operator_by_id(world, &operator_id, true);
+                use jackdaw_api::OperatorWorldExt;
+                let _ = world.call_operator(operator_id);
             });
         }
         action if action.starts_with("window.") => {

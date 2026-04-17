@@ -216,7 +216,7 @@ pub struct JsnMetadata {
 ///   }
 /// }
 /// ```
-#[derive(Serialize, Clone, Debug, Default)]
+#[derive(Serialize, Clone, Debug, Default, PartialEq)]
 pub struct JsnAssets(pub HashMap<String, HashMap<String, serde_json::Value>>);
 
 impl<'de> serde::Deserialize<'de> for JsnAssets {

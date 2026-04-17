@@ -1014,7 +1014,8 @@ fn on_context_menu_action(
             // invoked them.
             let operator_id = action.strip_prefix("op:").unwrap().to_string();
             commands.queue(move |world: &mut World| {
-                jackdaw_api::lifecycle::dispatch_operator_by_id(world, &operator_id, true);
+                use jackdaw_api::OperatorWorldExt;
+                let _ = world.call_operator(operator_id);
             });
         }
         _ => {}

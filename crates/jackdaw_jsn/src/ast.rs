@@ -12,7 +12,7 @@ use crate::format::{JsnAssets, JsnEntity, JsnMetadata, JsnScene};
 ///
 /// Structurally parallel to the BSN branch's `SceneBsnAst`, enabling a
 /// mechanical swap when BSN ships upstream.
-#[derive(Resource, Default)]
+#[derive(Resource, Default, Clone, PartialEq)]
 pub struct SceneJsnAst {
     /// Entity nodes, indexed by position.
     pub nodes: Vec<JsnEntityNode>,
@@ -29,6 +29,7 @@ pub struct SceneJsnAst {
 /// Mirrors `JsnEntity` from the file format  -- `name` and `parent` are
 /// structural fields, everything else (Transform, Visibility, Brush, etc.)
 /// lives in `components` as `serde_json::Value`.
+#[derive(Clone, PartialEq)]
 pub struct JsnEntityNode {
     /// Parent index into `SceneJsnAst::nodes`.
     pub parent: Option<usize>,

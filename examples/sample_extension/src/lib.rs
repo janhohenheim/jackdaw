@@ -4,7 +4,6 @@
 
 use std::sync::Arc;
 
-use bevy::ecs::system::SystemId;
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::*;
 use jackdaw_api::prelude::*;
@@ -48,21 +47,13 @@ fn build_hello_panel(world: &mut World, parent: Entity) {
 #[derive(Component, Default)]
 pub struct SampleContext;
 
-#[derive(Default, InputAction)]
-#[action_output(bool)]
-pub struct HelloOp;
-
-impl Operator for HelloOp {
-    const ID: &'static str = "sample.hello";
-    const LABEL: &'static str = "Hello";
-    const DESCRIPTION: &'static str = "Logs a hello message";
-
-    fn register_execute(commands: &mut Commands) -> SystemId<(), OperatorResult> {
-        commands.register_system(hello_op_system)
-    }
-}
-
-fn hello_op_system() -> OperatorResult {
+#[operator(
+    id = "sample.hello",
+    label = "Hello",
+    description = "Logs a hello message",
+    name = "HelloOp"
+)]
+fn hello_op() -> OperatorResult {
     info!("Hello from the sample extension operator!");
     OperatorResult::Finished
 }

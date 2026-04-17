@@ -4504,8 +4504,18 @@ version = "0.4.0"
 dependencies = [
  "bevy",
  "bevy_enhanced_input",
+ "jackdaw_api_macros",
  "jackdaw_commands",
  "jackdaw_panels",
+]
+
+[[package]]
+name = "jackdaw_api_macros"
+version = "0.4.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
 ]
 
 [[package]]
@@ -7556,7 +7566,6 @@ dependencies = [
  "bevy",
  "bevy_enhanced_input",
  "jackdaw_api",
- "jackdaw_commands",
 ]
 
 [[package]]
