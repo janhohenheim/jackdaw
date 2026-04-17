@@ -19,19 +19,19 @@ pub struct FaceGridGizmoGroup;
 /// Gizmo group for brush edge wireframes. Rendered in front of both geometry
 /// and face grid lines to ensure edges are always clearly visible.
 #[derive(Default, Reflect, GizmoConfigGroup)]
-pub struct BrushEdgeGizmoGroup;
+pub struct BrushWireframeGizmoGroup;
 
 pub struct FaceGridPlugin;
 
 impl Plugin for FaceGridPlugin {
     fn build(&self, app: &mut App) {
         app.init_gizmo_group::<FaceGridGizmoGroup>()
-            .init_gizmo_group::<BrushEdgeGizmoGroup>()
+            .init_gizmo_group::<BrushWireframeGizmoGroup>()
             .add_systems(Startup, configure_face_grid_gizmos)
             .add_systems(
                 PostUpdate,
                 (
-                    draw_brush_edges,
+                    draw_brush_wireframe,
                     draw_face_grids,
                     draw_cut_preview_edges,
                     draw_cut_preview_grids,
@@ -47,13 +47,13 @@ fn configure_face_grid_gizmos(mut config_store: ResMut<GizmoConfigStore>) {
     let (config, _) = config_store.config_mut::<FaceGridGizmoGroup>();
     config.depth_bias = -0.5;
 
-    let (config, _) = config_store.config_mut::<BrushEdgeGizmoGroup>();
+    let (config, _) = config_store.config_mut::<BrushWireframeGizmoGroup>();
     config.depth_bias = -1.0;
 }
 
 /// Draw wireframe edges on all brushes (bright cyan on selected, subtle grey on unselected).
-fn draw_brush_edges(
-    mut gizmos: Gizmos<BrushEdgeGizmoGroup>,
+fn draw_brush_wireframe(
+    mut gizmos: Gizmos<BrushWireframeGizmoGroup>,
     settings: Res<OverlaySettings>,
     edit_mode: Res<EditMode>,
     brushes: Query<
@@ -304,7 +304,7 @@ fn draw_face_grids(
 
 /// Draw wireframe edges on cut-preview fragment faces.
 fn draw_cut_preview_edges(
-    mut gizmos: Gizmos<BrushEdgeGizmoGroup>,
+    mut gizmos: Gizmos<BrushWireframeGizmoGroup>,
     settings: Res<OverlaySettings>,
     previews: Query<&CutPreviewFace, With<CutResultPreviewMesh>>,
 ) {
