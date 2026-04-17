@@ -47,9 +47,35 @@ impl Plugin for EntityOpsPlugin {
                 warn!("Failed to initialize system clipboard: {e}");
             }
         }
-        app.add_systems(Update, handle_entity_keys.in_set(crate::EditorInteraction));
+        app.register_type::<EmptyEntity>()
+            .register_type::<SceneCamera>()
+            .register_type::<SceneLight>()
+            .add_systems(Update, handle_entity_keys.in_set(crate::EditorInteraction));
     }
 }
+
+/// Marks an entity as an intentionally-empty scene entity (`Add > Empty`).
+/// Used by the viewport-overlay system to decide whether to draw a
+/// fallback wireframe-cube marker. Serialises through the type registry
+/// so empties loaded from a `.jsn` scene keep the marker.
+#[derive(Component, Default, Reflect)]
+#[reflect(Component)]
+pub struct EmptyEntity;
+
+/// Marks a camera as scene-authored (added via `Add > Camera` or by an
+/// extension), so viewport overlays draw a frustum gizmo for it.
+/// Editor-internal cameras (main viewport camera, material preview
+/// camera) deliberately don't carry this marker.
+#[derive(Component, Default, Reflect)]
+#[reflect(Component)]
+pub struct SceneCamera;
+
+/// Marks a light as scene-authored, so viewport overlays draw
+/// light-specific gizmos for it. Editor-internal lights (e.g. the
+/// material-preview rig) deliberately don't carry this marker.
+#[derive(Component, Default, Reflect)]
+#[reflect(Component)]
+pub struct SceneLight;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EntityTemplate {
@@ -83,7 +109,7 @@ pub fn create_entity(
 ) -> Entity {
     let entity = match template {
         EntityTemplate::Empty => commands
-            .spawn((Name::new("Empty"), Transform::default()))
+            .spawn((Name::new("Empty"), EmptyEntity, Transform::default()))
             .id(),
         EntityTemplate::Cube => {
             let id = commands
@@ -112,6 +138,7 @@ pub fn create_entity(
         EntityTemplate::PointLight => commands
             .spawn((
                 Name::new("Point Light"),
+                SceneLight,
                 PointLight {
                     shadows_enabled: true,
                     ..default()
@@ -122,6 +149,7 @@ pub fn create_entity(
         EntityTemplate::DirectionalLight => commands
             .spawn((
                 Name::new("Directional Light"),
+                SceneLight,
                 DirectionalLight {
                     shadows_enabled: true,
                     ..default()
@@ -132,6 +160,7 @@ pub fn create_entity(
         EntityTemplate::SpotLight => commands
             .spawn((
                 Name::new("Spot Light"),
+                SceneLight,
                 SpotLight {
                     shadows_enabled: true,
                     ..default()
@@ -142,6 +171,7 @@ pub fn create_entity(
         EntityTemplate::Camera3d => commands
             .spawn((
                 Name::new("Camera"),
+                SceneCamera,
                 Camera3d::default(),
                 Camera {
                     // Scene cameras are authored inactive so they don't

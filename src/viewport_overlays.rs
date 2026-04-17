@@ -285,9 +285,10 @@ fn marker_color(is_selected: bool) -> Color {
     }
 }
 
-/// Point light: three axis-aligned circles at range radius. The
-/// `Without<EditorEntity>` filter keeps editor-local lights (e.g. the
-/// material-preview scene) out of the main viewport.
+/// Point light: three axis-aligned circles at range radius. Filtered
+/// by the [`SceneLight`](crate::entity_ops::SceneLight) marker so
+/// editor-local lights (e.g. the material-preview rig) stay out of
+/// the main viewport.
 fn draw_point_light_gizmo(
     mut gizmos: Gizmos,
     settings: Res<OverlaySettings>,
@@ -299,7 +300,7 @@ fn draw_point_light_gizmo(
             &InheritedVisibility,
             Has<Selected>,
         ),
-        Without<crate::EditorEntity>,
+        With<crate::entity_ops::SceneLight>,
     >,
 ) {
     if !settings.show_bounding_boxes {
@@ -336,7 +337,7 @@ fn draw_spot_light_gizmo(
             &InheritedVisibility,
             Has<Selected>,
         ),
-        Without<crate::EditorEntity>,
+        With<crate::entity_ops::SceneLight>,
     >,
 ) {
     if !settings.show_bounding_boxes {
@@ -373,7 +374,7 @@ fn draw_dir_light_gizmo(
     settings: Res<OverlaySettings>,
     query: Query<
         (&GlobalTransform, &InheritedVisibility, Has<Selected>),
-        (With<DirectionalLight>, Without<crate::EditorEntity>),
+        (With<DirectionalLight>, With<crate::entity_ops::SceneLight>),
     >,
 ) {
     if !settings.show_bounding_boxes {
@@ -390,8 +391,10 @@ fn draw_dir_light_gizmo(
     }
 }
 
-/// Camera frustum. `Without<EditorEntity>` excludes the main viewport
-/// camera and the material-preview camera.
+/// Camera frustum. Filtered by
+/// [`SceneCamera`](crate::entity_ops::SceneCamera) so the main
+/// viewport camera and the material-preview camera don't get a
+/// frustum gizmo.
 fn draw_camera_gizmo(
     mut gizmos: Gizmos,
     settings: Res<OverlaySettings>,
@@ -402,7 +405,7 @@ fn draw_camera_gizmo(
             &InheritedVisibility,
             Has<Selected>,
         ),
-        (With<Camera>, Without<crate::EditorEntity>),
+        With<crate::entity_ops::SceneCamera>,
     >,
 ) {
     if !settings.show_bounding_boxes {
@@ -441,30 +444,16 @@ fn draw_camera_gizmo(
     }
 }
 
-/// Fallback marker for empty / tag entities: small wireframe cube at
-/// the origin so the entity is findable and selectable.
+/// Fallback marker for entities tagged with [`EmptyEntity`]: small
+/// wireframe cube at the origin so the entity is findable and
+/// selectable. Driven by the explicit marker component rather than a
+/// brittle "has no other notable component" filter.
 fn draw_empty_entity_marker(
     mut gizmos: Gizmos,
     settings: Res<OverlaySettings>,
     query: Query<
-        (
-            Entity,
-            &GlobalTransform,
-            &InheritedVisibility,
-            Has<Selected>,
-        ),
-        (
-            With<Transform>,
-            Without<crate::EditorEntity>,
-            Without<crate::EditorHidden>,
-            Without<Mesh3d>,
-            Without<BrushGroup>,
-            Without<PointLight>,
-            Without<SpotLight>,
-            Without<DirectionalLight>,
-            Without<Camera>,
-            Without<ChildOf>,
-        ),
+        (&GlobalTransform, &InheritedVisibility, Has<Selected>),
+        With<crate::entity_ops::EmptyEntity>,
     >,
 ) {
     if !settings.show_bounding_boxes {
@@ -473,7 +462,7 @@ fn draw_empty_entity_marker(
     // Fixed 0.5-unit cube so the marker is visible at any camera
     // distance. Not the world AABB: nothing to compute one from.
     const SIZE: f32 = 0.25;
-    for (_entity, tf, inherited_vis, selected) in &query {
+    for (tf, inherited_vis, selected) in &query {
         if !inherited_vis.get() {
             continue;
         }
