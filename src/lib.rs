@@ -3,6 +3,7 @@ pub mod alignment_guides;
 pub mod asset_browser;
 pub mod asset_catalog;
 pub mod brush;
+pub mod builtin_extensions;
 pub mod colors;
 pub mod commands;
 pub mod custom_properties;
@@ -153,14 +154,7 @@ impl Plugin for EditorPlugin {
             .add_plugins(jackdaw_panels::DockPlugin)
             .add_plugins(extension_loader::ExtensionLoaderPlugin)
             .add_plugins(extensions_dialog::ExtensionsDialogPlugin)
-            .add_systems(
-                Startup,
-                (
-                    register_all_dock_windows,
-                    register_workspaces,
-                    sync_icon_font,
-                ),
-            )
+            .add_systems(Startup, (register_workspaces, sync_icon_font))
             .configure_sets(
                 Update,
                 EditorInteraction
@@ -223,11 +217,29 @@ impl Plugin for EditorPlugin {
             .add_observer(on_duration_input_commit)
             .add_observer(on_timeline_keyframe_click);
 
-        // Register all built-in + example extensions into the catalog.
-        // `register_extension` runs each extension's one-time BEI context
-        // registration; this has to happen during build() so BEI's
-        // `finish()` sees all context types and initializes their
-        // `ContextInstances` resource.
+        // Register all built-in and example extensions into the
+        // catalog. `register_extension` runs each extension's one-time
+        // BEI context registration, which must happen during `build()`
+        // so BEI's `finish()` hook sees every context type and
+        // initializes the matching `ContextInstances` resource. Each
+        // extension self-classifies via `JackdawExtension::kind`:
+        // built-ins override it to `ExtensionKind::Builtin`, while
+        // examples and third-party extensions keep the default `Custom`.
+        jackdaw_api::register_extension(app, "core_windows", || {
+            Box::new(builtin_extensions::CoreWindowsExtension)
+        });
+        jackdaw_api::register_extension(app, "asset_browser", || {
+            Box::new(builtin_extensions::AssetBrowserExtension)
+        });
+        jackdaw_api::register_extension(app, "timeline", || {
+            Box::new(builtin_extensions::TimelineExtension)
+        });
+        jackdaw_api::register_extension(app, "terminal", || {
+            Box::new(builtin_extensions::TerminalExtension)
+        });
+        jackdaw_api::register_extension(app, "inspector", || {
+            Box::new(builtin_extensions::InspectorExtension)
+        });
         jackdaw_api::register_extension(app, "sample", || {
             Box::new(sample_extension::SampleExtension)
         });
@@ -235,11 +247,12 @@ impl Plugin for EditorPlugin {
             Box::new(viewable_camera_extension::ViewableCameraExtension)
         });
 
-        // Enable extensions. Has to run AFTER all plugins finish() — BEI
-        // initializes `ContextInstances<PreUpdate>` in finish(), and
-        // spawning a context entity before that triggers a panic. We
-        // queue the work as a Startup system that runs once before the
-        // editor enters its main loop.
+        // Enable extensions on startup. Has to run AFTER every plugin's
+        // `finish()` hook: BEI initializes `ContextInstances<PreUpdate>`
+        // in `finish`, and spawning a context entity before that
+        // resource exists panics. Running this as a Startup system
+        // guarantees it fires once before the editor enters its main
+        // loop.
         app.add_systems(Startup, apply_enabled_extensions_startup);
     }
 }
@@ -289,24 +302,15 @@ fn flag_menu_dirty_on_menu_entry_remove(
     dirty.0 = true;
 }
 
+/// Enable every catalog entry that `resolve_enabled_list` reports as on.
+///
+/// Runs in `Startup` because Startup systems have world access, which is
+/// what `enable_extension` needs. The resolution helper handles the
+/// upgrade migration for pre-dogfood config files.
 fn apply_enabled_extensions_startup(world: &mut World) {
-    // Build up the list of names to enable, then run enable_extension
-    // for each. Mirrors `apply_enabled_from_disk` but operates on World
-    // directly (Startup systems have world access).
-    use jackdaw_api::{ExtensionCatalog, enable_extension};
-    let to_enable: Vec<String> = {
-        let catalog = world.resource::<ExtensionCatalog>();
-        let available: Vec<String> = catalog.iter().map(|s| s.to_string()).collect();
-        match extensions_config::read_enabled_list() {
-            Some(list) => {
-                let set: std::collections::HashSet<String> = list.into_iter().collect();
-                available.into_iter().filter(|n| set.contains(n)).collect()
-            }
-            None => available, // first run: enable everything
-        }
-    };
+    let to_enable = extensions_config::resolve_enabled_list(world);
     for name in &to_enable {
-        enable_extension(world, name);
+        jackdaw_api::enable_extension(world, name);
     }
 }
 
@@ -2091,9 +2095,10 @@ fn handle_menu_action(event: On<MenuAction>, mut commands: Commands) {
         }
         action if action.starts_with("op:") => {
             // Extension-contributed menu entry. The action id is the
-            // operator id with an "op:" prefix — dispatch it through the
-            // same path as keybind-triggered operators so behavior
-            // (history entry, poll, modal) is identical.
+            // operator id with an "op:" prefix. Dispatching through the
+            // operator system rather than a parallel path keeps
+            // behaviour (history entry, poll, modal) identical to
+            // keybind-triggered operators.
             let operator_id = action.strip_prefix("op:").unwrap().to_string();
             commands.queue(move |world: &mut World| {
                 jackdaw_api::lifecycle::dispatch_operator_by_id(world, &operator_id, true);
@@ -2636,220 +2641,4 @@ fn sync_icon_font(
     if let Some(font) = icon_font {
         commands.insert_resource(jackdaw_panels::IconFontHandle(font.0.clone()));
     }
-}
-
-fn register_all_dock_windows(mut registry: ResMut<jackdaw_panels::WindowRegistry>) {
-    use jackdaw_feathers::icons::Icon;
-
-    registry.register(jackdaw_panels::DockWindowDescriptor {
-        id: "jackdaw.assets".into(),
-        name: "Assets".into(),
-        icon: Some(String::from(Icon::FolderOpen.unicode())),
-        default_area: "bottom_dock".into(),
-        priority: 0,
-        build: std::sync::Arc::new(|world, parent| {
-            let icon_font = world
-                .get_resource::<jackdaw_feathers::icons::IconFont>()
-                .map(|f| f.0.clone())
-                .unwrap_or_default();
-            world.spawn((
-                ChildOf(parent),
-                asset_browser::asset_browser_panel(icon_font),
-            ));
-            world
-                .resource_mut::<asset_browser::AssetBrowserState>()
-                .needs_refresh = true;
-        }),
-    });
-
-    registry.register(jackdaw_panels::DockWindowDescriptor {
-        id: "jackdaw.timeline".into(),
-        name: "Timeline".into(),
-        icon: Some(String::from(Icon::Ruler.unicode())),
-        default_area: "bottom_dock".into(),
-        priority: 1,
-        build: std::sync::Arc::new(|world, parent| {
-            world.spawn((ChildOf(parent), jackdaw_animation::timeline_panel()));
-        }),
-    });
-
-    registry.register(jackdaw_panels::DockWindowDescriptor {
-        id: "jackdaw.terminal".into(),
-        name: "Terminal".into(),
-        icon: Some(String::from(Icon::Terminal.unicode())),
-        default_area: "bottom_dock".into(),
-        priority: 2,
-        build: std::sync::Arc::new(|world, parent| {
-            world.spawn((
-                ChildOf(parent),
-                Node {
-                    flex_grow: 1.0,
-                    width: Val::Percent(100.0),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                children![(
-                    Text::new("Terminal window (not implemented yet)"),
-                    TextFont {
-                        font_size: 11.0,
-                        ..default()
-                    },
-                    TextColor(Color::srgba(1.0, 1.0, 1.0, 0.3)),
-                )],
-            ));
-        }),
-    });
-
-    registry.register(jackdaw_panels::DockWindowDescriptor {
-        id: "jackdaw.hierarchy".into(),
-        name: "Scene Tree".into(),
-        icon: None,
-        default_area: "left".into(),
-        priority: 0,
-        build: std::sync::Arc::new(|world, parent| {
-            let icon_font = world
-                .get_resource::<jackdaw_feathers::icons::IconFont>()
-                .map(|f| f.0.clone())
-                .unwrap_or_default();
-            world.spawn((ChildOf(parent), crate::layout::hierarchy_content(icon_font)));
-        }),
-    });
-
-    registry.register(jackdaw_panels::DockWindowDescriptor {
-        id: "jackdaw.import".into(),
-        name: "Import".into(),
-        icon: None,
-        default_area: "left".into(),
-        priority: 1,
-        build: std::sync::Arc::new(|world, parent| {
-            world.spawn((
-                ChildOf(parent),
-                Node {
-                    flex_grow: 1.0,
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                children![(
-                    Text::new("Import"),
-                    TextFont {
-                        font_size: 11.0,
-                        ..default()
-                    },
-                    TextColor(Color::srgba(1.0, 1.0, 1.0, 0.3)),
-                )],
-            ));
-        }),
-    });
-
-    registry.register(jackdaw_panels::DockWindowDescriptor {
-        id: "jackdaw.project_files".into(),
-        name: "Project Files".into(),
-        icon: None,
-        default_area: "left".into(),
-        priority: 10,
-        build: std::sync::Arc::new(|world, parent| {
-            world.spawn((
-                ChildOf(parent),
-                crate::layout::project_files_panel_content(),
-            ));
-            world
-                .resource_mut::<project_files::ProjectFilesState>()
-                .needs_refresh = true;
-        }),
-    });
-
-    registry.register(jackdaw_panels::DockWindowDescriptor {
-        id: "jackdaw.inspector.components".into(),
-        name: "Components".into(),
-        icon: None,
-        default_area: "right_sidebar".into(),
-        priority: 0,
-        build: std::sync::Arc::new(|world, parent| {
-            let icon_font = world
-                .get_resource::<jackdaw_feathers::icons::IconFont>()
-                .map(|f| f.0.clone())
-                .unwrap_or_default();
-            world.spawn((
-                ChildOf(parent),
-                crate::layout::inspector_components_content(icon_font),
-            ));
-        }),
-    });
-
-    registry.register(jackdaw_panels::DockWindowDescriptor {
-        id: "jackdaw.inspector.materials".into(),
-        name: "Materials".into(),
-        icon: None,
-        default_area: "right_sidebar".into(),
-        priority: 1,
-        build: std::sync::Arc::new(|world, parent| {
-            let icon_font = world
-                .get_resource::<jackdaw_feathers::icons::IconFont>()
-                .map(|f| f.0.clone())
-                .unwrap_or_default();
-            world.spawn((
-                ChildOf(parent),
-                material_browser::material_browser_panel(icon_font),
-            ));
-            world
-                .resource_mut::<material_browser::MaterialBrowserState>()
-                .needs_rescan = true;
-        }),
-    });
-
-    registry.register(jackdaw_panels::DockWindowDescriptor {
-        id: "jackdaw.inspector.resources".into(),
-        name: "Resources".into(),
-        icon: None,
-        default_area: "right_sidebar".into(),
-        priority: 2,
-        build: std::sync::Arc::new(|world, parent| {
-            world.spawn((
-                ChildOf(parent),
-                Node {
-                    flex_grow: 1.0,
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                children![(
-                    Text::new("Resources"),
-                    TextFont {
-                        font_size: 11.0,
-                        ..default()
-                    },
-                    TextColor(Color::srgba(1.0, 1.0, 1.0, 0.3)),
-                )],
-            ));
-        }),
-    });
-
-    registry.register(jackdaw_panels::DockWindowDescriptor {
-        id: "jackdaw.inspector.systems".into(),
-        name: "Systems".into(),
-        icon: None,
-        default_area: "right_sidebar".into(),
-        priority: 3,
-        build: std::sync::Arc::new(|world, parent| {
-            world.spawn((
-                ChildOf(parent),
-                Node {
-                    flex_grow: 1.0,
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-                children![(
-                    Text::new("Systems"),
-                    TextFont {
-                        font_size: 11.0,
-                        ..default()
-                    },
-                    TextColor(Color::srgba(1.0, 1.0, 1.0, 0.3)),
-                )],
-            ));
-        }),
-    });
 }

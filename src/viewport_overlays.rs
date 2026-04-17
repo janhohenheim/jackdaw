@@ -38,6 +38,7 @@ impl Plugin for ViewportOverlaysPlugin {
                     draw_spot_light_gizmo,
                     draw_dir_light_gizmo,
                     draw_camera_gizmo,
+                    draw_empty_entity_marker,
                 )
                     .after(bevy::camera::visibility::VisibilitySystems::VisibilityPropagate)
                     .run_if(in_state(crate::AppState::Editor)),
@@ -275,20 +276,47 @@ pub(crate) fn collect_descendant_mesh_world_vertices(
     }
 }
 
-/// Point light: 3 axis-aligned circles at range radius.
+/// Color for an entity marker gizmo.
+///
+/// Selected entities use the bright bounding-box color; unselected
+/// entities use a dim variant that stays visible without overpowering
+/// the active selection.
+fn marker_color(is_selected: bool) -> Color {
+    if is_selected {
+        colors::SELECTION_BBOX
+    } else {
+        colors::ENTITY_MARKER_UNSELECTED
+    }
+}
+
+/// Point light: three axis-aligned circles at range radius. Drawn for
+/// every scene-visible point light so invisible lights are still
+/// findable in the viewport (bright when selected, dim otherwise).
+///
+/// The `Without<EditorEntity>` filter keeps editor-local lights, such as
+/// the material-preview scene's lights, out of the main viewport.
 fn draw_point_light_gizmo(
     mut gizmos: Gizmos,
     settings: Res<OverlaySettings>,
-    query: Query<(&PointLight, &GlobalTransform, &InheritedVisibility), With<Selected>>,
+    query: Query<
+        (
+            Entity,
+            &PointLight,
+            &GlobalTransform,
+            &InheritedVisibility,
+            Has<Selected>,
+        ),
+        Without<crate::EditorEntity>,
+    >,
 ) {
     if !settings.show_bounding_boxes {
         return;
     }
-    let color = colors::SELECTION_BBOX;
-    for (light, tf, inherited_vis) in &query {
+    for (_entity, light, tf, inherited_vis, selected) in &query {
         if !inherited_vis.get() {
             continue;
         }
+        let color = marker_color(selected);
         let pos = tf.translation();
         gizmos.circle(
             Isometry3d::new(pos, Quat::from_rotation_x(FRAC_PI_2)),
@@ -304,20 +332,29 @@ fn draw_point_light_gizmo(
     }
 }
 
-/// Spot light: cone from outer_angle + range.
+/// Spot light: cone from outer_angle + range. Drawn for all scene-visible
+/// spot lights.
 fn draw_spot_light_gizmo(
     mut gizmos: Gizmos,
     settings: Res<OverlaySettings>,
-    query: Query<(&SpotLight, &GlobalTransform, &InheritedVisibility), With<Selected>>,
+    query: Query<
+        (
+            &SpotLight,
+            &GlobalTransform,
+            &InheritedVisibility,
+            Has<Selected>,
+        ),
+        Without<crate::EditorEntity>,
+    >,
 ) {
     if !settings.show_bounding_boxes {
         return;
     }
-    let color = colors::SELECTION_BBOX;
-    for (light, tf, inherited_vis) in &query {
+    for (light, tf, inherited_vis, selected) in &query {
         if !inherited_vis.get() {
             continue;
         }
+        let color = marker_color(selected);
         let pos = tf.translation();
         let fwd = tf.forward().as_vec3();
         let right = tf.right().as_vec3();
@@ -338,46 +375,59 @@ fn draw_spot_light_gizmo(
     }
 }
 
-/// Directional light: arrow along forward direction.
+/// Directional light: arrow along forward direction. Drawn for every
+/// scene-visible directional light.
 fn draw_dir_light_gizmo(
     mut gizmos: Gizmos,
     settings: Res<OverlaySettings>,
     query: Query<
-        (&GlobalTransform, &InheritedVisibility),
-        (With<DirectionalLight>, With<Selected>),
+        (&GlobalTransform, &InheritedVisibility, Has<Selected>),
+        (With<DirectionalLight>, Without<crate::EditorEntity>),
     >,
 ) {
     if !settings.show_bounding_boxes {
         return;
     }
-    let color = colors::SELECTION_BBOX;
-    for (tf, inherited_vis) in &query {
+    for (tf, inherited_vis, selected) in &query {
         if !inherited_vis.get() {
             continue;
         }
+        let color = marker_color(selected);
         let pos = tf.translation();
         let dir = tf.forward().as_vec3();
         gizmos.arrow(pos, pos + dir * 2.0, color);
     }
 }
 
-/// Camera: frustum wireframe from Projection.
+/// Camera frustum. Drawn for every scene-authored camera.
+///
+/// The `Without<EditorEntity>` filter excludes the main viewport camera
+/// and the material-preview camera; those are editor-local and should
+/// not surface as selectable scene content.
 fn draw_camera_gizmo(
     mut gizmos: Gizmos,
     settings: Res<OverlaySettings>,
-    query: Query<(&Projection, &GlobalTransform, &InheritedVisibility), With<Selected>>,
+    query: Query<
+        (
+            &Projection,
+            &GlobalTransform,
+            &InheritedVisibility,
+            Has<Selected>,
+        ),
+        (With<Camera>, Without<crate::EditorEntity>),
+    >,
 ) {
     if !settings.show_bounding_boxes {
         return;
     }
-    let color = colors::SELECTION_BBOX;
-    for (projection, tf, inherited_vis) in &query {
+    for (projection, tf, inherited_vis, selected) in &query {
         if !inherited_vis.get() {
             continue;
         }
         let Projection::Perspective(proj) = projection else {
             continue;
         };
+        let color = marker_color(selected);
         let depth = 2.0;
         let half_v = depth * (proj.fov / 2.0).tan();
         let half_h = half_v * proj.aspect_ratio;
@@ -400,6 +450,57 @@ fn draw_camera_gizmo(
         for i in 0..4 {
             gizmos.line(corners[i], corners[(i + 1) % 4], color);
         }
+    }
+}
+
+/// Fallback marker for entities with a `Transform` but no visible
+/// geometry and no specialised gizmo (empty entities, tag entities, and
+/// the like). Draws a small wireframe cube around the origin so the
+/// entity is findable in the viewport and selectable from the scene
+/// tree.
+fn draw_empty_entity_marker(
+    mut gizmos: Gizmos,
+    settings: Res<OverlaySettings>,
+    query: Query<
+        (
+            Entity,
+            &GlobalTransform,
+            &InheritedVisibility,
+            Has<Selected>,
+        ),
+        (
+            With<Transform>,
+            Without<crate::EditorEntity>,
+            Without<crate::EditorHidden>,
+            Without<Mesh3d>,
+            Without<BrushGroup>,
+            Without<PointLight>,
+            Without<SpotLight>,
+            Without<DirectionalLight>,
+            Without<Camera>,
+            Without<ChildOf>,
+        ),
+    >,
+) {
+    if !settings.show_bounding_boxes {
+        return;
+    }
+    // Fixed 0.5-unit cube so the marker stays visible regardless of
+    // camera distance. This is not the world AABB of the entity: there
+    // is no geometry to compute a bound from.
+    const SIZE: f32 = 0.25;
+    for (_entity, tf, inherited_vis, selected) in &query {
+        if !inherited_vis.get() {
+            continue;
+        }
+        let color = marker_color(selected);
+        let pos = tf.translation();
+        draw_aabb_wireframe(
+            &mut gizmos,
+            pos - Vec3::splat(SIZE),
+            pos + Vec3::splat(SIZE),
+            color,
+        );
     }
 }
 

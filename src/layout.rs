@@ -1130,14 +1130,12 @@ pub fn hierarchy_content(icon_font: Handle<Font>) -> impl Bundle {
                         }
                     },
                 ),
-                observe(
-                    |mut click: On<Pointer<Click>>, mut commands: Commands| {
-                        click.propagate(false);
-                        commands.queue(|world: &mut World| {
-                            crate::add_entity_picker::open_add_entity_picker(world);
-                        });
-                    },
-                ),
+                observe(|mut click: On<Pointer<Click>>, mut commands: Commands| {
+                    click.propagate(false);
+                    commands.queue(|world: &mut World| {
+                        crate::add_entity_picker::open_add_entity_picker(world);
+                    });
+                },),
                 children![
                     (
                         Text::new(String::from(Icon::PackagePlus.unicode())),

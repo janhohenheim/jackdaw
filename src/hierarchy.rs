@@ -850,20 +850,29 @@ fn handle_hierarchy_right_click(
     // parent-aware variant: they spawn the entity and reparent it under
     // the right-clicked target.
     let mut owned_items: Vec<(String, String)> = vec![
-        ("hierarchy.focus".into(), "Focus                    F".into()),
+        (
+            "hierarchy.focus".into(),
+            "Focus                    F".into(),
+        ),
         ("hierarchy.rename".into(), "Rename              F2".into()),
-        ("hierarchy.duplicate".into(), "Duplicate        Ctrl+D".into()),
+        (
+            "hierarchy.duplicate".into(),
+            "Duplicate        Ctrl+D".into(),
+        ),
         ("hierarchy.delete".into(), "Delete             Del".into()),
-        ("hierarchy.save_template".into(), "Save as Template...".into()),
+        (
+            "hierarchy.save_template".into(),
+            "Save as Template...".into(),
+        ),
         ("hierarchy.add_cube".into(), "Add Child Cube".into()),
         ("hierarchy.add_sphere".into(), "Add Child Sphere".into()),
         ("hierarchy.add_light".into(), "Add Child Light".into()),
         ("hierarchy.add_empty".into(), "Add Child Empty".into()),
     ];
 
-    // Append extension-contributed Add entries — same source the toolbar
-    // Add menu and the Add Entity picker use, so a single
-    // `register_menu_entry` call surfaces in all three places.
+    // Append extension-contributed Add entries from the same source the
+    // toolbar Add menu and the Add Entity picker use. One
+    // `register_menu_entry` call therefore surfaces in all three places.
     let mut ext_rows: Vec<(String, String)> = extension_add_entries
         .iter()
         .filter(|entry| entry.menu == "Add")

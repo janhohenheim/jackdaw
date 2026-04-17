@@ -43,17 +43,17 @@ pub trait Operator: InputAction + 'static {
 
     /// Which BEI event triggers the operator's invoke system.
     ///
-    /// - `Trigger::Start` (default): key down. Discrete one-shot semantics,
-    ///   matches Blender and the common case.
-    /// - `Trigger::Fire`: every frame while the input is held. Rarely right
-    ///   on its own — pair with `MODAL = true` for state-tracking sessions,
-    ///   or use for per-frame probes.
-    /// - `Trigger::Complete`: key up. "Press to arm, release to commit"
-    ///   without a full modal state machine.
-    /// - `Trigger::Manual`: don't auto-wire any BEI observer. Extensions
-    ///   invoke the operator themselves via
-    ///   [`crate::lifecycle::dispatch_operator_by_id`] — useful for
-    ///   operators driven by UI buttons, F3 search, or other code paths.
+    /// - `Trigger::Start` (default): fires on key down. Discrete,
+    ///   one-shot semantics matching Blender's common case.
+    /// - `Trigger::Fire`: fires every frame the input is held. Usually
+    ///   paired with `MODAL = true` for state-tracking sessions; also
+    ///   useful for per-frame probes.
+    /// - `Trigger::Complete`: fires on key up. Useful for "press to arm,
+    ///   release to commit" flows that don't need a modal state machine.
+    /// - `Trigger::Manual`: no BEI observer is wired up. Callers invoke
+    ///   the operator directly through
+    ///   [`crate::lifecycle::dispatch_operator_by_id`], for example from
+    ///   UI buttons, F3 search, or other code paths.
     const TRIGGER: Trigger = Trigger::Start;
 
     /// Modal operators stay active across frames.
@@ -65,9 +65,9 @@ pub trait Operator: InputAction + 'static {
     /// `record` call across those frames lands in the same `CommandGroup`,
     /// so the entire modal session commits as one undo entry.
     ///
-    /// When `MODAL = false` (default), `Running` is treated like `Finished`
-    /// — the operator runs once, the buffer is drained, and a history
-    /// entry is pushed immediately.
+    /// When `MODAL = false` (default), `Running` is treated like
+    /// `Finished`: the operator runs once, the buffer is drained, and a
+    /// history entry is pushed immediately.
     const MODAL: bool = false;
 
     /// Register the primary execute system. Called once during
@@ -82,9 +82,10 @@ pub trait Operator: InputAction + 'static {
         None
     }
 
-    /// Register an optional invoke system. Invoke is what UI/keybind/F3
-    /// trigger — it may differ from execute (e.g. opens a modal dialog,
-    /// starts a drag). Default: identical to execute.
+    /// Register an optional invoke system. `invoke` is what UI,
+    /// keybinds, and F3 search run; it can differ from `execute` when
+    /// the caller wants to open a dialog or start a drag before the
+    /// primary work happens. Defaults to `execute`.
     fn register_invoke(commands: &mut Commands) -> SystemId<(), OperatorResult> {
         Self::register_execute(commands)
     }

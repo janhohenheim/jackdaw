@@ -4,7 +4,7 @@
 //! `~/.config/jackdaw/extensions.json`.
 
 use bevy::prelude::*;
-use jackdaw_api::{Extension, ExtensionCatalog};
+use jackdaw_api::{Extension, ExtensionCatalog, ExtensionKind};
 use jackdaw_feathers::{
     checkbox::{CheckboxCommitEvent, CheckboxProps, checkbox},
     dialog::{CloseDialogEvent, DialogChildrenSlot, OpenDialogEvent},
@@ -25,9 +25,9 @@ impl Plugin for ExtensionsDialogPlugin {
     }
 }
 
-/// Clear the open flag whenever any dialog closes. Safe because populate
-/// also checks for existing extension checkboxes — it won't run again
-/// until the next open.
+/// Clear the open flag whenever any dialog closes. Safe because
+/// [`populate_extensions_dialog`] also checks for existing checkboxes
+/// before filling the slot, so it won't double-populate between closes.
 fn on_dialog_closed(_: On<CloseDialogEvent>, mut open: ResMut<ExtensionsDialogOpen>) {
     open.0 = false;
 }
@@ -55,13 +55,14 @@ pub fn open_extensions_dialog(world: &mut World) {
 }
 
 /// Populate the dialog's children slot with a row per catalog entry.
-/// Runs each frame but short-circuits unless the dialog is currently open
-/// and hasn't been populated yet.
+/// Runs each frame and short-circuits unless the dialog is open and
+/// hasn't been populated yet.
 ///
-/// Note: we do NOT filter on `&Children` because a freshly-spawned
-/// `DialogChildrenSlot` with no children doesn't have a `Children`
-/// component at all — the query would never match. Instead we rely on
-/// the `ExtensionCheckbox` existence check to avoid re-populating.
+/// The slot is detected by marker presence rather than by filtering on
+/// `&Children`. A freshly-spawned `DialogChildrenSlot` with no children
+/// has no `Children` component at all, which would cause the filter to
+/// never match. Checking for existing `ExtensionCheckbox` entities is
+/// how this system avoids re-populating the same dialog.
 fn populate_extensions_dialog(
     mut commands: Commands,
     catalog: Res<ExtensionCatalog>,
@@ -85,18 +86,25 @@ fn populate_extensions_dialog(
     let font = editor_font.0.clone();
     let ifont = icon_font.0.clone();
 
-    // Collect (name, is_enabled) for each catalog entry, sorted for
-    // stable ordering across runs.
+    // Collect (name, is_enabled) for each catalog entry, split into
+    // Built-in (Jackdaw feature areas) and Custom (example and
+    // third-party extensions). Group membership is taken from each
+    // extension's declared `ExtensionKind`, captured at
+    // `register_extension` time. Adding a new built-in is therefore a
+    // one-liner on the extension itself.
     let enabled_names: std::collections::HashSet<String> =
         loaded.iter().map(|e| e.name.clone()).collect();
-    let mut rows: Vec<(String, bool)> = catalog
-        .iter()
-        .map(|n| {
-            let is_enabled = enabled_names.contains(n);
-            (n.to_string(), is_enabled)
-        })
-        .collect();
-    rows.sort_by(|a, b| a.0.cmp(&b.0));
+    let mut builtin_rows: Vec<(String, bool)> = Vec::new();
+    let mut custom_rows: Vec<(String, bool)> = Vec::new();
+    for (name, kind) in catalog.iter_with_kind() {
+        let row = (name.to_string(), enabled_names.contains(name));
+        match kind {
+            ExtensionKind::Builtin => builtin_rows.push(row),
+            ExtensionKind::Custom => custom_rows.push(row),
+        }
+    }
+    builtin_rows.sort_by(|a, b| a.0.cmp(&b.0));
+    custom_rows.sort_by(|a, b| a.0.cmp(&b.0));
 
     let list = commands
         .spawn((
@@ -110,7 +118,8 @@ fn populate_extensions_dialog(
         ))
         .id();
 
-    for (name, checked) in rows {
+    spawn_section_header(&mut commands, list, "Built-in");
+    for (name, checked) in builtin_rows {
         let label = prettify(&name);
         commands.spawn((
             ChildOf(list),
@@ -120,6 +129,71 @@ fn populate_extensions_dialog(
             checkbox(CheckboxProps::new(label).checked(checked), &font, &ifont),
         ));
     }
+
+    spawn_section_header(&mut commands, list, "Custom");
+    if custom_rows.is_empty() {
+        // Empty-state hint so users learn where custom extensions will
+        // appear. Without it the section header sits alone and reads as
+        // broken UI.
+        commands.spawn((
+            ChildOf(list),
+            Node {
+                padding: UiRect::axes(Val::Px(tokens::SPACING_LG), Val::Px(tokens::SPACING_SM)),
+                ..default()
+            },
+            children![(
+                Text::new("No custom extensions installed"),
+                TextFont {
+                    font_size: tokens::FONT_SM,
+                    ..default()
+                },
+                TextColor(tokens::TEXT_SECONDARY),
+            )],
+        ));
+    } else {
+        for (name, checked) in custom_rows {
+            let label = prettify(&name);
+            commands.spawn((
+                ChildOf(list),
+                ExtensionCheckbox {
+                    extension_name: name.clone(),
+                },
+                checkbox(CheckboxProps::new(label).checked(checked), &font, &ifont),
+            ));
+        }
+    }
+}
+
+/// Small underlined heading matching the `ComponentPickerSectionHeader`
+/// look from the Add Component dialog, so the two modals feel uniform.
+fn spawn_section_header(commands: &mut Commands, list: Entity, label: &str) {
+    let header = commands
+        .spawn((
+            ChildOf(list),
+            Node {
+                padding: UiRect::new(
+                    Val::Px(tokens::SPACING_LG),
+                    Val::Px(tokens::SPACING_LG),
+                    Val::Px(tokens::SPACING_MD),
+                    Val::Px(tokens::SPACING_XS),
+                ),
+                width: Val::Percent(100.0),
+                border: UiRect::bottom(Val::Px(1.0)),
+                ..default()
+            },
+            BorderColor::all(tokens::BORDER_SUBTLE),
+        ))
+        .id();
+
+    commands.spawn((
+        ChildOf(header),
+        Text::new(label.to_string()),
+        TextFont {
+            font_size: tokens::FONT_SM,
+            ..default()
+        },
+        TextColor(tokens::TEXT_SECONDARY),
+    ));
 }
 
 /// Observer: when an extension checkbox commits, enable/disable the

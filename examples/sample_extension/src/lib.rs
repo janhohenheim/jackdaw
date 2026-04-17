@@ -37,9 +37,9 @@ impl JackdawExtension for SampleExtension {
             build: Arc::new(build_hello_panel),
         });
 
-        // 2. Register the operator — internally registers the execute
-        // system, stores an OperatorEntity as a child of the extension
-        // entity, and spawns a Fire<HelloOp> observer that dispatches it.
+        // 2. Register the operator. This registers the execute system,
+        // stores an OperatorEntity as a child of the extension entity,
+        // and spawns a Fire<HelloOp> observer that dispatches it.
         ctx.register_operator::<HelloOp>();
 
         // 3. Spawn a BEI context entity with an Action<HelloOp> bound to

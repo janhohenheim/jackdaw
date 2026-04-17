@@ -1,12 +1,13 @@
 //! Entity-based lifecycle primitives for extensions.
 //!
-//! An extension is represented as an `Entity` with an [`Extension`] component.
-//! Everything it registers — operators, BEI context entities, dock windows,
-//! workspaces — is spawned as a child of that entity. Unloading is just
-//! `world.entity_mut(ext).despawn()`, and Bevy cascades through the children.
-//! A small set of observers in the `ExtensionLoaderPlugin` handles the cleanup
-//! that can't be expressed purely as entity despawn (unregistering stored
-//! `SystemId`s, removing from the dock `WindowRegistry`, etc.).
+//! An extension is represented as an [`Entity`] carrying an [`Extension`]
+//! component. Everything it registers (operators, BEI context entities,
+//! dock windows, workspaces) is spawned as a child of that entity.
+//! Unloading is `world.entity_mut(ext).despawn()`; Bevy cascades through
+//! the children. A small set of observers in `ExtensionLoaderPlugin`
+//! handles cleanup that can't be expressed purely as entity despawn:
+//! unregistering stored `SystemId`s, removing entries from the dock
+//! `WindowRegistry`, and so on.
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -28,7 +29,7 @@ pub struct Extension {
     pub name: String,
 }
 
-/// An operator — child of an [`Extension`].
+/// Child of an [`Extension`]; represents a single operator.
 ///
 /// Holds the `SystemId`s that the dispatcher runs. An observer on
 /// `On<Remove, OperatorEntity>` unregisters those systems when this entity
@@ -47,8 +48,9 @@ pub struct OperatorEntity {
     pub modal: bool,
 }
 
-/// Tracks the currently-active modal operator. Exactly zero or one at a
-/// time — starting a second modal while one is active is refused.
+/// Tracks the currently-active modal operator. Exactly zero or one is
+/// active at any time; starting a second modal while one is running is
+/// refused.
 ///
 /// While set, `tick_modal_operator` re-runs the invoke system every frame
 /// and the [`crate::OperatorCommandBuffer`] stays prepared across frames
@@ -103,9 +105,9 @@ pub struct RegisteredPanelExtension {
 /// `populate_menu` system queries these and inserts them into the right
 /// menu. Clicking one dispatches the referenced operator.
 ///
-/// `menu` is the top-level menu name (`"Add"`, `"Tools"`, etc.). For now
-/// we're flat — no sub-menus — but the field is a path so that's easy to
-/// extend later (e.g. `"Add/Cameras"`).
+/// `menu` is the top-level menu name (`"Add"`, `"Tools"`, etc.). The
+/// menu system is flat today; using a path-like string here leaves room
+/// for nested menus later without breaking callers.
 #[derive(Component, Clone, Debug)]
 pub struct RegisteredMenuEntry {
     pub menu: String,
@@ -142,28 +144,75 @@ pub type ExtensionCtor = Arc<dyn Fn() -> Box<dyn crate::JackdawExtension> + Send
 /// available extensions.
 #[derive(Resource, Default)]
 pub struct ExtensionCatalog {
-    constructors: HashMap<String, ExtensionCtor>,
+    entries: HashMap<String, CatalogEntry>,
+}
+
+struct CatalogEntry {
+    ctor: ExtensionCtor,
+    kind: ExtensionKind,
+}
+
+/// Classifies an entry in the catalog. Surfaced in toggle UIs so
+/// Jackdaw-shipped feature areas and third-party extensions can be
+/// presented separately. Extensions declare their own kind via
+/// [`crate::JackdawExtension::kind`]; registration captures it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ExtensionKind {
+    /// Ships with Jackdaw as a core feature area (scene tree, inspector,
+    /// asset browser, etc.). Present in every build.
+    Builtin,
+    /// Everything else: example extensions bundled for demonstration,
+    /// third-party extensions loaded from disk, user-authored addons.
+    Custom,
 }
 
 impl ExtensionCatalog {
-    pub fn register<F>(&mut self, name: impl Into<String>, ctor: F)
+    /// Register a constructor with its declared kind. Most callers
+    /// should use [`register_extension`] instead, which handles BEI
+    /// context registration.
+    pub fn register<F>(&mut self, name: impl Into<String>, kind: ExtensionKind, ctor: F)
     where
         F: Fn() -> Box<dyn crate::JackdawExtension> + Send + Sync + 'static,
     {
-        self.constructors.insert(name.into(), Arc::new(ctor));
+        self.entries.insert(
+            name.into(),
+            CatalogEntry {
+                ctor: Arc::new(ctor),
+                kind,
+            },
+        );
     }
 
     pub fn contains(&self, name: &str) -> bool {
-        self.constructors.contains_key(name)
+        self.entries.contains_key(name)
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &str> {
-        self.constructors.keys().map(|s| s.as_str())
+        self.entries.keys().map(|s| s.as_str())
+    }
+
+    /// Iterate names with their declared [`ExtensionKind`]. Useful for
+    /// grouping the Extensions dialog into Built-in and Custom sections.
+    pub fn iter_with_kind(&self) -> impl Iterator<Item = (&str, ExtensionKind)> {
+        self.entries
+            .iter()
+            .map(|(name, entry)| (name.as_str(), entry.kind))
+    }
+
+    /// Look up the declared [`ExtensionKind`] for a registered name.
+    pub fn kind(&self, name: &str) -> Option<ExtensionKind> {
+        self.entries.get(name).map(|e| e.kind)
+    }
+
+    /// Whether the named extension is a Jackdaw-shipped built-in.
+    /// Returns `false` for unknown names.
+    pub fn is_builtin(&self, name: &str) -> bool {
+        self.kind(name) == Some(ExtensionKind::Builtin)
     }
 
     /// Construct a fresh instance of the named extension, if registered.
     pub fn construct(&self, name: &str) -> Option<Box<dyn crate::JackdawExtension>> {
-        self.constructors.get(name).map(|f| f())
+        self.entries.get(name).map(|e| (e.ctor)())
     }
 }
 
@@ -180,15 +229,17 @@ pub fn register_extension<F>(app: &mut App, name: &str, ctor: F)
 where
     F: Fn() -> Box<dyn crate::JackdawExtension> + Send + Sync + 'static,
 {
-    // Construct a throwaway instance just to register context types.
+    // Construct a throwaway instance to (a) register context types and
+    // (b) read the extension's declared `kind`. Doing both against the
+    // same instance avoids a second construction just to classify.
     let sample = ctor();
     sample.register_input_contexts(app);
+    let kind = sample.kind();
     drop(sample);
 
-    // Store the constructor in the catalog for runtime enable/disable.
     app.world_mut()
         .resource_mut::<ExtensionCatalog>()
-        .register(name, ctor);
+        .register(name, kind, ctor);
 }
 
 // ============================================================================
@@ -211,10 +262,7 @@ use jackdaw_commands::{CommandGroup, CommandHistory};
 pub fn dispatch_operator_by_id(world: &mut World, id: &str, creates_history_entry: bool) {
     // Refuse if another modal operator is active.
     if let Some(active_id) = world.resource::<ActiveModalOperator>().id {
-        warn!(
-            "Ignoring operator '{}' — modal operator '{}' is currently active",
-            id, active_id
-        );
+        warn!("Ignoring operator '{id}': modal operator '{active_id}' is currently active");
         return;
     }
 
@@ -261,11 +309,11 @@ pub fn dispatch_operator_by_id(world: &mut World, id: &str, creates_history_entr
             active.label = Some(op.label.to_string());
         }
         OperatorResult::Running | OperatorResult::Finished => {
-            // Non-modal `Running` collapses to `Finished` — one-shot behavior.
-            finalize_operator_session(world, &op.label, true);
+            // Non-modal `Running` collapses to `Finished` for one-shot behavior.
+            finalize_operator_session(world, op.label, true);
         }
         OperatorResult::Cancelled => {
-            finalize_operator_session(world, &op.label, false);
+            finalize_operator_session(world, op.label, false);
         }
     }
 }
@@ -382,7 +430,7 @@ pub fn disable_extension(world: &mut World, name: &str) -> bool {
 }
 
 // ============================================================================
-// Cleanup observers — added by ExtensionLoaderPlugin
+// Cleanup observers. Added by `ExtensionLoaderPlugin`.
 // ============================================================================
 
 /// Observer: keep `OperatorIndex` in sync on add.

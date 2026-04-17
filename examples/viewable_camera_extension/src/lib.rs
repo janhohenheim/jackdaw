@@ -12,16 +12,16 @@
 //!
 //! Undo / redo flow:
 //!
-//! 1. Press F6 → camera spawned at P0, undo stack: `[Place Viewable Camera]`
-//! 2. Select the camera in the hierarchy, drag it with the gizmo to P1 →
+//! 1. Press F6. Camera spawned at P0; undo stack: `[Place Viewable Camera]`.
+//! 2. Select the camera in the hierarchy, drag it with the gizmo to P1.
 //!    Jackdaw's existing `SetTransform` command is pushed.
-//! 3. Drag to P2 → another `SetTransform` is pushed.
-//! 4. Press F7 → you're now looking through the camera at P2. No history
-//!    entry created.
-//! 5. Press F7 again → back to the editor view.
-//! 6. Ctrl+Z twice → camera returns to P0 (the two moves undo).
-//! 7. Ctrl+Z → camera despawns (placement undoes). If preview was active,
-//!    the `Remove<ViewableCamera>` observer automatically exits preview so
+//! 3. Drag to P2. Another `SetTransform` is pushed.
+//! 4. Press F7. The viewport now looks through the camera at P2. No
+//!    history entry is created.
+//! 5. Press F7 again. Back to the editor view.
+//! 6. Ctrl+Z twice. Camera returns to P0 (the two moves undo).
+//! 7. Ctrl+Z. Camera despawns (placement undoes). If preview was active,
+//!    the `Remove<ViewableCamera>` observer exits preview automatically so
 //!    the editor view snaps back on.
 
 use bevy::camera::RenderTarget;
@@ -52,9 +52,9 @@ impl JackdawExtension for ViewableCameraExtension {
         ctx.register_operator::<PlaceViewableCamera>();
         ctx.register_operator::<ToggleCameraPreview>();
 
-        // Menu entries — contribute into the editor's Add menu. Menu
-        // entries dispatch through the same pipeline as keybinds, so
-        // clicking "Add > Viewable Camera" still produces one undo entry.
+        // Contribute to the editor's Add menu. Menu entries dispatch
+        // through the same pipeline as keybinds, so clicking
+        // "Add > Viewable Camera" still produces exactly one undo entry.
         ctx.register_menu_entry(MenuEntryDescriptor {
             menu: "Add".into(),
             label: "Viewable Camera".into(),
@@ -106,7 +106,7 @@ pub struct ViewableCameraContext;
 pub struct ViewableCamera;
 
 /// Editor-local state tracking the currently-previewed camera, if any.
-/// Not saved to the scene — reset on editor restart.
+/// Not saved to the scene; reset on editor restart.
 #[derive(Resource, Default)]
 struct CameraPreviewState {
     /// The `ViewableCamera` entity currently being previewed.
@@ -138,8 +138,8 @@ impl Operator for PlaceViewableCamera {
 
 fn place_viewable_camera(world: &mut World) -> OperatorResult {
     // Copy the editor camera's transform so the new camera starts where
-    // you're already looking — makes "look through" visually intuitive
-    // on the first toggle.
+    // the user is already looking. That makes "look through" visually
+    // intuitive on the first toggle.
     let spawn_transform = find_editor_camera(world)
         .and_then(|e| world.get::<Transform>(e).copied())
         .unwrap_or_default();
@@ -154,7 +154,7 @@ fn place_viewable_camera(world: &mut World) -> OperatorResult {
 }
 
 /// Toggle "look through the viewable camera" vs. the editor view. Not
-/// undoable — it's a view state, not a scene edit.
+/// undoable: preview is view state, not a scene edit.
 #[derive(Default, InputAction)]
 #[action_output(bool)]
 pub struct ToggleCameraPreview;
@@ -188,7 +188,7 @@ fn toggle_preview(world: &mut World) -> OperatorResult {
 }
 
 // ============================================================================
-// Preview swap — RenderTarget handoff between editor cam and viewable cam
+// Preview swap: RenderTarget handoff between editor cam and viewable cam
 // ============================================================================
 
 /// Walk the world looking for a camera that is currently acting as the
@@ -246,15 +246,15 @@ fn enter_preview(world: &mut World, target: Entity) -> Result<(), &'static str> 
     if let Some(mut c) = world.get_mut::<Camera>(target) {
         c.is_active = true;
     }
-    // `camera_system` (Bevy's camera projection updater) only recomputes
-    // `camera.computed.target_info` when the Projection is marked changed,
-    // the viewport size differs, or the underlying image/window changes.
-    // Replacing the `RenderTarget` component via `insert` does none of
-    // those — so without this touch the viewable camera keeps a stale
-    // `target_info` from its previous RenderTarget (1x1 for our
-    // `RenderTarget::None` default), renders into a 1-pixel region, and
-    // the viewport appears empty. Poking Projection forces a recompute
-    // against the freshly-inserted Image target.
+    // Bevy's `camera_system` only recomputes `camera.computed.target_info`
+    // when the Projection is marked changed, the viewport size differs,
+    // or the underlying image/window changes. Replacing `RenderTarget`
+    // via `insert` triggers none of those, so without this touch the
+    // viewable camera keeps a stale `target_info` from its previous
+    // RenderTarget (1x1 for the `RenderTarget::None` default), renders
+    // into a 1-pixel region, and the viewport appears empty. Marking
+    // Projection changed forces a recompute against the freshly-inserted
+    // Image target.
     if let Some(mut proj) = world.get_mut::<Projection>(target) {
         proj.set_changed();
     }
@@ -277,11 +277,11 @@ fn restore_editor_camera(world: &mut World) {
 
     if let Some(preview) = active {
         if let Ok(mut ec) = world.get_entity_mut(preview) {
-            // Replace the Image target with None rather than removing the
-            // component outright — Camera's required-components contract
-            // expects RenderTarget to exist, and leaving an Image target on
-            // an inactive camera can still trigger ambiguity warnings when
-            // the preview is re-entered.
+            // Replace the Image target with None rather than removing
+            // the component outright. `Camera`'s required-components
+            // contract expects `RenderTarget` to exist, and leaving an
+            // Image target on an inactive camera can still trigger
+            // ambiguity warnings when preview is re-entered.
             ec.insert(RenderTarget::None {
                 size: UVec2::splat(1),
             });
@@ -311,10 +311,10 @@ fn restore_editor_camera(world: &mut World) {
 /// Undoable placement of a viewable camera.
 ///
 /// `execute` spawns a fresh camera entity with the stored transform and
-/// caches the new id. `undo` despawns whatever was last spawned. A redo
-/// (re-executing after undo) spawns again with a new id — downstream
-/// references to the old id are invalid, but that's fine for the scene
-/// tree and inspector which both resolve by id on each frame.
+/// caches the new id. `undo` despawns whatever was last spawned. Redoing
+/// (re-executing after undo) spawns again with a new id. Downstream
+/// references to the old id become invalid, which is fine for the scene
+/// tree and inspector: both resolve entities by id on every frame.
 struct PlaceViewableCameraCommand {
     spawned: Option<Entity>,
     transform: Transform,
@@ -335,12 +335,13 @@ impl EditorCommand for PlaceViewableCameraCommand {
                     order: -1,
                     ..default()
                 },
-                // Explicit None target. Without this, `Camera`'s required
-                // components default to `RenderTarget::Window(Primary)`,
-                // which — if is_active ever flips true by accident — would
-                // render the scene on top of the editor UI. None keeps the
-                // camera inert until `enter_preview` swaps in the viewport
-                // image target.
+                // Explicit `None` target. Without this, `Camera`'s
+                // required components default to
+                // `RenderTarget::Window(Primary)`. If `is_active` ever
+                // flips true by accident, that would render the scene on
+                // top of the editor UI. `None` keeps the camera inert
+                // until `enter_preview` swaps in the viewport image
+                // target.
                 RenderTarget::None {
                     size: UVec2::splat(1),
                 },
@@ -352,10 +353,10 @@ impl EditorCommand for PlaceViewableCameraCommand {
     }
 
     fn undo(&mut self, world: &mut World) {
-        if let Some(entity) = self.spawned.take() {
-            if let Ok(ec) = world.get_entity_mut(entity) {
-                ec.despawn();
-            }
+        if let Some(entity) = self.spawned.take()
+            && let Ok(ec) = world.get_entity_mut(entity)
+        {
+            ec.despawn();
         }
     }
 

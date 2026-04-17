@@ -1,16 +1,17 @@
 //! Unified "Add Entity" picker.
 //!
 //! A single list of entity templates fed from two sources:
-//!   1. Built-in shapes, lights, cameras, regions, prefabs — hardcoded in
-//!      [`collect_add_menu_items`].
-//!   2. Extension-contributed `RegisteredMenuEntry` rows with `menu == "Add"`.
+//!   1. Built-in shapes, lights, cameras, regions, and prefabs, declared
+//!      in [`collect_add_menu_items`].
+//!   2. Extension-contributed `RegisteredMenuEntry` rows with
+//!      `menu == "Add"`.
 //!
 //! The same list backs:
 //!   * The toolbar's **Add** menu (via [`collect_add_menu_items`]).
 //!   * The scene-tree **Add Entity** button (opens this picker).
 //!
-//! This is what lets an extension make a single `register_menu_entry` call
-//! and have its entry appear in every "add" surface.
+//! One `register_menu_entry` call from an extension surfaces its entry
+//! in every "add" surface.
 
 use bevy::feathers::theme::ThemedText;
 use bevy::prelude::*;
@@ -101,8 +102,7 @@ pub fn collect_add_menu_items(world: &mut World) -> Vec<AddMenuItem> {
 
     // Extension-contributed items. Grouped under the owning Extension's
     // name so extension entries cluster by author in the picker.
-    let mut q = world
-        .query::<(&jackdaw_api::RegisteredMenuEntry, Option<&ChildOf>)>();
+    let mut q = world.query::<(&jackdaw_api::RegisteredMenuEntry, Option<&ChildOf>)>();
     let mut ext_entries: Vec<(Entity, String, String)> = Vec::new();
     for (entry, parent) in q.iter(world) {
         if entry.menu != "Add" {
@@ -330,9 +330,9 @@ pub fn open_add_entity_picker(world: &mut World) {
                         move |mut click: On<Pointer<Click>>, mut commands: Commands| {
                             click.propagate(false);
                             // Reuse the menu-bar dispatch path so every
-                            // "add" action lands in the same place as the
-                            // toolbar's Add menu — no parallel code paths
-                            // to keep in sync.
+                            // "add" action lands in the same place as
+                            // the toolbar Add menu. Avoids keeping two
+                            // parallel code paths in sync.
                             commands.trigger(jackdaw_widgets::menu_bar::MenuAction {
                                 action: action.clone(),
                             });
