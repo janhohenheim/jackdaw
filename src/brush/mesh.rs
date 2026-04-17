@@ -63,22 +63,15 @@ pub(super) fn setup_default_materials(
     let uv_tile = Affine2::from_scale(Vec2::splat(2.0));
 
     palette.default_material = materials.add(StandardMaterial {
-        base_color: Color::WHITE.with_alpha(default_style::DEFAULT_MATERIAL_ALPHA),
+        base_color: default_style::DEFAULT_MATERIAL_COLOR,
         base_color_texture: Some(grid_handle.clone()),
         alpha_mode: AlphaMode::Blend,
         uv_transform: uv_tile,
         ..default()
     });
     palette.default_selected_material = materials.add(StandardMaterial {
-        base_color: Color::WHITE.with_alpha(default_style::DEFAULT_MATERIAL_SELECTED_ALPHA),
+        base_color: default_style::DEFAULT_MATERIAL_SELECTED_COLOR,
         base_color_texture: Some(grid_handle.clone()),
-        alpha_mode: AlphaMode::Blend,
-        uv_transform: uv_tile,
-        ..default()
-    });
-    palette.default_preview_material = materials.add(StandardMaterial {
-        base_color: Color::WHITE.with_alpha(default_style::DEFAULT_MATERIAL_PREVIEW_ALPHA),
-        base_color_texture: Some(grid_handle),
         alpha_mode: AlphaMode::Blend,
         uv_transform: uv_tile,
         ..default()
@@ -175,9 +168,7 @@ pub fn regenerate_brush_meshes(
             // Use the face's material handle if set, otherwise fall back to grid default
             let material = if face_data.material != Handle::default() {
                 face_data.material.clone()
-            } else if preview.is_some() {
-                palette.default_preview_material.clone()
-            } else if effectively_selected {
+            } else if effectively_selected || preview.is_some() {
                 palette.default_selected_material.clone()
             } else {
                 palette.default_material.clone()
@@ -261,9 +252,7 @@ pub(super) fn ensure_brush_face_materials(
                 .get(entity)
                 .is_ok_and(|child_of| selected_query.contains(child_of.0));
         let effectively_selected = is_selected || parent_selected;
-        let target = if has_preview {
-            &palette.default_preview_material
-        } else if effectively_selected {
+        let target = if effectively_selected || has_preview {
             &palette.default_selected_material
         } else {
             &palette.default_material

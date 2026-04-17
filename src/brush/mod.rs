@@ -91,12 +91,10 @@ pub struct BrushFaceHover {
 pub struct BrushMaterialPalette {
     pub materials: Vec<Handle<StandardMaterial>>,
     pub preview_materials: Vec<Handle<StandardMaterial>>,
-    /// Grid-textured default material at 50% alpha (unselected).
+    /// Grid-textured default material at low alpha.
     pub default_material: Handle<StandardMaterial>,
-    /// Grid-textured default material at 90% alpha (selected).
+    /// Grid-textured default material at high alpha.
     pub default_selected_material: Handle<StandardMaterial>,
-    /// Grid-textured default material at 75% alpha (drag preview).
-    pub default_preview_material: Handle<StandardMaterial>,
 }
 
 /// Remembers the last material applied via the texture/material browser, so new brushes inherit it.

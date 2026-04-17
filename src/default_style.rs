@@ -12,7 +12,7 @@ pub const AXIS_Y_BRIGHT: Color = Color::srgba(0.545, 0.863, 0.0, 1.0);
 pub const AXIS_Z_BRIGHT: Color = Color::srgba(0.157, 0.565, 1.0, 1.0);
 
 // ── Brush wireframe + outline ──
-pub const WIREFRAME_OUTLINE_SELECTED: Color = Color::srgb(1.0, 0.4196, 0.10196);
+pub const WIREFRAME_OUTLINE_SELECTED: Color = Color::srgba(1.0, 0.4196, 0.10196, 1.0);
 pub const WIREFRAME_OUTLINE_SELECTED_CLIP: Color = Color::srgba(0.133, 0.827, 0.933, 0.25);
 pub const WIREFRAME_OUTLINE_GROUP_EDIT: Color = Color::srgba(0.133, 0.827, 0.933, 0.35);
 pub const WIREFRAME_OUTLINE_UNSELECTED: Color = Color::srgba(1.0, 1.0, 1.0, 1.0);
@@ -104,9 +104,8 @@ pub const TERRAIN_SCULPT_GIZMO: Color = Color::srgb(1.0, 0.8, 0.2);
 pub const MATERIAL_PREVIEW_BG: Color = Color::srgba(0.15, 0.15, 0.15, 1.0);
 
 // ── Brush default material variants ──
-pub const DEFAULT_MATERIAL_ALPHA: f32 = 0.50;
-pub const DEFAULT_MATERIAL_SELECTED_ALPHA: f32 = 0.90;
-pub const DEFAULT_MATERIAL_PREVIEW_ALPHA: f32 = 0.75;
+pub const DEFAULT_MATERIAL_COLOR: Color = Color::srgba(1.0, 0.8235, 0.0078, 0.5);
+pub const DEFAULT_MATERIAL_SELECTED_COLOR: Color = Color::srgba(1.0, 0.8235, 0.0078, 0.75);
 
 // ── Brush material palette ──
 pub const BRUSH_PALETTE: [Color; 8] = [

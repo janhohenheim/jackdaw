@@ -1,5 +1,6 @@
 use bevy::{
     camera::RenderTarget,
+    core_pipeline::oit::OrderIndependentTransparencySettings,
     image::ImageSampler,
     prelude::*,
     render::render_resource::{Extent3d, TextureDimension, TextureFormat, TextureUsages},
@@ -106,12 +107,15 @@ pub(crate) fn setup_viewport(
             MainViewportCamera,
             crate::EditorEntity,
             Camera3d::default(),
+            // Needed for translucent materials to work correctly
+            OrderIndependentTransparencySettings::default(),
             Camera {
                 order: -1,
                 ..default()
             },
             RenderTarget::Image(image_handle.into()),
             Transform::from_xyz(0.0, 4.0, 8.0).looking_at(Vec3::ZERO, Vec3::Y),
+            Msaa::Off,
             JackdawCameraSettings::default(),
         ))
         .id();
