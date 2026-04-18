@@ -99,6 +99,7 @@ pub mod prelude {
 /// Trait implemented by every extension. Declares the extension's name
 /// and registration logic; the framework handles everything else.
 pub trait JackdawExtension: Send + Sync + 'static + DynJackdawExtension {
+    /// A human-readable name for this extension. This will be displayed in UIs.
     fn name() -> String
     where
         Self: Sized;
