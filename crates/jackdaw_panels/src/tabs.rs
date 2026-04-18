@@ -273,10 +273,14 @@ fn handle_dock_tab_clicks(
 
 fn show_close_on_hover(
     tabs: Query<(Entity, &Interaction, &Children), (Changed<Interaction>, With<DockTab>)>,
+    drag_state: Option<Res<crate::drag::DockDragState>>,
     mut close_buttons: Query<&mut Node, With<crate::area::DockTabCloseButton>>,
 ) {
+    let hide = drag_state.is_none_or(|s| matches!(*s, crate::drag::DockDragState::Dragging { .. }));
+
     for (_tab_entity, interaction, children) in tabs.iter() {
-        let show = *interaction == Interaction::Hovered || *interaction == Interaction::Pressed;
+        let show =
+            (*interaction == Interaction::Hovered || *interaction == Interaction::Pressed) && !hide;
         for child in children.iter() {
             if let Ok(mut node) = close_buttons.get_mut(child) {
                 node.display = if show { Display::Flex } else { Display::None };
