@@ -90,7 +90,6 @@ impl JackdawExtension for SampleExtension {
     fn register(&self, ctx: &mut ExtensionContext) {
         ctx.register_window(WindowDescriptor {
             id: Self::OP.into(),
-            name: "Hello Extension".into(),
             build: Arc::new(build_panel),
             default_area: Some("left".into()),
             ..default()
