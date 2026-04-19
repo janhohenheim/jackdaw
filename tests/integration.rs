@@ -1,34 +1,10 @@
-use bevy::{
-    prelude::*,
-    render::{
-        RenderPlugin,
-        settings::{RenderCreation, WgpuSettings},
-    },
-    winit::WinitPlugin,
-};
-use jackdaw::prelude::*;
+use bevy::prelude::*;
 use jackdaw_api::prelude::*;
-
-fn headless_app() -> App {
-    let mut app = App::new();
-    app.add_plugins(
-        DefaultPlugins
-            .set(RenderPlugin {
-                render_creation: RenderCreation::Automatic(WgpuSettings {
-                    backends: None,
-                    ..default()
-                }),
-                ..default()
-            })
-            .disable::<WinitPlugin>(),
-    )
-    .add_plugins(EditorPlugin);
-    app
-}
+mod util;
 
 #[test]
 fn run_integration_tests() {
-    let mut app = headless_app();
+    let mut app = util::headless_app();
     app.register_extension::<IntegrationTestsExtension>();
     app.finish();
     app.update();

@@ -1,36 +1,12 @@
 use std::sync::Arc;
 
-use bevy::{
-    prelude::*,
-    render::{
-        RenderPlugin,
-        settings::{RenderCreation, WgpuSettings},
-    },
-    winit::WinitPlugin,
-};
-use jackdaw::prelude::*;
+use bevy::prelude::*;
 use jackdaw_api::prelude::*;
-
-fn headless_app() -> App {
-    let mut app = App::new();
-    app.add_plugins(
-        DefaultPlugins
-            .set(RenderPlugin {
-                render_creation: RenderCreation::Automatic(WgpuSettings {
-                    backends: None,
-                    ..default()
-                }),
-                ..default()
-            })
-            .disable::<WinitPlugin>(),
-    )
-    .add_plugins(EditorPlugin);
-    app
-}
+mod util;
 
 #[test]
 fn smoke_test_headless_update() {
-    let mut app = headless_app();
+    let mut app = util::headless_app();
     app.finish();
 
     for _ in 0..10 {
@@ -40,7 +16,7 @@ fn smoke_test_headless_update() {
 
 #[test]
 fn can_run_extension() {
-    let mut app = headless_app();
+    let mut app = util::headless_app();
     app.register_extension::<SampleExtension>();
     app.finish();
     // first update sets the extension up
@@ -57,7 +33,7 @@ fn can_run_extension() {
 
 #[test]
 fn can_call_operator() {
-    let mut app = headless_app();
+    let mut app = util::headless_app();
     app.register_extension::<SampleExtension>();
     app.finish();
     app.update();
@@ -81,7 +57,7 @@ fn can_call_operator() {
 
 #[test]
 fn can_pass_params_to_operator() {
-    let mut app = headless_app();
+    let mut app = util::headless_app();
     app.register_extension::<SampleExtension>();
     app.finish();
     app.update();
