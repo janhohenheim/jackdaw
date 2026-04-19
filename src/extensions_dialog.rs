@@ -2,7 +2,7 @@
 //! and persists the current state to `extensions.json`.
 
 use bevy::prelude::*;
-use jackdaw_api::{Extension, ExtensionCatalog, ExtensionKind};
+use jackdaw_api::prelude::{Extension, ExtensionCatalog, ExtensionKind};
 use jackdaw_feathers::{
     checkbox::{CheckboxCommitEvent, CheckboxProps, checkbox},
     dialog::{CloseDialogEvent, DialogChildrenSlot, OpenDialogEvent},
@@ -10,7 +10,7 @@ use jackdaw_feathers::{
     tokens,
 };
 
-use crate::extensions_config;
+use crate::{extension_lifecycle, extensions_config};
 
 pub struct ExtensionsDialogPlugin;
 
@@ -192,9 +192,9 @@ fn on_extension_checkbox_commit(
 
     commands.queue(move |world: &mut World| {
         if checked {
-            jackdaw_api::enable_extension(world, &name);
+            extension_lifecycle::enable_extension(world, &name);
         } else {
-            jackdaw_api::disable_extension(world, &name);
+            extension_lifecycle::disable_extension(world, &name);
         }
         extensions_config::persist_current_enabled(world);
     });

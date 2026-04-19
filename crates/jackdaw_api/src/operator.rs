@@ -1,7 +1,20 @@
+use std::borrow::Cow;
+
 use bevy::ecs::system::SystemId;
 use bevy::prelude::*;
 use bevy_enhanced_input::prelude::InputAction;
-use jackdaw_jsn::CustomProperties;
+use jackdaw_commands::{CommandHistory, EditorCommand};
+use jackdaw_jsn::{CustomProperties, PropertyValue};
+
+use crate::{
+    ActiveSnapshotter, SceneSnapshot,
+    lifecycle::{ActiveModalOperator, OperatorEntity, OperatorIndex},
+};
+
+pub(super) fn plugin(app: &mut App) {
+    app.init_resource::<OperatorSession>()
+        .add_systems(Update, tick_modal_operator);
+}
 
 /// A Blender-style operator.
 ///
@@ -91,7 +104,7 @@ pub trait Operator: InputAction + 'static {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[must_use]
+#[must_use = "Operators may not be `Finished`, which should usually be handled"]
 pub enum OperatorResult {
     /// Operator finished successfully. The dispatcher captures the
     /// resulting scene diff as a single undo entry.
@@ -103,4 +116,358 @@ pub enum OperatorResult {
     /// until it returns `Finished` or `Cancelled`. Non-modal
     /// operators that return `Running` collapse to `Finished`.
     Running,
+}
+
+impl OperatorResult {
+    /// Returns `true` if the operator finished successfully.
+    pub fn is_finished(&self) -> bool {
+        matches!(self, OperatorResult::Finished)
+    }
+}
+
+/// Extension trait on [`World`] for calling operators by id.
+///
+/// Usage:
+///
+/// ```ignore
+/// use jackdaw_api::prelude::*;
+///
+/// fn my_button(mut commands: Commands) {
+///     commands.queue(|world: &mut World| {
+///         let _ = world.call_operator("avian.add_rigid_body");
+///     });
+/// }
+/// ```
+pub trait OperatorWorldExt {
+    /// Call an operator by id. The availability check runs before the
+    /// invoke system, so validation logic lives only on the operator
+    /// itself. Equivalent to
+    /// `call_operator_with(id, &CallOperatorSettings::default())`.
+    fn call_operator(
+        &mut self,
+        id: impl Into<Cow<'static, str>>,
+        params: impl Into<CustomProperties>,
+    ) -> Result<OperatorResult, CallOperatorError>;
+
+    #[must_use]
+    fn operator<'a>(&'a mut self, id: impl Into<Cow<'static, str>>) -> OperatorCallBuilder<'a>;
+
+    /// Call an operator with explicit settings.
+    fn call_operator_with(
+        &mut self,
+        id: impl Into<Cow<'static, str>>,
+        params: impl Into<CustomProperties>,
+        settings: CallOperatorSettings,
+    ) -> Result<OperatorResult, CallOperatorError>;
+
+    /// Whether the operator would run in the current editor state.
+    /// `Ok(true)` if it's ready, `Ok(false)` if not, `Err` for unknown
+    /// ids.
+    fn is_operator_available(
+        &mut self,
+        id: impl Into<Cow<'static, str>>,
+    ) -> Result<bool, CallOperatorError>;
+}
+
+/// Knobs passed to [`OperatorWorldExt::call_operator_with`].
+#[derive(Clone, Debug, Copy)]
+pub struct CallOperatorSettings {
+    /// Whether a successful call should push an undo entry. Default
+    /// `true`. Set `false` for view-local effects (camera moves,
+    /// preview toggles) that should not be undoable.
+    pub creates_history_entry: bool,
+    /// The entity to pass to the operator. Default is `None`.
+    pub entity: Option<Entity>,
+    pub execution_context: ExecutionContext,
+}
+
+impl Default for CallOperatorSettings {
+    fn default() -> Self {
+        Self {
+            creates_history_entry: true,
+            entity: None,
+            execution_context: default(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub enum ExecutionContext {
+    #[default]
+    Execute,
+    Invoke,
+}
+
+#[derive(Clone, Debug)]
+pub enum CallOperatorError {
+    UnknownId(Cow<'static, str>),
+    ModalAlreadyActive(&'static str),
+    NotAvailable,
+    ExecuteFailed,
+}
+
+impl std::fmt::Display for CallOperatorError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnknownId(id) => write!(f, "unknown operator: {id}"),
+            Self::ModalAlreadyActive(id) => {
+                write!(f, "modal operator '{id}' is currently active")
+            }
+            Self::NotAvailable => f.write_str("operator's availability check failed"),
+            Self::ExecuteFailed => f.write_str("operator's execute system failed"),
+        }
+    }
+}
+
+impl std::error::Error for CallOperatorError {}
+
+pub struct OperatorCallBuilder<'a> {
+    pub world: &'a mut World,
+    pub id: Cow<'static, str>,
+    pub params: CustomProperties,
+    pub settings: CallOperatorSettings,
+}
+
+impl<'a> OperatorCallBuilder<'a> {
+    #[must_use]
+    pub fn new(world: &'a mut World, id: impl Into<Cow<'static, str>>) -> Self {
+        Self {
+            world,
+            id: id.into(),
+            params: CustomProperties::default(),
+            settings: CallOperatorSettings::default(),
+        }
+    }
+
+    #[must_use]
+    pub fn param(
+        mut self,
+        key: impl Into<Cow<'static, str>>,
+        value: impl Into<PropertyValue>,
+    ) -> Self {
+        self.params.insert(key.into().to_string(), value.into());
+        self
+    }
+
+    #[must_use]
+    pub fn settings(mut self, settings: CallOperatorSettings) -> Self {
+        self.settings = settings;
+        self
+    }
+
+    pub fn call(self) -> Result<OperatorResult, CallOperatorError> {
+        dispatch_operator(self.world, self.id, self.params, self.settings)
+    }
+}
+
+impl OperatorWorldExt for World {
+    fn operator<'a>(&'a mut self, id: impl Into<Cow<'static, str>>) -> OperatorCallBuilder<'a> {
+        OperatorCallBuilder {
+            world: self,
+            id: id.into(),
+            params: CustomProperties::default(),
+            settings: CallOperatorSettings::default(),
+        }
+    }
+
+    fn call_operator(
+        &mut self,
+        id: impl Into<Cow<'static, str>>,
+        params: impl Into<CustomProperties>,
+    ) -> Result<OperatorResult, CallOperatorError> {
+        self.call_operator_with(id, params.into(), CallOperatorSettings::default())
+    }
+
+    fn call_operator_with(
+        &mut self,
+        id: impl Into<Cow<'static, str>>,
+        params: impl Into<CustomProperties>,
+        settings: CallOperatorSettings,
+    ) -> Result<OperatorResult, CallOperatorError> {
+        let id = id.into();
+        dispatch_operator(self, id, params, settings)
+    }
+
+    fn is_operator_available(
+        &mut self,
+        id: impl Into<Cow<'static, str>>,
+    ) -> Result<bool, CallOperatorError> {
+        let id = id.into();
+        let Some(op_entity) = self
+            .resource::<OperatorIndex>()
+            .by_id
+            .get(id.as_ref())
+            .copied()
+        else {
+            return Err(CallOperatorError::UnknownId(id));
+        };
+        let Some(op) = self.get::<OperatorEntity>(op_entity).cloned() else {
+            return Err(CallOperatorError::UnknownId(id));
+        };
+        let Some(check) = op.availability_check else {
+            return Ok(true);
+        };
+        self.run_system(check)
+            .map_err(|_| CallOperatorError::NotAvailable)
+    }
+}
+
+fn dispatch_operator(
+    world: &mut World,
+    id: impl Into<Cow<'static, str>>,
+    params: impl Into<CustomProperties>,
+    settings: CallOperatorSettings,
+) -> Result<OperatorResult, CallOperatorError> {
+    let id = id.into();
+    let params = params.into();
+
+    if let Some(active_id) = world.resource::<ActiveModalOperator>().id {
+        return Err(CallOperatorError::ModalAlreadyActive(active_id));
+    }
+
+    let Some(op_entity) = world
+        .resource::<OperatorIndex>()
+        .by_id
+        .get(id.as_ref())
+        .copied()
+    else {
+        return Err(CallOperatorError::UnknownId(id));
+    };
+    let Some(op) = world.get::<OperatorEntity>(op_entity).cloned() else {
+        return Err(CallOperatorError::UnknownId(id));
+    };
+
+    if let Some(check) = op.availability_check {
+        let available = world
+            .run_system(check)
+            .map_err(|_| CallOperatorError::NotAvailable)?;
+        if !available {
+            return Err(CallOperatorError::NotAvailable);
+        }
+    }
+
+    // Only the outermost operator in a nesting chain captures the
+    // snapshot. Inner `call_operator` calls mutate inside the outer's
+    // span and their changes roll into the outer's diff.
+    let is_outermost = world.resource::<OperatorSession>().depth == 0;
+    let before = (is_outermost && settings.creates_history_entry)
+        .then(|| world.resource::<ActiveSnapshotter>().0.capture(world));
+
+    world.resource_mut::<OperatorSession>().depth += 1;
+    let system = match settings.execution_context {
+        ExecutionContext::Execute => op.execute,
+        ExecutionContext::Invoke => op.invoke,
+    };
+    let result = world.run_system_with(system, params);
+    world.resource_mut::<OperatorSession>().depth -= 1;
+
+    let result = result.map_err(|_| CallOperatorError::ExecuteFailed)?;
+
+    match result {
+        OperatorResult::Running if op.modal => {
+            let mut active = world.resource_mut::<ActiveModalOperator>();
+            active.id = Some(op.id);
+            active.operator_entity = Some(op_entity);
+            active.invoke_system = Some(op.invoke);
+            active.label = Some(op.label.to_string());
+            active.before_snapshot = before;
+        }
+        OperatorResult::Running | OperatorResult::Finished => {
+            finalize(world, op.label, before);
+        }
+        OperatorResult::Cancelled => {
+            // Drop the snapshot without pushing history.
+            drop(before);
+        }
+    }
+
+    Ok(result)
+}
+
+/// Counts how deeply operators are nested. The outermost operator in
+/// a call chain takes the snapshot; inner operators' mutations roll
+/// into that outer diff.
+#[derive(Resource, Default)]
+pub struct OperatorSession {
+    pub depth: u32,
+}
+
+impl OperatorSession {
+    pub fn is_outermost(&self) -> bool {
+        self.depth == 0
+    }
+}
+
+/// Capture the current state, diff against `before`, and push a
+/// `SnapshotDiff` onto [`CommandHistory`] if the scene changed.
+fn finalize(world: &mut World, label: &str, before: Option<Box<dyn SceneSnapshot>>) {
+    let Some(before) = before else { return };
+    let after = world.resource::<ActiveSnapshotter>().0.capture(world);
+    if before.equals(&*after) {
+        return;
+    }
+    world
+        .resource_mut::<CommandHistory>()
+        .push_executed(Box::new(SnapshotDiff {
+            before,
+            after,
+            label: label.to_string(),
+        }));
+}
+
+/// One undo entry. Swaps the active scene snapshot on execute / undo.
+struct SnapshotDiff {
+    before: Box<dyn SceneSnapshot>,
+    after: Box<dyn SceneSnapshot>,
+    label: String,
+}
+
+impl EditorCommand for SnapshotDiff {
+    fn execute(&mut self, world: &mut World) {
+        self.after.apply(world);
+    }
+    fn undo(&mut self, world: &mut World) {
+        self.before.apply(world);
+    }
+    fn description(&self) -> &str {
+        &self.label
+    }
+}
+/// Tick system added to Update by `ExtensionLoaderPlugin`. Re-runs the
+/// active modal operator's invoke system each frame; exits modal on
+/// `Finished` (committing) or `Cancelled` (discarding).
+pub fn tick_modal_operator(world: &mut World) {
+    let Some(invoke) = world.resource::<ActiveModalOperator>().invoke_system else {
+        return;
+    };
+    let result = match world.run_system_with(invoke, default()) {
+        Ok(r) => r,
+        Err(err) => {
+            error!("Modal operator's invoke system failed: {err:?}; cancelling");
+            finalize_modal(world, false);
+            return;
+        }
+    };
+    match result {
+        OperatorResult::Running => {}
+        OperatorResult::Finished => finalize_modal(world, true),
+        OperatorResult::Cancelled => finalize_modal(world, false),
+    }
+}
+
+/// Exit modal mode. Commits the before-snapshot diff as a history entry
+/// if `commit`, otherwise discards it.
+fn finalize_modal(world: &mut World, commit: bool) {
+    let (label, before) = {
+        let mut active = world.resource_mut::<ActiveModalOperator>();
+        let label = active.label.take().unwrap_or_default();
+        let before = active.before_snapshot.take();
+        active.id = None;
+        active.operator_entity = None;
+        active.invoke_system = None;
+        (label, before)
+    };
+    if commit {
+        finalize(world, &label, before);
+    }
 }

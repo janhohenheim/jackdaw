@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use bevy::{input_focus::InputFocus, prelude::*, ui::ui_transform::UiGlobalTransform};
 use bevy_monitors::prelude::{Mutation, NotifyChanged};
-use jackdaw_api::CallOperatorSettings;
+use jackdaw_api::prelude::*;
 use jackdaw_feathers::{
     context_menu::spawn_context_menu,
     icons::IconFont,
@@ -783,7 +783,7 @@ fn handle_hierarchy_right_click(
     tree_row_contents: Query<(Entity, &ChildOf), With<TreeRowContent>>,
     tree_nodes: Query<&TreeNode>,
     computed_nodes: Query<(&ComputedNode, &UiGlobalTransform), With<TreeRowContent>>,
-    extension_add_entries: Query<&jackdaw_api::RegisteredMenuEntry>,
+    extension_add_entries: Query<&jackdaw_api::prelude::RegisteredMenuEntry>,
 ) {
     if !mouse.just_pressed(MouseButton::Right) {
         return;
@@ -1015,12 +1015,11 @@ fn on_context_menu_action(
             // invoked them.
             let operator_id = action.strip_prefix("op:").unwrap().to_string();
             commands.queue(move |world: &mut World| {
-                use jackdaw_api::OperatorWorldExt;
                 let _ = world.call_operator_with(
                     operator_id,
                     CustomProperties::default(),
                     CallOperatorSettings {
-                        execution_context: jackdaw_api::lifecycle::ExecutionContext::Invoke,
+                        execution_context: jackdaw_api::prelude::ExecutionContext::Invoke,
                         ..default()
                     },
                 );

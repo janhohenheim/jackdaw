@@ -5,8 +5,12 @@
 use std::any::Any;
 
 use bevy::prelude::*;
-use jackdaw_api::snapshot::{SceneSnapshot, SceneSnapshotter};
+use jackdaw_api::prelude::*;
 use jackdaw_jsn::SceneJsnAst;
+
+pub(super) fn plugin(app: &mut App) {
+    app.insert_resource(ActiveSnapshotter(Box::new(JsnAstSnapshotter)));
+}
 
 pub struct JsnAstSnapshotter;
 

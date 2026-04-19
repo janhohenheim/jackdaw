@@ -20,7 +20,7 @@ pub mod keybind_settings;
 pub mod keybinds;
 pub use inspector::{EditorMeta, ReflectEditorMeta};
 pub mod core_extension;
-pub mod extension_loader;
+mod extension_lifecycle;
 pub mod extensions_config;
 pub mod extensions_dialog;
 pub mod layout;
@@ -69,6 +69,7 @@ use crate::builtin_extensions::*;
 /// Everything needed to start using Jackdaw.
 pub mod prelude {
     pub use crate::EditorPlugin;
+    pub use jackdaw_api::prelude::*;
 }
 
 /// System set for all editor interaction systems (input handling, viewport clicks,
@@ -151,6 +152,7 @@ impl Plugin for EditorPlugin {
                 entity_templates::EntityTemplatesPlugin,
                 brush::BrushPlugin,
                 material_preview::MaterialPreviewPlugin,
+                undo_snapshot::plugin,
             ))
             .add_plugins((
                 material_browser::MaterialBrowserPlugin,
@@ -171,7 +173,7 @@ impl Plugin for EditorPlugin {
             .add_plugins(jackdaw_node_graph::NodeGraphPlugin)
             .add_plugins(jackdaw_animation::AnimationPlugin)
             .add_plugins(jackdaw_panels::DockPlugin)
-            .add_plugins(extension_loader::ExtensionLoaderPlugin)
+            .add_plugins(jackdaw_api::ExtensionLoaderPlugin)
             .add_plugins(extensions_dialog::ExtensionsDialogPlugin)
             .add_systems(Startup, (register_workspaces, sync_icon_font))
             .configure_sets(
@@ -255,10 +257,7 @@ impl Plugin for EditorPlugin {
             .register_extension::<InspectorExtension>()
             .register_extension::<ViewableCameraExtension>();
 
-        // Must run after every plugin's `finish()`: BEI initializes
-        // `ContextInstances<PreUpdate>` there, and spawning a context
-        // entity before that resource exists panics.
-        app.add_systems(Startup, apply_enabled_extensions_startup);
+        app.add_plugins(extension_lifecycle::plugin);
     }
 }
 
@@ -275,40 +274,29 @@ fn rebuild_menu_if_dirty(world: &mut World) {
     populate_menu(world);
 }
 
-fn flag_menu_dirty_on_window_add(
-    _: On<Add, jackdaw_api::RegisteredWindow>,
-    mut dirty: ResMut<MenuBarDirty>,
-) {
+fn flag_menu_dirty_on_window_add(_: On<Add, RegisteredWindow>, mut dirty: ResMut<MenuBarDirty>) {
     dirty.0 = true;
 }
 
 fn flag_menu_dirty_on_window_remove(
-    _: On<Remove, jackdaw_api::RegisteredWindow>,
+    _: On<Remove, RegisteredWindow>,
     mut dirty: ResMut<MenuBarDirty>,
 ) {
     dirty.0 = true;
 }
 
 fn flag_menu_dirty_on_menu_entry_add(
-    _: On<Add, jackdaw_api::RegisteredMenuEntry>,
+    _: On<Add, RegisteredMenuEntry>,
     mut dirty: ResMut<MenuBarDirty>,
 ) {
     dirty.0 = true;
 }
 
 fn flag_menu_dirty_on_menu_entry_remove(
-    _: On<Remove, jackdaw_api::RegisteredMenuEntry>,
+    _: On<Remove, RegisteredMenuEntry>,
     mut dirty: ResMut<MenuBarDirty>,
 ) {
     dirty.0 = true;
-}
-
-/// Enable every catalog entry `resolve_enabled_list` reports as on.
-fn apply_enabled_extensions_startup(world: &mut World) {
-    let to_enable = extensions_config::resolve_enabled_list(world);
-    for name in &to_enable {
-        jackdaw_api::enable_extension(world, name);
-    }
 }
 
 /// Auto-hide unnamed child entities (likely Bevy internals like shadow cascades).
@@ -1683,7 +1671,7 @@ fn populate_menu(world: &mut World) {
     let mut ext_menu_entries: std::collections::BTreeMap<String, Vec<(String, String)>> =
         std::collections::BTreeMap::new();
     {
-        let mut q = world.query::<&jackdaw_api::RegisteredMenuEntry>();
+        let mut q = world.query::<&RegisteredMenuEntry>();
         for entry in q.iter(world) {
             if entry.menu == "Add" {
                 continue;
@@ -2105,7 +2093,6 @@ fn handle_menu_action(event: On<MenuAction>, mut commands: Commands) {
             // keybind-triggered operators.
             let operator_id = action.strip_prefix("op:").unwrap().to_string();
             commands.queue(move |world: &mut World| {
-                use jackdaw_api::OperatorWorldExt;
                 let _ = world.call_operator_with(
                     operator_id,
                     CustomProperties::default(),

@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 use bevy::prelude::*;
-use jackdaw_api::{ExtensionCatalog, ExtensionKind};
+use jackdaw_api::prelude::{ExtensionCatalog, ExtensionKind};
 use serde::{Deserialize, Serialize};
 
 /// On-disk shape.
@@ -78,7 +78,7 @@ pub fn resolve_enabled_list(world: &World) -> Vec<String> {
 /// Compute the current enabled list from the loaded `Extension` entities
 /// and write it to disk.
 pub fn persist_current_enabled(world: &mut World) {
-    let mut query = world.query::<&jackdaw_api::Extension>();
+    let mut query = world.query::<&jackdaw_api::prelude::Extension>();
     let enabled: Vec<String> = query.iter(world).map(|e| e.name.clone()).collect();
     write_enabled_list(&enabled);
 }

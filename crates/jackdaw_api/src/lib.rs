@@ -55,47 +55,52 @@
 //! }
 //! ```
 
-pub mod lifecycle;
+mod lifecycle;
 mod operator;
 mod registries;
-pub mod snapshot;
+mod snapshot;
 
 use std::sync::Arc;
 
 use bevy::ecs::world::EntityWorldMut;
 use bevy::prelude::*;
+use bevy_enhanced_input::EnhancedInputPlugin;
 use jackdaw_panels::{
     DockWindowDescriptor, WindowRegistry, WorkspaceDescriptor, WorkspaceRegistry,
 };
 
-pub use jackdaw_api_macros::operator;
-pub use jackdaw_jsn::types::CustomProperties;
-pub use lifecycle::{
-    ActiveModalOperator, CallOperatorError, CallOperatorSettings, Extension, ExtensionCatalog,
-    ExtensionCtor, ExtensionKind, OperatorEntity, OperatorIndex, OperatorSession, OperatorWorldExt,
-    RegisteredMenuEntry, RegisteredPanelExtension, RegisteredWindow, RegisteredWorkspace,
-    disable_extension, enable_extension, tick_modal_operator, unload_extension,
-};
-pub use operator::{Operator, OperatorResult};
-pub use registries::PanelExtensionRegistry;
-pub use snapshot::{ActiveSnapshotter, SceneSnapshot, SceneSnapshotter};
+use jackdaw_jsn::types::CustomProperties;
 
+use operator::{CallOperatorSettings, Operator, OperatorWorldExt};
+use registries::PanelExtensionRegistry;
+use snapshot::{ActiveSnapshotter, SceneSnapshot};
+
+pub use jackdaw_api_macros as macros;
 pub use jackdaw_jsn as jsn;
 
-use crate::lifecycle::ExecutionContext;
+use crate::{
+    lifecycle::{
+        Extension, ExtensionKind, OperatorEntity, RegisteredMenuEntry, RegisteredPanelExtension,
+        RegisteredWindow, RegisteredWorkspace,
+    },
+    operator::ExecutionContext,
+};
 
 /// Re-exports plugin authors will want in one import.
 pub mod prelude {
-    pub use crate::lifecycle::{
-        CallOperatorError, CallOperatorSettings, ExecutionContext, Extension, ExtensionAppExt,
-        ExtensionCatalog, ExtensionKind, OperatorEntity, OperatorIndex, OperatorWorldExt,
-    };
-    pub use crate::operator::{Operator, OperatorResult};
     pub use crate::{
-        ExtensionContext, ExtensionPoint, JackdawExtension, MenuEntryDescriptor, PanelContext,
-        SectionBuildFn, WindowDescriptor,
-        jsn::{CustomProperties, PropertyValue},
-        operator, props,
+        ExtensionContext, JackdawExtension, MenuEntryDescriptor, WindowDescriptor,
+        jsn::CustomProperties,
+        lifecycle::{
+            Extension, ExtensionAppExt as _, ExtensionCatalog, ExtensionKind, RegisteredMenuEntry,
+            RegisteredWindow,
+        },
+        macros::operator,
+        operator::{
+            CallOperatorSettings, ExecutionContext, Operator, OperatorResult, OperatorWorldExt as _,
+        },
+        props,
+        snapshot::{ActiveSnapshotter, SceneSnapshot, SceneSnapshotter},
     };
     // BEI types extension authors need for `actions!` / `bindings!` / observers.
     pub use bevy_enhanced_input::prelude::*;
@@ -415,38 +420,6 @@ pub struct PanelContext {
 
 pub type SectionBuildFn = Arc<dyn Fn(&mut World, PanelContext) + Send + Sync>;
 
-/// Load an extension statically. Spawns an `Extension` entity, runs
-/// `extension.register()` against it, returns the entity.
-///
-/// Takes `&mut World` (not `&mut App`) so this can be called from
-/// world-scoped contexts like observer callbacks. BEI input context
-/// registration belongs in
-/// [`JackdawExtension::register_input_contexts`], which is called at
-/// catalog registration time with App access.
-pub fn load_static_extension(world: &mut World, extension: Box<dyn JackdawExtension>) -> Entity {
-    let name = extension.dyn_name();
-    info!("Loading extension: {}", name);
-
-    let extension_entity = world.spawn(Extension { name }).id();
-
-    let mut ctx = ExtensionContext::new(world, extension_entity);
-    extension.register(&mut ctx);
-
-    // Store the extension trait object on the entity so `unload_extension`
-    // can call `unregister` before despawn.
-    world
-        .entity_mut(extension_entity)
-        .insert(StoredExtension(extension));
-
-    extension_entity
-}
-
-/// Internal component holding the extension trait object for the duration
-/// of its lifetime. Used by `unload_extension` to invoke the optional
-/// `unregister` hook before despawning.
-#[derive(Component)]
-pub(crate) struct StoredExtension(pub(crate) Box<dyn JackdawExtension>);
-
 #[macro_export]
 macro_rules! props {
     () => {
@@ -461,4 +434,26 @@ macro_rules! props {
             props
         }
     };
+}
+
+/// Plugin that wires up the extension framework into the editor.
+///
+/// Adds BEI, sets up the required resources (`OperatorCommandBuffer`,
+/// `OperatorIndex`, `PanelExtensionRegistry`, `ExtensionCatalog`,
+/// `ActiveModalOperator`), and registers the cleanup observers that keep
+/// non-ECS state in sync when extension entities are despawned.
+///
+/// Also runs `tick_modal_operator` each frame in Update so modal
+/// operators (Blender-style grab/rotate/scale) re-run their invoke
+/// system until they return `Finished` or `Cancelled`.
+pub struct ExtensionLoaderPlugin;
+
+impl Plugin for ExtensionLoaderPlugin {
+    fn build(&self, app: &mut App) {
+        app.add_plugins(EnhancedInputPlugin).add_plugins((
+            lifecycle::plugin,
+            operator::plugin,
+            registries::plugin,
+        ));
+    }
 }

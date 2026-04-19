@@ -6,7 +6,7 @@
 use std::sync::Arc;
 
 use bevy::prelude::*;
-use jackdaw_api::{ExtensionContext, ExtensionKind, JackdawExtension, WindowDescriptor};
+use jackdaw_api::prelude::{ExtensionContext, ExtensionKind, JackdawExtension, WindowDescriptor};
 use jackdaw_feathers::icons::Icon;
 
 /// Scene Tree, Import, and Project Files in the left dock.

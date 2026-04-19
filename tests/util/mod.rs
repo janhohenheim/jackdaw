@@ -7,7 +7,6 @@ use bevy::{
     winit::WinitPlugin,
 };
 use jackdaw::prelude::*;
-use jackdaw_api::OperatorResult;
 
 pub fn headless_app() -> App {
     let mut app = App::new();

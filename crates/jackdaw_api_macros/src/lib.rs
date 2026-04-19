@@ -157,7 +157,7 @@ pub fn operator(attr: TokenStream, item: TokenStream) -> TokenStream {
         #[action_output(bool)]
         #vis struct #struct_name;
 
-        impl ::jackdaw_api::Operator for #struct_name {
+        impl ::jackdaw_api::prelude::Operator for #struct_name {
             const ID: &'static str = #id;
             const LABEL: &'static str = #label;
             const DESCRIPTION: &'static str = #description;
@@ -166,7 +166,7 @@ pub fn operator(attr: TokenStream, item: TokenStream) -> TokenStream {
 
             fn register_execute(
                 commands: &mut ::bevy::ecs::system::Commands,
-            ) -> ::bevy::ecs::system::SystemId<::bevy::ecs::system::In<::jackdaw_api::jsn::CustomProperties>, ::jackdaw_api::OperatorResult> {
+            ) -> ::bevy::ecs::system::SystemId<::bevy::ecs::system::In<::jackdaw_api::jsn::CustomProperties>, ::jackdaw_api::prelude::OperatorResult> {
                 commands.register_system(#fn_name)
             }
 

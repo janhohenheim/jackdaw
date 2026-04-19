@@ -9,17 +9,26 @@
 //! unregistering stored `SystemId`s, removing entries from the dock
 //! `WindowRegistry`, and so on.
 
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
 
 use bevy::ecs::system::SystemId;
 use bevy::prelude::*;
-use jackdaw_commands::{CommandHistory, EditorCommand};
 use jackdaw_jsn::CustomProperties;
 
 use crate::operator::OperatorResult;
-use crate::snapshot::{ActiveSnapshotter, SceneSnapshot};
+use crate::snapshot::SceneSnapshot;
+
+pub(super) fn plugin(app: &mut App) {
+    app.init_resource::<ExtensionCatalog>()
+        .init_resource::<OperatorIndex>()
+        .init_resource::<ActiveModalOperator>()
+        .add_observer(index_operator_on_add)
+        .add_observer(deindex_and_cleanup_operator_on_remove)
+        .add_observer(cleanup_window_on_remove)
+        .add_observer(cleanup_workspace_on_remove)
+        .add_observer(cleanup_panel_extension_on_remove);
+}
 
 /// Root component for an extension.
 ///
@@ -77,20 +86,6 @@ impl ActiveModalOperator {
 
     pub fn id(&self) -> Option<&'static str> {
         self.id
-    }
-}
-
-/// Counts how deeply operators are nested. The outermost operator in
-/// a call chain takes the snapshot; inner operators' mutations roll
-/// into that outer diff.
-#[derive(Resource, Default)]
-pub struct OperatorSession {
-    depth: u32,
-}
-
-impl OperatorSession {
-    pub fn is_outermost(&self) -> bool {
-        self.depth == 0
     }
 }
 
@@ -272,337 +267,6 @@ impl ExtensionAppExt for App {
     }
 }
 
-/// Extension trait on [`World`] for calling operators by id.
-///
-/// Usage:
-///
-/// ```ignore
-/// use jackdaw_api::prelude::*;
-///
-/// fn my_button(mut commands: Commands) {
-///     commands.queue(|world: &mut World| {
-///         let _ = world.call_operator("avian.add_rigid_body");
-///     });
-/// }
-/// ```
-pub trait OperatorWorldExt {
-    /// Call an operator by id. The availability check runs before the
-    /// invoke system, so validation logic lives only on the operator
-    /// itself. Equivalent to
-    /// `call_operator_with(id, &CallOperatorSettings::default())`.
-    fn call_operator(
-        &mut self,
-        id: impl Into<Cow<'static, str>>,
-        params: impl Into<CustomProperties>,
-    ) -> Result<OperatorResult, CallOperatorError>;
-
-    /// Call an operator with explicit settings.
-    fn call_operator_with(
-        &mut self,
-        id: impl Into<Cow<'static, str>>,
-        params: impl Into<CustomProperties>,
-        settings: CallOperatorSettings,
-    ) -> Result<OperatorResult, CallOperatorError>;
-
-    /// Whether the operator would run in the current editor state.
-    /// `Ok(true)` if it's ready, `Ok(false)` if not, `Err` for unknown
-    /// ids.
-    fn is_operator_available(
-        &mut self,
-        id: impl Into<Cow<'static, str>>,
-    ) -> Result<bool, CallOperatorError>;
-}
-
-/// Knobs passed to [`OperatorWorldExt::call_operator_with`].
-#[derive(Clone, Debug, Copy)]
-pub struct CallOperatorSettings {
-    /// Whether a successful call should push an undo entry. Default
-    /// `true`. Set `false` for view-local effects (camera moves,
-    /// preview toggles) that should not be undoable.
-    pub creates_history_entry: bool,
-    /// The entity to pass to the operator. Default is `None`.
-    pub entity: Option<Entity>,
-    pub execution_context: ExecutionContext,
-}
-
-impl Default for CallOperatorSettings {
-    fn default() -> Self {
-        Self {
-            creates_history_entry: true,
-            entity: None,
-            execution_context: default(),
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default)]
-pub enum ExecutionContext {
-    #[default]
-    Execute,
-    Invoke,
-}
-
-#[derive(Clone, Debug)]
-pub enum CallOperatorError {
-    UnknownId(Cow<'static, str>),
-    ModalAlreadyActive(&'static str),
-    NotAvailable,
-    ExecuteFailed,
-}
-
-impl std::fmt::Display for CallOperatorError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::UnknownId(id) => write!(f, "unknown operator: {id}"),
-            Self::ModalAlreadyActive(id) => {
-                write!(f, "modal operator '{id}' is currently active")
-            }
-            Self::NotAvailable => f.write_str("operator's availability check failed"),
-            Self::ExecuteFailed => f.write_str("operator's execute system failed"),
-        }
-    }
-}
-
-impl std::error::Error for CallOperatorError {}
-
-impl OperatorWorldExt for World {
-    fn call_operator(
-        &mut self,
-        id: impl Into<Cow<'static, str>>,
-        params: impl Into<CustomProperties>,
-    ) -> Result<OperatorResult, CallOperatorError> {
-        self.call_operator_with(id, params.into(), CallOperatorSettings::default())
-    }
-
-    fn call_operator_with(
-        &mut self,
-        id: impl Into<Cow<'static, str>>,
-        params: impl Into<CustomProperties>,
-        settings: CallOperatorSettings,
-    ) -> Result<OperatorResult, CallOperatorError> {
-        let id = id.into();
-        dispatch_operator(self, id, params, settings)
-    }
-
-    fn is_operator_available(
-        &mut self,
-        id: impl Into<Cow<'static, str>>,
-    ) -> Result<bool, CallOperatorError> {
-        let id = id.into();
-        let Some(op_entity) = self
-            .resource::<OperatorIndex>()
-            .by_id
-            .get(id.as_ref())
-            .copied()
-        else {
-            return Err(CallOperatorError::UnknownId(id));
-        };
-        let Some(op) = self.get::<OperatorEntity>(op_entity).cloned() else {
-            return Err(CallOperatorError::UnknownId(id));
-        };
-        let Some(check) = op.availability_check else {
-            return Ok(true);
-        };
-        self.run_system(check)
-            .map_err(|_| CallOperatorError::NotAvailable)
-    }
-}
-
-fn dispatch_operator(
-    world: &mut World,
-    id: impl Into<Cow<'static, str>>,
-    params: impl Into<CustomProperties>,
-    settings: CallOperatorSettings,
-) -> Result<OperatorResult, CallOperatorError> {
-    let id = id.into();
-    let params = params.into();
-
-    if let Some(active_id) = world.resource::<ActiveModalOperator>().id {
-        return Err(CallOperatorError::ModalAlreadyActive(active_id));
-    }
-
-    let Some(op_entity) = world
-        .resource::<OperatorIndex>()
-        .by_id
-        .get(id.as_ref())
-        .copied()
-    else {
-        return Err(CallOperatorError::UnknownId(id));
-    };
-    let Some(op) = world.get::<OperatorEntity>(op_entity).cloned() else {
-        return Err(CallOperatorError::UnknownId(id));
-    };
-
-    if let Some(check) = op.availability_check {
-        let available = world
-            .run_system(check)
-            .map_err(|_| CallOperatorError::NotAvailable)?;
-        if !available {
-            return Err(CallOperatorError::NotAvailable);
-        }
-    }
-
-    // Only the outermost operator in a nesting chain captures the
-    // snapshot. Inner `call_operator` calls mutate inside the outer's
-    // span and their changes roll into the outer's diff.
-    let is_outermost = world.resource::<OperatorSession>().depth == 0;
-    let before = (is_outermost && settings.creates_history_entry)
-        .then(|| world.resource::<ActiveSnapshotter>().0.capture(world));
-
-    world.resource_mut::<OperatorSession>().depth += 1;
-    let system = match settings.execution_context {
-        ExecutionContext::Execute => op.execute,
-        ExecutionContext::Invoke => op.invoke,
-    };
-    let result = world.run_system_with(system, params);
-    world.resource_mut::<OperatorSession>().depth -= 1;
-
-    let result = result.map_err(|_| CallOperatorError::ExecuteFailed)?;
-
-    match result {
-        OperatorResult::Running if op.modal => {
-            let mut active = world.resource_mut::<ActiveModalOperator>();
-            active.id = Some(op.id);
-            active.operator_entity = Some(op_entity);
-            active.invoke_system = Some(op.invoke);
-            active.label = Some(op.label.to_string());
-            active.before_snapshot = before;
-        }
-        OperatorResult::Running | OperatorResult::Finished => {
-            finalize(world, op.label, before);
-        }
-        OperatorResult::Cancelled => {
-            // Drop the snapshot without pushing history.
-            drop(before);
-        }
-    }
-
-    Ok(result)
-}
-
-/// Capture the current state, diff against `before`, and push a
-/// `SnapshotDiff` onto [`CommandHistory`] if the scene changed.
-fn finalize(world: &mut World, label: &str, before: Option<Box<dyn SceneSnapshot>>) {
-    let Some(before) = before else { return };
-    let after = world.resource::<ActiveSnapshotter>().0.capture(world);
-    if before.equals(&*after) {
-        return;
-    }
-    world
-        .resource_mut::<CommandHistory>()
-        .push_executed(Box::new(SnapshotDiff {
-            before,
-            after,
-            label: label.to_string(),
-        }));
-}
-
-/// One undo entry. Swaps the active scene snapshot on execute / undo.
-struct SnapshotDiff {
-    before: Box<dyn SceneSnapshot>,
-    after: Box<dyn SceneSnapshot>,
-    label: String,
-}
-
-impl EditorCommand for SnapshotDiff {
-    fn execute(&mut self, world: &mut World) {
-        self.after.apply(world);
-    }
-    fn undo(&mut self, world: &mut World) {
-        self.before.apply(world);
-    }
-    fn description(&self) -> &str {
-        &self.label
-    }
-}
-
-/// Tick system added to Update by `ExtensionLoaderPlugin`. Re-runs the
-/// active modal operator's invoke system each frame; exits modal on
-/// `Finished` (committing) or `Cancelled` (discarding).
-pub fn tick_modal_operator(world: &mut World) {
-    let Some(invoke) = world.resource::<ActiveModalOperator>().invoke_system else {
-        return;
-    };
-    let result = match world.run_system_with(invoke, default()) {
-        Ok(r) => r,
-        Err(err) => {
-            error!("Modal operator's invoke system failed: {err:?}; cancelling");
-            finalize_modal(world, false);
-            return;
-        }
-    };
-    match result {
-        OperatorResult::Running => {}
-        OperatorResult::Finished => finalize_modal(world, true),
-        OperatorResult::Cancelled => finalize_modal(world, false),
-    }
-}
-
-/// Exit modal mode. Commits the before-snapshot diff as a history entry
-/// if `commit`, otherwise discards it.
-fn finalize_modal(world: &mut World, commit: bool) {
-    let (label, before) = {
-        let mut active = world.resource_mut::<ActiveModalOperator>();
-        let label = active.label.take().unwrap_or_default();
-        let before = active.before_snapshot.take();
-        active.id = None;
-        active.operator_entity = None;
-        active.invoke_system = None;
-        (label, before)
-    };
-    if commit {
-        finalize(world, &label, before);
-    }
-}
-
-/// Unload an extension. Despawns the root entity; the cascade and
-/// cleanup observers handle the rest.
-pub fn unload_extension(world: &mut World, ext_entity: Entity) {
-    let ext_name = world
-        .get::<Extension>(ext_entity)
-        .map(|e| e.name.clone())
-        .unwrap_or_default();
-    info!("Unloading extension: {}", ext_name);
-
-    if let Some(stored) = world
-        .entity_mut(ext_entity)
-        .take::<crate::StoredExtension>()
-    {
-        stored.0.unregister(world, ext_entity);
-    }
-    if let Ok(ec) = world.get_entity_mut(ext_entity) {
-        ec.despawn();
-    }
-}
-
-/// Enable a named extension via the catalog. Returns the new extension
-/// entity, or `None` if the name is unknown or already loaded.
-pub fn enable_extension(world: &mut World, name: &str) -> Option<Entity> {
-    {
-        let mut query = world.query::<&Extension>();
-        if query.iter(world).any(|e| e.name == name) {
-            return None;
-        }
-    }
-
-    let extension = world.resource::<ExtensionCatalog>().construct(name)?;
-    Some(crate::load_static_extension(world, extension))
-}
-
-/// Disable a named extension by despawning its root entity.
-pub fn disable_extension(world: &mut World, name: &str) -> bool {
-    let mut query = world.query::<(Entity, &Extension)>();
-    let Some(ext_entity) = query
-        .iter(world)
-        .find(|(_, e)| e.name == name)
-        .map(|(e, _)| e)
-    else {
-        return false;
-    };
-    unload_extension(world, ext_entity);
-    true
-}
-
 /// Keep [`OperatorIndex`] in sync when an operator entity is spawned.
 pub fn index_operator_on_add(
     trigger: On<Add, OperatorEntity>,
@@ -682,20 +346,5 @@ pub fn cleanup_panel_extension_on_remove(
 ) {
     if let Ok(r) = registrations.get(trigger.event_target()) {
         registry.remove(&r.panel_id, r.section_index);
-    }
-}
-
-/// Log menu-entry registrations. Actual menu rebuilds are driven by
-/// the main crate's `MenuBarDirty` flag because this crate doesn't know
-/// the menu-bar implementation.
-pub fn log_menu_entry_on_add(
-    trigger: On<Add, RegisteredMenuEntry>,
-    entries: Query<&RegisteredMenuEntry>,
-) {
-    if let Ok(entry) = entries.get(trigger.event_target()) {
-        info!(
-            "Registered menu entry: {} > {} -> {}",
-            entry.menu, entry.label, entry.operator_id
-        );
     }
 }

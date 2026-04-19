@@ -91,7 +91,7 @@ pub fn collect_add_menu_items(world: &mut World) -> Vec<AddMenuItem> {
 
     // Extension items grouped by owning extension so entries cluster by
     // author in the picker.
-    let mut q = world.query::<(&jackdaw_api::RegisteredMenuEntry, Option<&ChildOf>)>();
+    let mut q = world.query::<(&jackdaw_api::prelude::RegisteredMenuEntry, Option<&ChildOf>)>();
     let mut ext_entries: Vec<(Entity, String, String)> = Vec::new();
     for (entry, parent) in q.iter(world) {
         if entry.menu != "Add" {
@@ -106,7 +106,7 @@ pub fn collect_add_menu_items(world: &mut World) -> Vec<AddMenuItem> {
     }
     for (ext_entity, action, label) in ext_entries {
         let category = world
-            .get::<jackdaw_api::Extension>(ext_entity)
+            .get::<jackdaw_api::prelude::Extension>(ext_entity)
             .map(|e| e.name.clone())
             .unwrap_or_else(|| "Extensions".to_string());
         items.push(AddMenuItem {

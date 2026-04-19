@@ -9,6 +9,10 @@ use bevy::prelude::*;
 
 use crate::SectionBuildFn;
 
+pub(super) fn plugin(app: &mut App) {
+    app.init_resource::<PanelExtensionRegistry>();
+}
+
 #[derive(Resource, Default)]
 pub struct PanelExtensionRegistry {
     extensions: HashMap<String, Vec<SectionBuildFn>>,
