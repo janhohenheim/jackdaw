@@ -51,6 +51,7 @@ pub struct Extension {
 pub struct OperatorEntity {
     pub id: &'static str,
     pub label: &'static str,
+    #[expect(dead_code, reason = "This should go into the UI eventually")]
     pub description: &'static str,
     pub execute: SystemId<In<CustomProperties>, OperatorResult>,
     pub invoke: SystemId<In<CustomProperties>, OperatorResult>,
@@ -77,16 +78,6 @@ pub struct ActiveModalOperator {
     pub(crate) invoke_system: Option<SystemId<In<CustomProperties>, OperatorResult>>,
     pub(crate) label: Option<String>,
     pub(crate) before_snapshot: Option<Box<dyn SceneSnapshot>>,
-}
-
-impl ActiveModalOperator {
-    pub fn is_active(&self) -> bool {
-        self.id.is_some()
-    }
-
-    pub fn id(&self) -> Option<&'static str> {
-        self.id
-    }
 }
 
 /// Marks an entity as tracking a dock window registration.
@@ -134,19 +125,9 @@ pub struct RegisteredMenuEntry {
 /// Reactive index from operator id → operator entity. Maintained by the
 /// `index_operator_on_add` / `deindex_operator_on_remove` observers.
 /// Lets the dispatcher resolve an id to a `SystemId` in O(1).
-#[derive(Resource, Default)]
+#[derive(Resource, Default, Deref, DerefMut)]
 pub struct OperatorIndex {
     pub(crate) by_id: HashMap<&'static str, Entity>,
-}
-
-impl OperatorIndex {
-    pub fn get(&self, id: &str) -> Option<Entity> {
-        self.by_id.get(id).copied()
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = (&'static str, Entity)> + '_ {
-        self.by_id.iter().map(|(k, v)| (*k, *v))
-    }
 }
 
 /// Constructor function for an extension. Stored in [`ExtensionCatalog`].
@@ -274,7 +255,7 @@ pub fn index_operator_on_add(
     mut index: ResMut<OperatorIndex>,
 ) {
     if let Ok(op) = operators.get(trigger.event_target()) {
-        index.by_id.insert(op.id, trigger.event_target());
+        index.insert(op.id, trigger.event_target());
     }
 }
 
@@ -291,7 +272,7 @@ pub fn deindex_and_cleanup_operator_on_remove(
         return;
     };
     info!("Unregistering operator: {}", op.id);
-    index.by_id.remove(op.id);
+    index.remove(op.id);
     let (exec, inv, check) = (op.execute, op.invoke, op.availability_check);
     commands.queue(move |world: &mut World| {
         let _ = world.unregister_system(exec);

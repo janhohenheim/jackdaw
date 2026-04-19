@@ -69,8 +69,6 @@ use jackdaw_panels::{
     DockWindowDescriptor, WindowRegistry, WorkspaceDescriptor, WorkspaceRegistry,
 };
 
-use jackdaw_jsn::types::CustomProperties;
-
 use operator::{CallOperatorSettings, Operator, OperatorWorldExt};
 use registries::PanelExtensionRegistry;
 use snapshot::{ActiveSnapshotter, SceneSnapshot};

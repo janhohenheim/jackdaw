@@ -311,7 +311,7 @@ fn dispatch_operator(
     // Only the outermost operator in a nesting chain captures the
     // snapshot. Inner `operator` calls mutate inside the outer's
     // span and their changes roll into the outer's diff.
-    let is_outermost = world.resource::<OperatorSession>().depth == 0;
+    let is_outermost = world.resource::<OperatorSession>().is_outermost();
     let before = (is_outermost && settings.creates_history_entry)
         .then(|| world.resource::<ActiveSnapshotter>().0.capture(world));
 

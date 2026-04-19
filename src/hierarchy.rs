@@ -26,7 +26,7 @@ use crate::{
     selection::{Selected, Selection},
 };
 use jackdaw_feathers::dialog::{DialogActionEvent, DialogChildrenSlot};
-use jackdaw_jsn::{BrushGroup, CustomProperties};
+use jackdaw_jsn::BrushGroup;
 
 /// Stores the default name for the template save dialog.
 #[derive(Resource, Default)]

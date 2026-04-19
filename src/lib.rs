@@ -59,7 +59,6 @@ use bevy::{
 use jackdaw_api::prelude::*;
 use jackdaw_feathers::EditorFeathersPlugin;
 use jackdaw_feathers::dialog::EditorDialog;
-use jackdaw_jsn::CustomProperties;
 use jackdaw_widgets::menu_bar::MenuAction;
 use selection::Selection;
 use viewable_camera_extension::ViewableCameraExtension;
