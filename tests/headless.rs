@@ -26,7 +26,8 @@ fn can_run_extension() {
     app.update();
     for _ in 0..10 {
         app.world_mut()
-            .call_operator(SampleExtension::SPAWN, CustomProperties::default())
+            .operator(SampleExtension::SPAWN)
+            .call()
             .unwrap()
             .assert_finished();
         app.update();
@@ -50,7 +51,8 @@ fn can_call_operator() {
     assert!(!app.world_mut().contains_resource::<Marker>());
 
     app.world_mut()
-        .call_operator(SampleExtension::SPAWN, CustomProperties::default())
+        .operator(SampleExtension::SPAWN)
+        .call()
         .unwrap()
         .assert_finished();
 
@@ -64,10 +66,10 @@ fn can_pass_params_to_operator() {
     app.finish();
     app.update();
     app.world_mut()
-        .call_operator(
-            SampleExtension::CHECK_PARAMS,
-            props!["foo" => "bar", "baz" => 42],
-        )
+        .operator(SampleExtension::CHECK_PARAMS)
+        .param("foo", "bar")
+        .param("baz", 42)
+        .call()
         .unwrap()
         .assert_finished();
 }

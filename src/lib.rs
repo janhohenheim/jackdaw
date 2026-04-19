@@ -2093,14 +2093,13 @@ fn handle_menu_action(event: On<MenuAction>, mut commands: Commands) {
             // keybind-triggered operators.
             let operator_id = action.strip_prefix("op:").unwrap().to_string();
             commands.queue(move |world: &mut World| {
-                let _ = world.call_operator_with(
-                    operator_id,
-                    CustomProperties::default(),
-                    CallOperatorSettings {
+                world
+                    .operator(operator_id)
+                    .settings(CallOperatorSettings {
                         execution_context: ExecutionContext::Invoke,
                         ..default()
-                    },
-                );
+                    })
+                    .call()
             });
         }
         action if action.starts_with("window.") => {

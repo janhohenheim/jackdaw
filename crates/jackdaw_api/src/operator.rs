@@ -63,7 +63,7 @@ pub trait Operator: InputAction + 'static {
     /// (`Press`, `Release`, `Hold`, etc.) on the binding.
     ///
     /// When `true`, no observer is spawned. The operator is invocable
-    /// only through `World::call_operator(Self::ID)`. Useful for
+    /// only through `World::operator(Self::ID)`. Useful for
     /// operators driven by menus, UI buttons, or F3-search without
     /// a keybind.
     const MANUAL: bool = false;
@@ -129,47 +129,23 @@ impl OperatorResult {
 ///
 /// Usage:
 ///
-/// ```ignore
+/// ```
 /// use jackdaw_api::prelude::*;
+/// use bevy::prelude::*;
 ///
-/// fn my_button(mut commands: Commands) {
-///     commands.queue(|world: &mut World| {
-///         let _ = world.call_operator("avian.add_rigid_body");
-///     });
+/// fn my_button(world: &mut World) {
+///     let result = world.operator("avian.add_rigid_body").call().unwrap();
+///     if !result.is_finished() {
+///        warn!("heck!");
+///     }
 /// }
 /// ```
 pub trait OperatorWorldExt {
-    /// Call an operator by id. The availability check runs before the
-    /// invoke system, so validation logic lives only on the operator
-    /// itself. Equivalent to
-    /// `call_operator_with(id, &CallOperatorSettings::default())`.
-    fn call_operator(
-        &mut self,
-        id: impl Into<Cow<'static, str>>,
-        params: impl Into<CustomProperties>,
-    ) -> Result<OperatorResult, CallOperatorError>;
-
-    #[must_use]
+    #[must_use = "Operators must be called with `.call()` to execute them"]
     fn operator<'a>(&'a mut self, id: impl Into<Cow<'static, str>>) -> OperatorCallBuilder<'a>;
-
-    /// Call an operator with explicit settings.
-    fn call_operator_with(
-        &mut self,
-        id: impl Into<Cow<'static, str>>,
-        params: impl Into<CustomProperties>,
-        settings: CallOperatorSettings,
-    ) -> Result<OperatorResult, CallOperatorError>;
-
-    /// Whether the operator would run in the current editor state.
-    /// `Ok(true)` if it's ready, `Ok(false)` if not, `Err` for unknown
-    /// ids.
-    fn is_operator_available(
-        &mut self,
-        id: impl Into<Cow<'static, str>>,
-    ) -> Result<bool, CallOperatorError>;
 }
 
-/// Knobs passed to [`OperatorWorldExt::call_operator_with`].
+/// Knobs passed to [`OperatorCallBuilder::settings`].
 #[derive(Clone, Debug, Copy)]
 pub struct CallOperatorSettings {
     /// Whether a successful call should push an undo entry. Default
@@ -229,7 +205,7 @@ pub struct OperatorCallBuilder<'a> {
 }
 
 impl<'a> OperatorCallBuilder<'a> {
-    #[must_use]
+    #[must_use = "Operators must be called with `.call()` to execute them"]
     pub fn new(world: &'a mut World, id: impl Into<Cow<'static, str>>) -> Self {
         Self {
             world,
@@ -239,7 +215,7 @@ impl<'a> OperatorCallBuilder<'a> {
         }
     }
 
-    #[must_use]
+    #[must_use = "Operators must be called with `.call()` to execute them"]
     pub fn param(
         mut self,
         key: impl Into<Cow<'static, str>>,
@@ -249,12 +225,39 @@ impl<'a> OperatorCallBuilder<'a> {
         self
     }
 
-    #[must_use]
+    #[must_use = "Operators must be called with `.call()` to execute them"]
     pub fn settings(mut self, settings: CallOperatorSettings) -> Self {
         self.settings = settings;
         self
     }
 
+    /// Whether the operator would run in the current editor state.
+    /// `Ok(true)` if it's ready, `Ok(false)` if not, `Err` for unknown
+    /// ids.
+    pub fn is_available(self) -> Result<bool, CallOperatorError> {
+        let Some(op_entity) = self
+            .world
+            .resource::<OperatorIndex>()
+            .by_id
+            .get(self.id.as_ref())
+            .copied()
+        else {
+            return Err(CallOperatorError::UnknownId(self.id));
+        };
+        let Some(op) = self.world.get::<OperatorEntity>(op_entity).cloned() else {
+            return Err(CallOperatorError::UnknownId(self.id));
+        };
+        let Some(check) = op.availability_check else {
+            return Ok(true);
+        };
+        self.world
+            .run_system(check)
+            .map_err(|_| CallOperatorError::NotAvailable)
+    }
+
+    /// Call an operator by id. The availability check runs before the
+    /// invoke system, so validation logic lives only on the operator
+    /// itself.
     pub fn call(self) -> Result<OperatorResult, CallOperatorError> {
         dispatch_operator(self.world, self.id, self.params, self.settings)
     }
@@ -268,47 +271,6 @@ impl OperatorWorldExt for World {
             params: CustomProperties::default(),
             settings: CallOperatorSettings::default(),
         }
-    }
-
-    fn call_operator(
-        &mut self,
-        id: impl Into<Cow<'static, str>>,
-        params: impl Into<CustomProperties>,
-    ) -> Result<OperatorResult, CallOperatorError> {
-        self.call_operator_with(id, params.into(), CallOperatorSettings::default())
-    }
-
-    fn call_operator_with(
-        &mut self,
-        id: impl Into<Cow<'static, str>>,
-        params: impl Into<CustomProperties>,
-        settings: CallOperatorSettings,
-    ) -> Result<OperatorResult, CallOperatorError> {
-        let id = id.into();
-        dispatch_operator(self, id, params, settings)
-    }
-
-    fn is_operator_available(
-        &mut self,
-        id: impl Into<Cow<'static, str>>,
-    ) -> Result<bool, CallOperatorError> {
-        let id = id.into();
-        let Some(op_entity) = self
-            .resource::<OperatorIndex>()
-            .by_id
-            .get(id.as_ref())
-            .copied()
-        else {
-            return Err(CallOperatorError::UnknownId(id));
-        };
-        let Some(op) = self.get::<OperatorEntity>(op_entity).cloned() else {
-            return Err(CallOperatorError::UnknownId(id));
-        };
-        let Some(check) = op.availability_check else {
-            return Ok(true);
-        };
-        self.run_system(check)
-            .map_err(|_| CallOperatorError::NotAvailable)
     }
 }
 
@@ -347,7 +309,7 @@ fn dispatch_operator(
     }
 
     // Only the outermost operator in a nesting chain captures the
-    // snapshot. Inner `call_operator` calls mutate inside the outer's
+    // snapshot. Inner `operator` calls mutate inside the outer's
     // span and their changes roll into the outer's diff.
     let is_outermost = world.resource::<OperatorSession>().depth == 0;
     let before = (is_outermost && settings.creates_history_entry)

@@ -22,11 +22,11 @@ use syn::{
 /// - `modal`: `bool`, default `false`
 /// - `manual`: `bool`, default `false`. When `true`, no Fire observer
 ///   is wired up; callers invoke the operator via
-///   `World::call_operator`.
+///   `World::operator`.
 /// - `is_available`: path to a Bevy system returning `bool` that
 ///   decides whether the operator can run in the current editor
 ///   state. Runs before the execute system on every
-///   `World::call_operator` and via `World::is_operator_available`.
+///   `World::operator` and via `World::is_operator_available`.
 ///   If `false`, the operator returns `Cancelled` without executing.
 /// - `name`: override the generated struct name. Default is
 ///   `PascalCase(fn_name) + "Op"`.

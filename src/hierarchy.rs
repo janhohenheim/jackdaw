@@ -1015,14 +1015,13 @@ fn on_context_menu_action(
             // invoked them.
             let operator_id = action.strip_prefix("op:").unwrap().to_string();
             commands.queue(move |world: &mut World| {
-                let _ = world.call_operator_with(
-                    operator_id,
-                    CustomProperties::default(),
-                    CallOperatorSettings {
+                world
+                    .operator(operator_id)
+                    .settings(CallOperatorSettings {
                         execution_context: jackdaw_api::prelude::ExecutionContext::Invoke,
                         ..default()
-                    },
-                );
+                    })
+                    .call()
             });
         }
         _ => {}

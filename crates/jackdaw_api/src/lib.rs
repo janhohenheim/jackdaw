@@ -80,7 +80,7 @@ pub use jackdaw_jsn as jsn;
 
 use crate::{
     lifecycle::{
-        Extension, ExtensionKind, OperatorEntity, RegisteredMenuEntry, RegisteredPanelExtension,
+        ExtensionKind, OperatorEntity, RegisteredMenuEntry, RegisteredPanelExtension,
         RegisteredWindow, RegisteredWorkspace,
     },
     operator::ExecutionContext,
@@ -257,7 +257,7 @@ impl<'a> ExtensionContext<'a> {
     /// Register an operator. Spawns an [`OperatorEntity`] as a child
     /// of the extension entity and, unless [`Operator::MANUAL`] is
     /// `true`, a `Fire<O>` observer that dispatches the operator
-    /// through [`crate::OperatorWorldExt::call_operator`]. BEI binding
+    /// through [`crate::OperatorWorldExt::operator`]. BEI binding
     /// modifiers on the actions shape timing (press / release / hold).
     pub fn register_operator<O: Operator>(&mut self) -> &mut Self {
         let ext = self.extension_entity;
@@ -293,15 +293,13 @@ impl<'a> ExtensionContext<'a> {
                 move |_: bevy::prelude::On<bevy_enhanced_input::prelude::Fire<O>>,
                       mut commands: Commands| {
                     commands.queue(move |world: &mut World| {
-                        use crate::OperatorWorldExt;
-                        let _ = world.call_operator_with(
-                            O::ID,
-                            CustomProperties::default(),
-                            CallOperatorSettings {
+                        world
+                            .operator(O::ID)
+                            .settings(CallOperatorSettings {
                                 execution_context: ExecutionContext::Invoke,
                                 ..default()
-                            },
-                        );
+                            })
+                            .call()
                     });
                 },
             );

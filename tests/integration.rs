@@ -25,7 +25,8 @@ fn run_test<T: Operator + Send + Sync>() {
     app.finish();
     app.update();
     app.world_mut()
-        .call_operator(ID, props![])
+        .operator(ID)
+        .call()
         .unwrap()
         .assert_finished();
 }
