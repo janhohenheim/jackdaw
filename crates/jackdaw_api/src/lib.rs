@@ -80,9 +80,7 @@ pub use operator::{Operator, OperatorResult};
 pub use registries::PanelExtensionRegistry;
 pub use snapshot::{ActiveSnapshotter, SceneSnapshot, SceneSnapshotter};
 
-pub mod jsn {
-    pub use jackdaw_jsn::*;
-}
+pub use jackdaw_jsn as jsn;
 
 /// Re-exports plugin authors will want in one import.
 pub mod prelude {
@@ -95,7 +93,7 @@ pub mod prelude {
         ExtensionContext, ExtensionPoint, JackdawExtension, MenuEntryDescriptor, PanelContext,
         SectionBuildFn, WindowDescriptor,
         jsn::{CustomProperties, PropertyValue},
-        operator,
+        operator, props,
     };
     // BEI types extension authors need for `actions!` / `bindings!` / observers.
     pub use bevy_enhanced_input::prelude::*;
@@ -439,3 +437,19 @@ pub fn load_static_extension(world: &mut World, extension: Box<dyn JackdawExtens
 /// `unregister` hook before despawning.
 #[derive(Component)]
 pub(crate) struct StoredExtension(pub(crate) Box<dyn JackdawExtension>);
+
+#[macro_export]
+macro_rules! props {
+    () => {
+        ::jackdaw_api::jsn::CustomProperties::default()
+    };
+    ($($key:expr => $value:expr),* $(,)?) => {
+        {
+            let mut props = ::jackdaw_api::jsn::CustomProperties::default();
+            $(
+                props.properties.insert($key.into(), $value.into());
+            )*
+            props
+        }
+    };
+}

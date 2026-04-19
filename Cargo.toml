@@ -94,6 +94,7 @@ anyhow = { version = "1", default-features = false }
 dirs = "6"
 regex = "1"
 pathdiff = "0.2"
+variadics_please = "1"
 
 # Idiomatic Bevy code often triggers these lints, and the CI workflow treats them as errors.
 [workspace.lints.clippy]

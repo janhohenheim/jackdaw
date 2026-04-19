@@ -88,11 +88,9 @@ fn can_pass_params_to_operator() {
     app.finish();
     app.update();
 
-    let params = [("foo", "bar")].into_iter().collect::<CustomProperties>();
-
     let result = app
         .world_mut()
-        .call_operator(SampleExtension::CHECK_PARAMS, params)
+        .call_operator(SampleExtension::CHECK_PARAMS, props!["foo" => "bar"])
         .unwrap();
     assert_eq!(result, OperatorResult::Finished);
 }
