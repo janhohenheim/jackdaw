@@ -244,6 +244,16 @@ impl<'a> OperatorCallBuilder<'a> {
         let Some(op) = self.world.get::<OperatorEntity>(op_entity).cloned() else {
             return Err(CallOperatorError::UnknownId(self.id));
         };
+        if op.modal
+            && self
+                .world
+                .query_filtered::<Entity, With<ActiveModalOperator>>()
+                .iter(self.world)
+                .next()
+                .is_some()
+        {
+            return Err(CallOperatorError::ModalAlreadyActive(op.id));
+        }
         let Some(check) = op.availability_check else {
             return Ok(true);
         };
@@ -285,7 +295,9 @@ fn dispatch_operator(
     info!("OPERATOR: {id}");
     let params = params.into();
 
-    if let Some(active) = active.get(world) {
+    if let Some(active) = active.get(world)
+        && active.id != id.as_ref()
+    {
         return Err(CallOperatorError::ModalAlreadyActive(active.id));
     }
 
@@ -324,20 +336,22 @@ fn dispatch_operator(
     let result = world.run_system_with(system, params);
 
     let result = result.map_err(|_| CallOperatorError::ExecuteFailed)?;
-
     match result {
         OperatorResult::Running if op.modal => {
             world
                 .entity_mut(op_entity)
                 .insert(ActiveModalOperator { before_snapshot });
         }
-        OperatorResult::Running | OperatorResult::Finished => {
+        OperatorResult::Running => {}
+        OperatorResult::Finished => {
             if let Err(err) = world.run_system_cached_with(finalize, (op.label, before_snapshot)) {
                 error!("Failed to finalize modal operator {}: {err:?}", op.label);
             }
         }
         OperatorResult::Cancelled => {
-            // Drop the snapshot without pushing history.
+            if let Err(err) = world.run_system_cached_with(cancel_operator, op) {
+                error!("Failed to finalize cancel operator: {err:?}");
+            }
         }
     }
 
@@ -387,12 +401,12 @@ impl EditorCommand for SnapshotDiff {
 /// `Finished` (committing) or `Cancelled` (discarding).
 pub(crate) fn tick_modal_operator(
     world: &mut World,
-    active: &mut SystemState<Option<Single<&OperatorEntity>>>,
+    active: &mut SystemState<Option<Single<&OperatorEntity, With<ActiveModalOperator>>>>,
 ) {
-    let Some(invoke) = active.get(world) else {
+    let Some(op) = active.get(world).map(|op| op.clone()) else {
         return;
     };
-    let result = match world.run_system_with(invoke.invoke, default()) {
+    let result = match world.run_system_with(op.invoke, default()) {
         Ok(r) => r,
         Err(err) => {
             error!("Modal operator's invoke system failed: {err:?}; cancelling");
@@ -410,10 +424,21 @@ pub(crate) fn tick_modal_operator(
             }
         }
         OperatorResult::Cancelled => {
-            if let Err(err) = world.run_system_cached_with(finalize_modal, false) {
-                error!("Failed to finalize modal operator: {err:?}");
+            if let Err(err) = world.run_system_cached_with(cancel_operator, op) {
+                error!("Failed to finalize cancel operator: {err:?}");
             }
         }
+    }
+}
+
+pub fn cancel_operator(In(op): In<OperatorEntity>, world: &mut World) {
+    if let Some(cancel) = op.cancel {
+        if let Err(err) = world.run_system(cancel) {
+            error!("Failed to cancel modal operator {}: {err:?}", op.label);
+        }
+    }
+    if let Err(err) = world.run_system_cached_with(finalize_modal, false) {
+        error!("Failed to finalize modal operator: {err:?}");
     }
 }
 

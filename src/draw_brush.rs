@@ -50,14 +50,13 @@ fn on_draw_brush(_: On<Fire<DrawBrush>>, state: ResMut<DrawBrushState>) {
     if state.active.is_none() {
         return;
     }
-    info!("a");
 }
 
 #[derive(Component, InputAction)]
 #[action_output(bool)]
 struct DrawBrush;
 
-#[operator(id = "viewport.draw_brush_modal", modal = true)]
+#[operator(id = "viewport.draw_brush_modal", cancel = cancel_draw_brush_modal, modal = true)]
 pub fn activate_draw_brush_modal(
     _: In<OperatorParameters>,
     mut input_focus: ResMut<InputFocus>,
@@ -103,11 +102,16 @@ pub fn activate_draw_brush_modal(
             cached_face_hit: None,
         });
     }
+    if draw_state.active.is_none() {
+        return OperatorResult::Finished;
+    }
     OperatorResult::Running
 }
 
+fn cancel_draw_brush_modal() {}
+
 #[operator(id = "mesh.add_brush")]
-pub fn add_brush(params: In<OperatorParameters>) -> OperatorResult {
+pub fn add_brush(_params: In<OperatorParameters>) -> OperatorResult {
     OperatorResult::Finished
 }
 
@@ -191,7 +195,7 @@ pub(crate) struct ActiveDraw {
     pub cached_face_hit: Option<Vec3>,
 }
 
-#[derive(Resource, Default)]
+#[derive(Resource, Debug, Default)]
 pub(crate) struct DrawBrushState {
     pub(crate) active: Option<ActiveDraw>,
 }

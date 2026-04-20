@@ -1681,7 +1681,10 @@ fn populate_menu(world: &mut World) {
             ext_menu_entries
                 .entry(entry.menu.clone())
                 .or_default()
-                .push((format!("op:{}", entry.operator_id), entry.label.clone()));
+                .push((
+                    format!("{OP_PREFIX}{}", entry.operator_id),
+                    entry.label.clone(),
+                ));
         }
         for entries in ext_menu_entries.values_mut() {
             entries.sort_by(|a, b| a.1.cmp(&b.1));
@@ -2087,13 +2090,13 @@ fn handle_menu_action(event: On<MenuAction>, mut commands: Commands) {
                 crate::prefab_picker::open_prefab_picker(world);
             });
         }
-        action if action.starts_with("op:") => {
+        action if action.starts_with(OP_PREFIX) => {
             // Extension-contributed menu entry. The action id is the
             // operator id with an "op:" prefix. Dispatching through the
             // operator system rather than a parallel path keeps
             // behaviour (history entry, poll, modal) identical to
             // keybind-triggered operators.
-            let operator_id = action.strip_prefix("op:").unwrap().to_string();
+            let operator_id = action.strip_prefix(OP_PREFIX).unwrap().to_string();
             commands.queue(move |world: &mut World| {
                 world
                     .operator(operator_id)
@@ -2122,6 +2125,10 @@ fn handle_menu_action(event: On<MenuAction>, mut commands: Commands) {
         _ => {}
     }
 }
+
+/// TODO: This should not exist. All actions should be operators.
+/// Remove this once the operatorification is done.
+const OP_PREFIX: &str = "op:";
 
 /// Wrap an entity-spawning closure in a `SpawnEntity` command so Ctrl+Z can undo it.
 fn spawn_undoable<F>(world: &mut World, label: &str, spawn: F)

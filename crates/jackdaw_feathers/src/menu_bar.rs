@@ -230,11 +230,17 @@ fn spawn_dropdown(commands: &mut Commands, x: f32, y: f32, actions: &[(String, S
             MenuBarDropdownItem {
                 action: action.clone(),
             },
-            button(
-                ButtonProps::new(label.clone())
+            button({
+                let button = ButtonProps::new(label.clone())
                     .with_variant(ButtonVariant::Ghost)
-                    .align_left(),
-            ),
+                    .align_left();
+                // TODO: this should be an actual tooltip
+                if let Some(tooltip) = action.strip_prefix("op:") {
+                    button.with_subtitle(tooltip)
+                } else {
+                    button
+                }
+            }),
         ));
     }
 

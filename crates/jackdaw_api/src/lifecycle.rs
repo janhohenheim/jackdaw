@@ -73,7 +73,7 @@ impl Default for ResourceId {
 /// `On<Remove, OperatorEntity>` unregisters those systems when this entity
 /// despawns, and keeps the [`OperatorIndex`] in sync.
 #[derive(Component, Clone)]
-pub(crate) struct OperatorEntity {
+pub struct OperatorEntity {
     pub(crate) id: &'static str,
     pub(crate) label: &'static str,
     #[expect(dead_code, reason = "This should go into the UI eventually")]
