@@ -328,28 +328,28 @@ impl<'a> ExtensionContext<'a> {
                     availability_check,
                     cancel,
                     modal: O::MODAL,
+                    allows_undo: O::ALLOWS_UNDO,
                 },
                 ChildOf(ext),
             ))
             .id();
 
-        if !O::MANUAL {
-            let observer = Observer::new(
-                move |_: bevy::prelude::On<bevy_enhanced_input::prelude::Fire<O>>,
-                      mut commands: Commands| {
-                    commands.queue(move |world: &mut World| {
-                        world
-                            .operator(O::ID)
-                            .settings(CallOperatorSettings {
-                                execution_context: ExecutionContext::Invoke,
-                                creates_history_entry: true,
-                            })
-                            .call()
-                    });
-                },
-            );
-            self.world.spawn((observer, ChildOf(op_entity)));
-        }
+        let observer = Observer::new(
+            move |_: bevy::prelude::On<bevy_enhanced_input::prelude::Fire<O>>,
+                  mut commands: Commands| {
+                commands.queue(move |world: &mut World| {
+                    world
+                        .operator(O::ID)
+                        .settings(CallOperatorSettings {
+                            execution_context: ExecutionContext::Invoke,
+                            creates_history_entry: true,
+                        })
+                        .call()
+                });
+            },
+        );
+        self.world.spawn((observer, ChildOf(op_entity)));
+
         self
     }
 

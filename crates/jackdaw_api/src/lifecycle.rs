@@ -89,6 +89,7 @@ pub struct OperatorEntity {
     /// operator type.
     pub(crate) cancel: Option<SystemId<()>>,
     pub(crate) modal: bool,
+    pub(crate) allows_undo: bool,
 }
 
 /// Tracks the currently-active modal operator. Exactly zero or one is

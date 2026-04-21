@@ -22,10 +22,9 @@ impl JackdawExtension for JackdawCoreExtension {
             CoreExtensionInputContext,
             actions!(
                 CoreExtensionInputContext
-                    [(Action::<CancelModal>::new(), bindings!(KeyCode::Escape))]
+                    [(Action::<CancelModalOp>::new(), bindings!(KeyCode::Escape))]
             ),
         ));
-        ctx.add_observer(cancel_modal);
         crate::draw_brush::add_to_extension(ctx);
     }
 
@@ -37,10 +36,13 @@ impl JackdawExtension for JackdawCoreExtension {
 #[derive(Component, Default)]
 pub struct CoreExtensionInputContext;
 
-#[derive(Component, InputAction)]
-#[action_output(bool)]
-struct CancelModal;
-
-fn cancel_modal(_: On<Fire<CancelModal>>, mut active: ActiveModalQuery) {
+#[operator(
+    id = "modal.cancel",
+    label = "Cancel Tool",
+    description = "Cancels the currently active tool",
+    allows_undo = false
+)]
+fn cancel_modal(_: In<OperatorParameters>, mut active: ActiveModalQuery) -> OperatorResult {
     active.cancel();
+    OperatorResult::Finished
 }

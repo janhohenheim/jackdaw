@@ -109,7 +109,13 @@ fn cancel_draw_brush_modal(mut draw_state: ResMut<DrawBrushState>) {
     draw_state.active = None;
 }
 
-#[operator(id = "draw_brush.confirm", label = "Draw Brush (Confirm)", is_available = is_in_draw_brush_modal)]
+#[operator(
+    id = "draw_brush.confirm",
+    label = "Draw Brush (Confirm)",
+    description = "Confirms the current draw brush operation",
+    is_available = is_in_draw_brush_modal,
+    allows_undo = false
+)]
 fn confirm_draw_brush(
     _: In<OperatorParameters>,
     mut draw_state: ResMut<DrawBrushState>,
@@ -203,7 +209,7 @@ fn confirm_draw_brush(
             }
         }
     }
-    OperatorResult::Cancelled
+    OperatorResult::Finished
 }
 
 fn is_in_draw_brush_modal(active: ActiveModalQuery) -> bool {

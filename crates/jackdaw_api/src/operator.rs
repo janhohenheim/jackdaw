@@ -54,18 +54,10 @@ pub trait Operator: InputAction + 'static {
     const LABEL: &'static str;
     const DESCRIPTION: &'static str = "";
 
-    /// Whether an observer should be auto-wired to call this operator.
-    ///
-    /// When `false` (default), registration spawns a `Fire<Self>`
-    /// observer that dispatches the operator whenever any bound input
-    /// fires it. Authors shape timing via BEI binding modifiers
-    /// (`Press`, `Release`, `Hold`, etc.) on the binding.
-    ///
-    /// When `true`, no observer is spawned. The operator is invocable
-    /// only through `World::operator(Self::ID)`. Useful for
-    /// operators driven by menus, UI buttons, or F3-search without
-    /// a keybind.
-    const MANUAL: bool = false;
+    /// Whether this operator allows undoing. Note that whether an
+    /// operator actually pushes an undo entry depends on the call site,
+    /// so this should usually be `true`.
+    const ALLOWS_UNDO: bool = true;
 
     /// Modal operators stay active across frames.
     ///
@@ -448,10 +440,12 @@ fn dispatch_operator(
         }
         OperatorResult::Running => {}
         OperatorResult::Finished => {
-            if let Err(err) =
-                world.run_system_cached_with(save_history, (op.label, before_snapshot))
-            {
-                error!("Failed to finalize modal operator {}: {err:?}", op.label);
+            if op.allows_undo {
+                if let Err(err) =
+                    world.run_system_cached_with(save_history, (op.label, before_snapshot))
+                {
+                    error!("Failed to finalize modal operator {}: {err:?}", op.label);
+                }
             }
         }
         OperatorResult::Cancelled => {
@@ -606,7 +600,7 @@ fn finalize_modal(
     let Some(snapshot) = world.entity_mut(entity).take::<ActiveModalOperator>() else {
         return;
     };
-    if !commit {
+    if !commit || !op.allows_undo {
         return;
     }
     if let Err(err) =

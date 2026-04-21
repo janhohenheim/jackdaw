@@ -20,14 +20,15 @@ use syn::{
 /// Optional keys:
 /// - `description`: long-form description (default `""`)
 /// - `modal`: `bool`, default `false`
-/// - `manual`: `bool`, default `false`. When `true`, no Fire observer
-///   is wired up; callers invoke the operator via
-///   `World::operator`.
+/// - `allows_undo`: `bool`, default `true`. When `false`, this operator will never
+///    create an undo history entry.
 /// - `is_available`: path to a Bevy system returning `bool` that
 ///   decides whether the operator can run in the current editor
 ///   state. Runs before the execute system on every
 ///   `World::operator` and via `World::is_operator_available`.
-///   If `false`, the operator returns `Cancelled` without executing.
+///    If that system returns `false`, the operator returns an error without executing.
+/// - `cancel`: path to a Bevy system that is invoked when the
+///    operator is cancelled.
 /// - `name`: override the generated struct name. Default is
 ///   `PascalCase(fn_name) + "Op"`.
 ///
@@ -60,7 +61,7 @@ pub fn operator(attr: TokenStream, item: TokenStream) -> TokenStream {
     let mut label: Option<Expr> = None;
     let mut description: Option<Expr> = None;
     let mut modal: bool = false;
-    let mut manual: bool = false;
+    let mut allows_undo: bool = true;
     let mut name_override: Option<String> = None;
     let mut is_available: Option<Path> = None;
     let mut cancel: Option<Path> = None;
@@ -90,9 +91,9 @@ pub fn operator(attr: TokenStream, item: TokenStream) -> TokenStream {
                     modal = b.value;
                 }
             }
-            "manual" => {
+            "allows_undo" => {
                 if let Some(b) = as_lit_bool(&arg.value) {
-                    manual = b.value;
+                    allows_undo = b.value;
                 }
             }
             "name" => {
@@ -186,7 +187,7 @@ pub fn operator(attr: TokenStream, item: TokenStream) -> TokenStream {
             const LABEL: &'static str = #label;
             const DESCRIPTION: &'static str = #description;
             const MODAL: bool = #modal;
-            const MANUAL: bool = #manual;
+            const ALLOWS_UNDO: bool = #allows_undo;
 
             fn register_execute(
                 commands: &mut ::bevy::ecs::system::Commands,
