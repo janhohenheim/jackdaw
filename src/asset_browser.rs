@@ -10,6 +10,7 @@ use bevy::{
     ui_widgets::observe,
     window::{PrimaryWindow, RawHandleWrapper},
 };
+use jackdaw_feathers::tooltip::ActiveTooltip;
 use jackdaw_feathers::text_edit::TextEditValue;
 use jackdaw_feathers::{file_browser, icons, icons::IconFont, popover, tokens};
 use jackdaw_widgets::file_browser::{FileBrowserItem, FileItemDoubleClicked};
@@ -85,7 +86,6 @@ impl Plugin for AssetBrowserPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<AssetBrowserState>()
             .init_resource::<AssetPreviewState>()
-            .init_resource::<ActiveTooltip>()
             .add_systems(OnEnter(crate::AppState::Editor), setup_initial_directory)
             .add_systems(
                 Update,
@@ -185,9 +185,6 @@ pub struct AssetPreviewState {
     pub current_layer: u32,
     pub layer_images: Vec<Handle<Image>>,
 }
-
-#[derive(Resource, Default)]
-pub struct ActiveTooltip(pub Option<Entity>);
 
 #[derive(Event, Debug, Clone)]
 struct SelectAssetPreview {

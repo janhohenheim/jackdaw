@@ -1,13 +1,6 @@
-use bevy::{
-    input_focus::InputFocus,
-    light::{NotShadowCaster, NotShadowReceiver},
-    mesh::{Indices, PrimitiveTopology},
-    picking::mesh_picking::ray_cast::{MeshRayCast, MeshRayCastSettings, RayCastVisibility},
-    prelude::*,
-    ui::UiGlobalTransform,
-};
-
+use crate::core_extension::CoreExtensionInputContext;
 use crate::default_style;
+use crate::prelude::*;
 use crate::{
     EditorEntity,
     brush::{BrushFaceEntity, BrushMaterialPalette},
@@ -20,12 +13,218 @@ use crate::{
     viewport::{MainViewportCamera, SceneViewport},
     viewport_util::window_to_viewport_cursor,
 };
+use bevy::{
+    input_focus::InputFocus,
+    light::{NotShadowCaster, NotShadowReceiver},
+    mesh::{Indices, PrimitiveTopology},
+    picking::mesh_picking::ray_cast::{MeshRayCast, MeshRayCastSettings, RayCastVisibility},
+    prelude::*,
+    ui::UiGlobalTransform,
+};
+use bevy_enhanced_input::prelude::Press;
+use jackdaw_api::lifecycle::ActiveModalOperator;
 use jackdaw_geometry::{
     brush_planes_to_world, brushes_intersect, clean_degenerate_faces, compute_brush_geometry,
     compute_face_tangent_axes, compute_face_uvs, intersect_brushes, subtract_brush,
     triangulate_face,
 };
 use jackdaw_jsn::{Brush, BrushFaceData, BrushGroup, BrushPlane};
+
+pub(crate) fn add_to_extension(ctx: &mut ExtensionContext) {
+    ctx.entity_mut()
+        .with_related::<ActionOf<CoreExtensionInputContext>>((
+            Action::<ConfirmDrawBrushOp>::new(),
+            bindings![(MouseButton::Left, Press::default()),],
+        ))
+        .with_related::<ActionOf<CoreExtensionInputContext>>((
+            Action::<ActivateDrawBrushModalOp>::new(),
+            bindings![
+                (MouseButton::Back, Press::default()),
+                (KeyCode::KeyB, Press::default()),
+            ],
+        ));
+    ctx.register_operator::<ActivateDrawBrushModalOp>()
+        .register_operator::<AddBrushOp>()
+        .register_operator::<ConfirmDrawBrushOp>()
+        .register_menu_entry(MenuEntryDescriptor {
+            menu: "Add".to_string(),
+            label: ActivateDrawBrushModalOp::LABEL.to_string(),
+            operator_id: ActivateDrawBrushModalOp::ID,
+        });
+
+    ctx.init_resource::<DrawBrushState>()
+        .init_resource::<StableIdCounter>();
+}
+
+#[operator(id = "viewport.draw_brush_modal", label = "Draw Brush", cancel = cancel_draw_brush_modal, modal = true)]
+pub fn activate_draw_brush_modal(
+    _: In<OperatorParameters>,
+    mut input_focus: ResMut<InputFocus>,
+    mut draw_state: ResMut<DrawBrushState>,
+    mut edit_mode: ResMut<crate::brush::EditMode>,
+    mut brush_selection: ResMut<crate::brush::BrushSelection>,
+    modal: Option<Single<Entity, With<ActiveModalOperator>>>,
+) -> OperatorResult {
+    if modal.is_none() {
+        let mode = DrawMode::Add;
+        input_focus.0 = None;
+
+        // Exit brush edit mode if active
+        if *edit_mode != crate::brush::EditMode::Object {
+            *edit_mode = crate::brush::EditMode::Object;
+            brush_selection.entity = None;
+            brush_selection.faces.clear();
+            brush_selection.vertices.clear();
+            brush_selection.edges.clear();
+        }
+
+        draw_state.active = Some(ActiveDraw {
+            corner1: Vec3::ZERO,
+            corner2: Vec3::ZERO,
+            depth: 0.0,
+            phase: DrawPhase::PlacingFirstCorner,
+            mode,
+            plane: DrawPlane {
+                origin: Vec3::ZERO,
+                normal: Vec3::Y,
+                axis_u: Vec3::X,
+                axis_v: Vec3::Z,
+            },
+            extrude_start_cursor: Vec2::ZERO,
+            plane_locked: false,
+            cursor_on_plane: None,
+            append_target: None,
+            drag_footprint: false,
+            press_screen_pos: None,
+            polygon_vertices: Vec::new(),
+            polygon_cursor: None,
+            diagonal_snap: false,
+            cached_face_hit: None,
+        });
+    }
+    if draw_state.active.is_none() {
+        return OperatorResult::Finished;
+    }
+    OperatorResult::Running
+}
+
+fn cancel_draw_brush_modal(mut draw_state: ResMut<DrawBrushState>) {
+    draw_state.active = None;
+}
+
+#[operator(
+    id = "draw_brush.confirm",
+    label = "Draw Brush (Confirm)",
+    description = "Confirms the current draw brush operation",
+    is_available = is_in_draw_brush_modal,
+    allows_undo = false
+)]
+fn confirm_draw_brush(
+    _: In<OperatorParameters>,
+    mut draw_state: ResMut<DrawBrushState>,
+    windows: Query<&Window>,
+    camera_query: Query<(&Camera, &GlobalTransform), With<MainViewportCamera>>,
+    viewport_query: Query<(&ComputedNode, &UiGlobalTransform), With<SceneViewport>>,
+    mut commands: Commands,
+) -> OperatorResult {
+    let Some(ref mut active) = draw_state.active else {
+        return OperatorResult::Cancelled;
+    };
+
+    // Verify cursor is in viewport
+    let Ok(window) = windows.single() else {
+        return OperatorResult::Cancelled;
+    };
+    let Some(cursor_pos) = window.cursor_position() else {
+        return OperatorResult::Cancelled;
+    };
+    let Ok((camera, _)) = camera_query.single() else {
+        return OperatorResult::Cancelled;
+    };
+    let Some(viewport_cursor) = window_to_viewport_cursor(cursor_pos, camera, &viewport_query)
+    else {
+        return OperatorResult::Cancelled;
+    };
+
+    match active.phase {
+        DrawPhase::PlacingFirstCorner => {
+            if let Some(pos) = active.cursor_on_plane {
+                active.corner1 = pos;
+                active.corner2 = pos;
+                active.phase = DrawPhase::DrawingFootprint;
+                active.drag_footprint = true;
+                active.press_screen_pos = Some(cursor_pos);
+            }
+        }
+        DrawPhase::DrawingFootprint => {
+            if active.drag_footprint {
+                return OperatorResult::Cancelled;
+            }
+            let delta = active.corner2 - active.corner1;
+            if delta.dot(active.plane.axis_u).abs() < MIN_FOOTPRINT_SIZE
+                || delta.dot(active.plane.axis_v).abs() < MIN_FOOTPRINT_SIZE
+            {
+                return OperatorResult::Cancelled;
+            }
+            active.phase = DrawPhase::ExtrudingDepth;
+            active.extrude_start_cursor = viewport_cursor;
+            active.depth = 0.0;
+        }
+        DrawPhase::DrawingRotatedWidth => {
+            if active.polygon_vertices.len() == 4 {
+                let edge1 = (active.polygon_vertices[1] - active.polygon_vertices[0]).length();
+                let edge2 = (active.polygon_vertices[3] - active.polygon_vertices[0]).length();
+                if edge1 >= MIN_FOOTPRINT_SIZE && edge2 >= MIN_FOOTPRINT_SIZE {
+                    active.phase = DrawPhase::ExtrudingDepth;
+                    active.extrude_start_cursor = viewport_cursor;
+                    active.depth = 0.0;
+                }
+            }
+        }
+        DrawPhase::DrawingPolygon => {
+            if let Some(cursor) = active.polygon_cursor {
+                // Accept all vertices, but skip near-duplicates
+                let too_close = active
+                    .polygon_vertices
+                    .iter()
+                    .any(|&v| (v - cursor).length() < 0.05);
+                if !too_close {
+                    active.polygon_vertices.push(cursor);
+                }
+            }
+        }
+        DrawPhase::ExtrudingDepth => {
+            if active.depth.abs() < MIN_EXTRUDE_DEPTH {
+                return OperatorResult::Cancelled; // No depth, keep extruding
+            }
+            let active = active.clone();
+            draw_state.active = None;
+            if !active.polygon_vertices.is_empty() {
+                if active.append_target.is_some() {
+                    append_to_brush(&active, &mut commands);
+                } else {
+                    spawn_polygon_brush(&active, &mut commands);
+                }
+            } else if active.append_target.is_some() {
+                append_to_brush(&active, &mut commands);
+            } else {
+                spawn_drawn_brush(&active, &mut commands);
+            }
+        }
+    }
+    OperatorResult::Finished
+}
+
+fn is_in_draw_brush_modal(active: ActiveModalQuery) -> bool {
+    active.is_operator(ActivateDrawBrushModalOp::ID)
+}
+
+#[operator(id = "mesh.add_brush")]
+pub fn add_brush(_params: In<OperatorParameters>) -> OperatorResult {
+    // TODO: make this add / finalize the geometry that was previewed by the draw model
+    // The reason for this operator to exist is to be called by user extensions.
+    OperatorResult::Finished
+}
 
 const EXTRUDE_DEPTH_SENSITIVITY: f32 = 0.003;
 const MIN_FOOTPRINT_SIZE: f32 = 0.01;
@@ -107,7 +306,7 @@ pub(crate) struct ActiveDraw {
     pub cached_face_hit: Option<Vec3>,
 }
 
-#[derive(Resource, Default)]
+#[derive(Resource, Debug, Default)]
 pub(crate) struct DrawBrushState {
     pub(crate) active: Option<ActiveDraw>,
 }
@@ -280,9 +479,8 @@ pub(crate) struct CutPreviewHidden;
 
 impl Plugin for DrawBrushPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<DrawBrushState>()
-            .init_resource::<StableIdCounter>()
-            .init_gizmo_group::<DrawBrushGizmoGroup>()
+        // TODO: Move *all* of this into the `extension` method and turn systems into ops on the way.
+        app.init_gizmo_group::<DrawBrushGizmoGroup>()
             .add_systems(Startup, configure_draw_brush_gizmos)
             .add_systems(
                 Update,
@@ -318,7 +516,6 @@ fn configure_draw_brush_gizmos(mut config_store: ResMut<GizmoConfigStore>) {
 
 fn draw_brush_activate(
     keyboard: Res<ButtonInput<KeyCode>>,
-    mouse: Res<ButtonInput<MouseButton>>,
     keybinds: Res<crate::keybinds::KeybindRegistry>,
     input_focus: Res<InputFocus>,
     mut draw_state: ResMut<DrawBrushState>,
@@ -343,10 +540,7 @@ fn draw_brush_activate(
 
     // B or Mouse4 = draw in Add mode, Alt+B = append to brush, C = draw in Cut mode
     let append = keybinds.just_pressed(EditorAction::AppendToBrush, &keyboard);
-    let mode = if keybinds.just_pressed(EditorAction::DrawAdd, &keyboard)
-        || append
-        || mouse.just_pressed(MouseButton::Back)
-    {
+    let mode = if append {
         DrawMode::Add
     } else if keybinds.just_pressed(EditorAction::DrawCut, &keyboard) {
         DrawMode::Cut
@@ -707,6 +901,10 @@ fn draw_brush_confirm(
     let Some(ref mut active) = draw_state.active else {
         return;
     };
+    if active.mode == DrawMode::Add {
+        // Already migrated to operator
+        return;
+    }
 
     // Verify cursor is in viewport
     let Ok(window) = windows.single() else {
@@ -777,18 +975,7 @@ fn draw_brush_confirm(
             let active_owned = active.clone();
             match active_owned.mode {
                 DrawMode::Add => {
-                    draw_state.active = None;
-                    if !active_owned.polygon_vertices.is_empty() {
-                        if active_owned.append_target.is_some() {
-                            append_to_brush(&active_owned, &mut commands);
-                        } else {
-                            spawn_polygon_brush(&active_owned, &mut commands);
-                        }
-                    } else if active_owned.append_target.is_some() {
-                        append_to_brush(&active_owned, &mut commands);
-                    } else {
-                        spawn_drawn_brush(&active_owned, &mut commands);
-                    }
+                    unreachable!()
                 }
                 DrawMode::Cut => {
                     subtract_drawn_brush(&active_owned, &mut commands);
@@ -815,6 +1002,10 @@ fn draw_brush_cancel(
     let Some(ref mut active) = draw_state.active else {
         return;
     };
+    if active.mode == DrawMode::Add {
+        // Already migrated to operator
+        return;
+    }
 
     // Polygon mode: Enter closes polygon (via convex hull), Backspace removes last vertex
     if active.phase == DrawPhase::DrawingPolygon {

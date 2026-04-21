@@ -19,7 +19,7 @@ use jackdaw_widgets::tree_view::{
 };
 
 use crate::{
-    EditorEntity, EditorHidden,
+    EditorEntity, EditorHidden, OP_PREFIX,
     commands::{CommandHistory, EditorCommand, ReparentEntity, SetJsnField},
     entity_ops,
     layout::HierarchyFilter,
@@ -886,7 +886,7 @@ fn handle_hierarchy_right_click(
         .filter(|entry| entry.menu == "Add")
         .map(|entry| {
             (
-                format!("op:{}", entry.operator_id),
+                format!("{OP_PREFIX}{}", entry.operator_id),
                 format!("Add {}", entry.label),
             )
         })
@@ -1015,18 +1015,18 @@ fn on_context_menu_action(
                 ));
             }
         }
-        action if action.starts_with("op:") => {
+        action if action.starts_with(OP_PREFIX) => {
             // Extension-contributed Add entry. Dispatch through the same
             // path as the toolbar Add menu and the Add Entity picker so
             // operators behave identically regardless of which surface
             // invoked them.
-            let operator_id = action.strip_prefix("op:").unwrap().to_string();
+            let operator_id = action.strip_prefix(OP_PREFIX).unwrap().to_string();
             commands.queue(move |world: &mut World| {
                 world
                     .operator(operator_id)
                     .settings(CallOperatorSettings {
                         execution_context: jackdaw_api::prelude::ExecutionContext::Invoke,
-                        ..default()
+                        creates_history_entry: true,
                     })
                     .call()
             });

@@ -21,12 +21,12 @@ impl JackdawExtension for ViewableCameraExtension {
         "viewable_camera".to_string()
     }
 
-    fn register_input_contexts(&self, app: &mut App) {
+    fn register_input_context(app: &mut App) {
         app.add_input_context::<ViewableCameraContext>();
     }
 
     fn register(&self, ctx: &mut ExtensionContext) {
-        ctx.world().init_resource::<CameraPreviewState>();
+        ctx.init_resource::<CameraPreviewState>();
 
         ctx.register_operator::<PlaceViewableCamera>();
         ctx.register_operator::<ToggleCameraPreview>();
@@ -48,8 +48,7 @@ impl JackdawExtension for ViewableCameraExtension {
         // Exit preview if the previewed camera gets despawned (e.g. the
         // user undoes the placement while preview is active), so the
         // viewport falls back to the editor camera.
-        let ext_entity = ctx.entity();
-        let observer = Observer::new(
+        ctx.add_observer(
             move |trigger: On<Remove, ViewableCamera>,
                   mut state: ResMut<CameraPreviewState>,
                   mut commands: Commands| {
@@ -61,7 +60,6 @@ impl JackdawExtension for ViewableCameraExtension {
                 }
             },
         );
-        ctx.world().spawn((observer, ChildOf(ext_entity)));
     }
 }
 

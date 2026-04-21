@@ -57,8 +57,8 @@ use bevy::{
     prelude::*,
 };
 use jackdaw_api::prelude::*;
-use jackdaw_feathers::EditorFeathersPlugin;
 use jackdaw_feathers::dialog::EditorDialog;
+use jackdaw_feathers::{EditorFeathersPlugin, tooltip::Tooltip};
 use jackdaw_widgets::menu_bar::MenuAction;
 use selection::Selection;
 use viewable_camera_extension::ViewableCameraExtension;
@@ -123,6 +123,9 @@ impl Plugin for EditorPlugin {
             .add_plugins((
                 FeathersPlugins.build().disable::<InputDispatchPlugin>(),
                 EditorFeathersPlugin,
+                EnhancedInputPlugin,
+            ))
+            .add_plugins((
                 jackdaw_jsn::JsnPlugin {
                     runtime_mesh_rebuild: false,
                 },
@@ -213,7 +216,6 @@ impl Plugin for EditorPlugin {
                 (
                     send_scroll_events,
                     layout::update_toolbar_highlights,
-                    layout::update_toolbar_tooltips,
                     layout::update_space_toggle_label,
                     layout::update_edit_tool_highlights,
                     layout::update_active_document_display,
@@ -546,29 +548,19 @@ fn decorate_timeline_tooltips(
     mut commands: Commands,
 ) {
     for e in &play {
-        commands
-            .entity(e)
-            .insert(layout::ToolbarTooltip("Play".into()));
+        commands.entity(e).insert(Tooltip("Play".into()));
     }
     for e in &pause {
-        commands
-            .entity(e)
-            .insert(layout::ToolbarTooltip("Pause".into()));
+        commands.entity(e).insert(Tooltip("Pause".into()));
     }
     for e in &stop {
-        commands
-            .entity(e)
-            .insert(layout::ToolbarTooltip("Stop".into()));
+        commands.entity(e).insert(Tooltip("Stop".into()));
     }
     for e in &new_clip {
-        commands
-            .entity(e)
-            .insert(layout::ToolbarTooltip("New Clip".into()));
+        commands.entity(e).insert(Tooltip("New Clip".into()));
     }
     for e in &new_blend {
-        commands
-            .entity(e)
-            .insert(layout::ToolbarTooltip("New Blend Graph".into()));
+        commands.entity(e).insert(Tooltip("New Blend Graph".into()));
     }
 }
 
@@ -1678,7 +1670,10 @@ fn populate_menu(world: &mut World) {
             ext_menu_entries
                 .entry(entry.menu.clone())
                 .or_default()
-                .push((format!("op:{}", entry.operator_id), entry.label.clone()));
+                .push((
+                    format!("{OP_PREFIX}{}", entry.operator_id),
+                    entry.label.clone(),
+                ));
         }
         for entries in ext_menu_entries.values_mut() {
             entries.sort_by(|a, b| a.1.cmp(&b.1));
@@ -2084,19 +2079,19 @@ fn handle_menu_action(event: On<MenuAction>, mut commands: Commands) {
                 crate::prefab_picker::open_prefab_picker(world);
             });
         }
-        action if action.starts_with("op:") => {
+        action if action.starts_with(OP_PREFIX) => {
             // Extension-contributed menu entry. The action id is the
             // operator id with an "op:" prefix. Dispatching through the
             // operator system rather than a parallel path keeps
             // behaviour (history entry, poll, modal) identical to
             // keybind-triggered operators.
-            let operator_id = action.strip_prefix("op:").unwrap().to_string();
+            let operator_id = action.strip_prefix(OP_PREFIX).unwrap().to_string();
             commands.queue(move |world: &mut World| {
                 world
                     .operator(operator_id)
                     .settings(CallOperatorSettings {
                         execution_context: ExecutionContext::Invoke,
-                        ..default()
+                        creates_history_entry: true,
                     })
                     .call()
             });
@@ -2119,6 +2114,10 @@ fn handle_menu_action(event: On<MenuAction>, mut commands: Commands) {
         _ => {}
     }
 }
+
+/// TODO: This should not exist. All actions should be operators.
+/// Remove this once the operatorification is done.
+const OP_PREFIX: &str = "op:";
 
 /// Wrap an entity-spawning closure in a `SpawnEntity` command so Ctrl+Z can undo it.
 fn spawn_undoable<F>(world: &mut World, label: &str, spawn: F)

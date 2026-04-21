@@ -23,7 +23,7 @@ impl JackdawExtension for SampleExtension {
         "sample".to_string()
     }
 
-    fn register_input_contexts(&self, app: &mut App) {
+    fn register_input_context(app: &mut App) {
         app.add_input_context::<SampleContext>();
     }
 

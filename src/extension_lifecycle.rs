@@ -54,7 +54,7 @@ pub fn enable_extension(world: &mut World, name: &str) -> Option<Entity> {
 /// Takes `&mut World` (not `&mut App`) so this can be called from
 /// world-scoped contexts like observer callbacks. BEI input context
 /// registration belongs in
-/// [`JackdawExtension::register_input_contexts`], which is called at
+/// [`JackdawExtension::register_input_context`], which is called at
 /// catalog registration time with App access.
 pub fn load_static_extension(world: &mut World, extension: Box<dyn JackdawExtension>) -> Entity {
     let name = extension.dyn_name();

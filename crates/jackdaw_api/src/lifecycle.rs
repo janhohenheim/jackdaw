@@ -12,20 +12,22 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::prelude::OperatorSystemId;
-use crate::snapshot::SceneSnapshot;
-use bevy::ecs::system::SystemId;
+use crate::operator::cancel_active_modal;
+use crate::prelude::*;
+use bevy::ecs::component::ComponentId;
+use bevy::ecs::system::{SystemId, SystemParam};
 use bevy::prelude::*;
 
 pub(super) fn plugin(app: &mut App) {
     app.init_resource::<ExtensionCatalog>()
         .init_resource::<OperatorIndex>()
-        .init_resource::<ActiveModalOperator>()
         .add_observer(index_operator_on_add)
         .add_observer(deindex_and_cleanup_operator_on_remove)
         .add_observer(cleanup_window_on_remove)
         .add_observer(cleanup_workspace_on_remove)
-        .add_observer(cleanup_panel_extension_on_remove);
+        .add_observer(cleanup_panel_extension_on_remove)
+        .add_observer(cleanup_resource_on_remove);
+    app.world_mut().register_component::<ActiveModalOperator>();
 }
 
 /// Root component for an extension.
@@ -40,13 +42,39 @@ pub struct Extension {
     pub name: String,
 }
 
+/// [`Resource`]s attached to a specific [`Extension`].
+/// When the extension is unloaded, these resources are removed via [`World::remove_resource_by_id`].
+#[derive(Component, Default, Debug, PartialEq, Eq, Deref)]
+#[relationship_target(relationship = ExtensionResourceOf, linked_spawn)]
+pub(crate) struct ExtensionResources(Vec<Entity>);
+
+/// Link from an entity representing a [`Resource`] to its owning [`Extension`], ensuring
+/// that the resource is removed when the extension is unloaded.
+#[derive(Component, Debug, PartialEq, Eq)]
+#[relationship(relationship_target = ExtensionResources)]
+pub(crate) struct ExtensionResourceOf {
+    #[relationship]
+    pub(crate) entity: Entity,
+    pub(crate) resource_id: ResourceId,
+}
+
+/// The [`ComponentId`] of a [`Resource`]
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) struct ResourceId(pub(crate) ComponentId);
+
+impl Default for ResourceId {
+    fn default() -> Self {
+        Self(ComponentId::new(0))
+    }
+}
+
 /// Child of an [`Extension`]; represents a single operator.
 ///
 /// Holds the `SystemId`s that the dispatcher runs. An observer on
 /// `On<Remove, OperatorEntity>` unregisters those systems when this entity
-/// despawns, and keeps the [`OperatorIndex`] in sync.
-#[derive(Component, Clone)]
-pub(crate) struct OperatorEntity {
+/// despawns, and keeps the `OperatorIndex` in sync.
+#[derive(Component, Debug, Clone)]
+pub struct OperatorEntity {
     pub(crate) id: &'static str,
     pub(crate) label: &'static str,
     #[expect(dead_code, reason = "This should go into the UI eventually")]
@@ -59,7 +87,9 @@ pub(crate) struct OperatorEntity {
     /// Mirrors [`crate::Operator::MODAL`]. Set at registration so the
     /// dispatcher can enter modal mode without re-resolving the generic
     /// operator type.
+    pub(crate) cancel: Option<SystemId<()>>,
     pub(crate) modal: bool,
+    pub(crate) allows_undo: bool,
 }
 
 /// Tracks the currently-active modal operator. Exactly zero or one is
@@ -69,13 +99,47 @@ pub(crate) struct OperatorEntity {
 /// The `before_snapshot` is captured when the modal begins; on commit
 /// the dispatcher diffs it against a fresh snapshot and pushes a single
 /// undo entry, so the entire modal session rolls up into one Ctrl+Z.
-#[derive(Resource, Default)]
-pub(crate) struct ActiveModalOperator {
-    pub(crate) id: Option<&'static str>,
-    pub(crate) operator_entity: Option<Entity>,
-    pub(crate) invoke_system: Option<OperatorSystemId>,
-    pub(crate) label: Option<String>,
+#[derive(Component)]
+pub struct ActiveModalOperator {
     pub(crate) before_snapshot: Option<Box<dyn SceneSnapshot>>,
+}
+
+/// Convenience [`SystemParam`] for querying the active modal operator.
+#[derive(SystemParam)]
+pub struct ActiveModalQuery<'w, 's> {
+    maybe_modal: Option<Single<'w, 's, (&'static OperatorEntity, &'static ActiveModalOperator)>>,
+    commands: Commands<'w, 's>,
+}
+
+impl<'w, 's> ActiveModalQuery<'w, 's> {
+    pub fn is_modal_running(&self) -> bool {
+        self.maybe_modal.is_some()
+    }
+
+    pub fn is_operator(&self, operator_id: impl AsRef<str>) -> bool {
+        self.get_operator()
+            .is_some_and(|op| op.id == operator_id.as_ref())
+    }
+    pub fn get_operator(&self) -> Option<&OperatorEntity> {
+        self.get_operator_and_modal().map(|m| m.0)
+    }
+    pub fn get_modal(&self) -> Option<&ActiveModalOperator> {
+        self.get_operator_and_modal().map(|m| m.1)
+    }
+    pub fn get_operator_and_modal(&self) -> Option<(&OperatorEntity, &ActiveModalOperator)> {
+        self.maybe_modal.as_ref().map(|m| (m.0, m.1))
+    }
+
+    pub fn cancel(&mut self) {
+        self.commands.queue(|world: &mut World| {
+            let res: Result = world
+                .run_system_cached(cancel_active_modal)
+                .map_err(BevyError::from);
+            if let Err(err) = res {
+                error!("Failed to cancel active modal: {err}")
+            }
+        });
+    }
 }
 
 /// Marks an entity as tracking a dock window registration.
@@ -217,9 +281,9 @@ pub trait ExtensionAppExt {
     ///
     /// Call this once per extension during app setup. Registering the constructor
     /// lets the Plugins dialog list the extension; running
-    /// `register_input_contexts` ensures its BEI context types are known to the
+    /// `register_input_context` ensures its BEI context types are known to the
     /// framework. Enabling and disabling the extension later only re-runs
-    /// `register()`, never `register_input_contexts()` (BEI panics on duplicate
+    /// `register()`, never `register_input_context()` (BEI panics on duplicate
     /// registrations).
     ///
     /// See also [`Self::register_extension_with`].
@@ -242,11 +306,12 @@ impl ExtensionAppExt for App {
         self.world_mut()
             .resource_mut::<ExtensionCatalog>()
             .register(T::name(), T::kind(), ctor);
+        T::register_input_context(self);
         self
     }
 }
 
-/// Keep [`OperatorIndex`] in sync when an operator entity is spawned.
+/// Keep `OperatorIndex` in sync when an operator entity is spawned.
 pub(crate) fn index_operator_on_add(
     trigger: On<Add, OperatorEntity>,
     operators: Query<&OperatorEntity>,
@@ -257,7 +322,7 @@ pub(crate) fn index_operator_on_add(
     }
 }
 
-/// Keep [`OperatorIndex`] in sync and free the operator's `SystemId`s
+/// Keep `OperatorIndex` in sync and free the operator's `SystemId`s
 /// when its entity is removed, so they don't leak across enable /
 /// disable cycles.
 pub(crate) fn deindex_and_cleanup_operator_on_remove(
@@ -326,4 +391,18 @@ pub(crate) fn cleanup_panel_extension_on_remove(
     if let Ok(r) = registrations.get(trigger.event_target()) {
         registry.remove(&r.panel_id, r.section_index);
     }
+}
+
+fn cleanup_resource_on_remove(
+    trigger: On<Remove, ExtensionResourceOf>,
+    resource_id: Query<&ExtensionResourceOf>,
+    mut commands: Commands,
+) {
+    let Ok(relation) = resource_id.get(trigger.entity) else {
+        return;
+    };
+    let component_id = relation.resource_id.0;
+    commands.queue(move |world: &mut World| {
+        world.remove_resource_by_id(component_id);
+    });
 }

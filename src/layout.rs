@@ -1,17 +1,18 @@
 use bevy::{feathers::theme::ThemedText, picking::hover::Hovered, prelude::*, ui_widgets::observe};
+use jackdaw_api::prelude::*;
 use jackdaw_feathers::{
     icons::{Icon, IconFont},
     menu_bar, panel_header, popover, separator, split_panel, status_bar,
     text_edit::{self, TextEditProps},
     tokens,
+    tooltip::Tooltip,
     tree_view::tree_container_drop_observers,
 };
 
 use crate::{
     EditorEntity,
-    asset_browser::ActiveTooltip,
     brush::{BrushEditMode, BrushSelection, EditMode},
-    draw_brush::DrawBrushState,
+    draw_brush::{ActivateDrawBrushModalOp, DrawBrushState},
     gizmos::{GizmoMode, GizmoSpace},
     hierarchy::{HierarchyPanel, HierarchyShowAllButton, HierarchyTreeContainer},
     inspector::Inspector,
@@ -114,17 +115,13 @@ pub struct GizmoSpaceButton;
 #[derive(Component, Clone, Copy, PartialEq, Eq)]
 pub enum EditToolButton {
     Object,
-    Draw,
     Vertex,
     Edge,
     Face,
     Clip,
     Physics,
+    Operator(&'static str),
 }
-
-/// Stores tooltip text for toolbar buttons (used with `Hovered` component).
-#[derive(Component)]
-pub struct ToolbarTooltip(pub String);
 
 /// Marker for keybind helper button
 #[derive(Component)]
@@ -542,7 +539,13 @@ fn toolbar(icon_font: Handle<Font>) -> impl Bundle {
                 f.clone(),
                 "Object Mode"
             ),
-            toolbar_edit_button(Icon::Box, EditToolButton::Draw, f.clone(), "Draw Brush (B)"),
+            toolbar_edit_button(
+                Icon::Box,
+                EditToolButton::Operator(ActivateDrawBrushModalOp::ID),
+                f.clone(),
+                // todo: add keybind
+                ActivateDrawBrushModalOp::LABEL
+            ),
             toolbar_edit_button(
                 Icon::CircleDot,
                 EditToolButton::Vertex,
@@ -597,7 +600,7 @@ fn toolbar_button(
     (
         GizmoModeButton(mode),
         Hovered::default(),
-        ToolbarTooltip(tooltip.into()),
+        Tooltip(tooltip.into()),
         Node {
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
@@ -638,7 +641,7 @@ fn toolbar_space_button(icon_font: Handle<Font>) -> impl Bundle {
     (
         GizmoSpaceButton,
         Hovered::default(),
-        ToolbarTooltip("Toggle World/Local (X)".into()),
+        Tooltip("Toggle World/Local (X)".into()),
         Node {
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
@@ -685,7 +688,7 @@ fn toolbar_edit_button(
     (
         tool,
         Hovered::default(),
-        ToolbarTooltip(tooltip.into()),
+        Tooltip(tooltip.into()),
         Node {
             flex_direction: FlexDirection::Row,
             align_items: AlignItems::Center,
@@ -705,6 +708,7 @@ fn toolbar_edit_button(
         )],
         observe(
             move |_: On<Pointer<Click>>,
+                  mut commands: Commands,
                   mut edit_mode: ResMut<EditMode>,
                   mut brush_selection: ResMut<BrushSelection>,
                   mut draw_state: ResMut<DrawBrushState>,
@@ -718,47 +722,6 @@ fn toolbar_edit_button(
                         brush_selection.vertices.clear();
                         brush_selection.edges.clear();
                         draw_state.active = None;
-                    }
-                    EditToolButton::Draw => {
-                        // Toggle draw mode
-                        if draw_state.active.is_some() {
-                            draw_state.active = None;
-                        } else {
-                            // Exit brush edit mode if active
-                            if *edit_mode != EditMode::Object {
-                                *edit_mode = EditMode::Object;
-                                brush_selection.entity = None;
-                                brush_selection.faces.clear();
-                                brush_selection.vertices.clear();
-                                brush_selection.edges.clear();
-                            }
-                            // Check if a brush is selected for append mode
-                            let append_target =
-                                selection.primary().filter(|&e| brushes.contains(e));
-                            draw_state.active = Some(crate::draw_brush::ActiveDraw {
-                                corner1: Vec3::ZERO,
-                                corner2: Vec3::ZERO,
-                                depth: 0.0,
-                                phase: crate::draw_brush::DrawPhase::PlacingFirstCorner,
-                                mode: crate::draw_brush::DrawMode::Add,
-                                plane: crate::draw_brush::DrawPlane {
-                                    origin: Vec3::ZERO,
-                                    normal: Vec3::Y,
-                                    axis_u: Vec3::X,
-                                    axis_v: Vec3::Z,
-                                },
-                                extrude_start_cursor: Vec2::ZERO,
-                                plane_locked: false,
-                                cursor_on_plane: None,
-                                append_target,
-                                drag_footprint: false,
-                                press_screen_pos: None,
-                                polygon_vertices: Vec::new(),
-                                polygon_cursor: None,
-                                diagonal_snap: false,
-                                cached_face_hit: None,
-                            });
-                        }
                     }
                     EditToolButton::Physics => {
                         draw_state.active = None;
@@ -816,6 +779,13 @@ fn toolbar_edit_button(
                             }
                         }
                     }
+                    EditToolButton::Operator(op) => commands
+                        .operator(op)
+                        .settings(CallOperatorSettings {
+                            execution_context: ExecutionContext::Invoke,
+                            creates_history_entry: true,
+                        })
+                        .call(),
                 }
             },
         ),
@@ -1220,41 +1190,6 @@ pub fn update_toolbar_highlights(
     }
 }
 
-/// Shows/hides toolbar tooltips based on `Hovered` state (flicker-free).
-pub fn update_toolbar_tooltips(
-    buttons: Query<(Entity, &ToolbarTooltip, &Hovered), Changed<Hovered>>,
-    mut commands: Commands,
-    mut active: ResMut<ActiveTooltip>,
-) {
-    for (entity, tooltip, hovered) in &buttons {
-        if hovered.get() {
-            if let Some(old) = active.0.take() {
-                commands.entity(old).try_despawn();
-            }
-            let tip = commands
-                .spawn(popover::popover(
-                    popover::PopoverProps::new(entity)
-                        .with_placement(popover::PopoverPlacement::Bottom)
-                        .with_padding(4.0)
-                        .with_z_index(300),
-                ))
-                .id();
-            commands.spawn((
-                Text::new(tooltip.0.clone()),
-                TextFont {
-                    font_size: tokens::FONT_SM,
-                    ..Default::default()
-                },
-                TextColor(tokens::TEXT_PRIMARY),
-                ChildOf(tip),
-            ));
-            active.0 = Some(tip);
-        } else if let Some(old) = active.0.take() {
-            commands.entity(old).try_despawn();
-        }
-    }
-}
-
 /// Updates the gizmo space toggle button label.
 pub fn update_space_toggle_label(
     space: Res<GizmoSpace>,
@@ -1282,6 +1217,7 @@ pub fn update_space_toggle_label(
 pub(crate) fn update_edit_tool_highlights(
     edit_mode: Res<EditMode>,
     draw_state: Res<DrawBrushState>,
+    active_modal: ActiveModalQuery,
     mut buttons: Query<(&EditToolButton, &mut BackgroundColor)>,
 ) {
     if !edit_mode.is_changed() && !draw_state.is_changed() {
@@ -1291,7 +1227,7 @@ pub(crate) fn update_edit_tool_highlights(
     for (button, mut bg) in &mut buttons {
         let active = match button {
             EditToolButton::Object => !draw_active && *edit_mode == EditMode::Object,
-            EditToolButton::Draw => draw_active,
+            EditToolButton::Operator(op) => active_modal.is_operator(op),
             EditToolButton::Vertex => {
                 !draw_active && *edit_mode == EditMode::BrushEdit(BrushEditMode::Vertex)
             }

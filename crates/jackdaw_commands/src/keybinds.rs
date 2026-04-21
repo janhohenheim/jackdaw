@@ -64,7 +64,6 @@ pub enum EditorAction {
     ClipClear,
 
     // Draw brush
-    DrawAdd,
     DrawCut,
     ToggleDrawMode,
     AppendToBrush,
@@ -176,7 +175,6 @@ impl fmt::Display for EditorAction {
             Self::ClipCycleMode => "Clip Cycle Mode",
             Self::ClipApply => "Clip Apply",
             Self::ClipClear => "Clip Clear",
-            Self::DrawAdd => "Draw Brush (Add)",
             Self::DrawCut => "Draw Brush (Cut)",
             Self::ToggleDrawMode => "Toggle Draw Mode",
             Self::AppendToBrush => "Append to Brush",
@@ -276,7 +274,6 @@ impl EditorAction {
             "Clip Cycle Mode" => Some(Self::ClipCycleMode),
             "Clip Apply" => Some(Self::ClipApply),
             "Clip Clear" => Some(Self::ClipClear),
-            "Draw Brush (Add)" => Some(Self::DrawAdd),
             "Draw Brush (Cut)" => Some(Self::DrawCut),
             "Toggle Draw Mode" => Some(Self::ToggleDrawMode),
             "Append to Brush" => Some(Self::AppendToBrush),
@@ -371,8 +368,7 @@ impl EditorAction {
             | Self::ClipCycleMode
             | Self::ClipApply
             | Self::ClipClear => "Brush Edit",
-            Self::DrawAdd
-            | Self::DrawCut
+            Self::DrawCut
             | Self::ToggleDrawMode
             | Self::AppendToBrush
             | Self::ClosePolygon
@@ -472,7 +468,6 @@ impl EditorAction {
             A::ClipApply,
             A::ClipClear,
             // Draw Brush
-            A::DrawAdd,
             A::DrawCut,
             A::ToggleDrawMode,
             A::AppendToBrush,
@@ -958,7 +953,6 @@ impl Default for KeybindRegistry {
         bindings.insert(A::ClipClear, k(K::Escape));
 
         // ── Draw brush ────────────────────────────────────────────────
-        bindings.insert(A::DrawAdd, k(K::KeyB));
         bindings.insert(A::DrawCut, k(K::KeyC));
         bindings.insert(A::ToggleDrawMode, k(K::Tab));
         bindings.insert(A::AppendToBrush, b(K::KeyB, false, false, true));

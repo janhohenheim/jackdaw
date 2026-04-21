@@ -5,6 +5,7 @@ use jackdaw_widgets::menu_bar::{
 
 use crate::button::{ButtonClickEvent, ButtonProps, ButtonVariant, button};
 use crate::tokens;
+use crate::tooltip::Tooltip;
 
 pub fn plugin(app: &mut App) {
     app.add_observer(on_dropdown_item_click)
@@ -233,8 +234,11 @@ fn spawn_dropdown(commands: &mut Commands, x: f32, y: f32, actions: &[(String, S
             button(
                 ButtonProps::new(label.clone())
                     .with_variant(ButtonVariant::Ghost)
+                    // TODO: add keybind as subtitle
                     .align_left(),
             ),
+            // TODO: show this tooltip only when the user has opted into dev stuff
+            Tooltip(action.to_string()),
         ));
     }
 
