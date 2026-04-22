@@ -25,9 +25,7 @@ pub fn headless_app() -> App {
     app
 }
 
-// `#[allow(dead_code)]`: shared across integration test binaries;
-// not every test file exercises operator dispatch.
-#[allow(dead_code)]
+#[allow(dead_code, reason = "shared across integration test binaries; not every test file exercises operator dispatch.")]
 pub trait OperatorResultExt: Copy {
     /// Asserts that the operator finished successfully and panics if it did not.
     /// Hidden away in test utils so extension devs don't fall into the trap of actually doing this in production.
