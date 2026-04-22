@@ -1642,7 +1642,9 @@ pub(crate) fn clear_scene_entities(world: &mut World) {
         .entities
         .clear();
 
-    crate::hierarchy::clear_all_tree_rows(world);
+    if let Err(err) = world.run_system_cached(crate::hierarchy::clear_all_tree_rows) {
+        error!("Failed to clear tree rows: {err}");
+    }
 
     // Clear undo/redo stacks; they hold entity references that become
     // stale when the scene is dropped. Callers who want to preserve
@@ -1671,7 +1673,10 @@ pub(crate) fn despawn_scene_entities(world: &mut World) {
     let editor_set = collect_editor_entities(world);
 
     let roots: Vec<Entity> = world
-        .query_filtered::<Entity, (With<Name>, Without<bevy_enhanced_input::prelude::ActionSettings>)>()
+        .query_filtered::<Entity, (
+            With<Name>,
+            Without<bevy_enhanced_input::prelude::ActionSettings>,
+        )>()
         .iter(world)
         .filter(|e| !editor_set.contains(e))
         .collect();
@@ -1709,7 +1714,9 @@ pub fn apply_ast_to_world(world: &mut World, ast: &jackdaw_jsn::SceneJsnAst) {
         .resource_mut::<crate::selection::Selection>()
         .entities
         .clear();
-    crate::hierarchy::clear_all_tree_rows(world);
+    if let Err(err) = world.run_system_cached(crate::hierarchy::clear_all_tree_rows) {
+        error!("Failed to clear tree rows: {err}");
+    }
 
     // Reset volatile tool state so an undo/redo can't leave the
     // draw-brush modal "half-active" — i.e. `DrawBrushState.active`
@@ -1717,9 +1724,7 @@ pub fn apply_ast_to_world(world: &mut World, ast: &jackdaw_jsn::SceneJsnAst) {
     // out. A stale `Some` would make the next activate-modal return
     // immediately (modal-already-suspected path) and the B key
     // appear dead until the user reloaded the project.
-    if let Some(mut draw_state) =
-        world.get_resource_mut::<crate::draw_brush::DrawBrushState>()
-    {
+    if let Some(mut draw_state) = world.get_resource_mut::<crate::draw_brush::DrawBrushState>() {
         draw_state.active = None;
     }
     debug!("apply_ast_to_world: cleared DrawBrushState.active and selection before scene reload");
