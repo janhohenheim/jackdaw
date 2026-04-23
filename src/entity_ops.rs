@@ -565,7 +565,7 @@ pub fn handle_entity_keys(world: &mut World) {
             cam_query
                 .iter(world)
                 .next()
-                .map(|gt| camera_snapped_rotation_axes(gt))
+                .map(camera_snapped_rotation_axes)
                 .unwrap_or((Vec3::Y, Vec3::NEG_Z, Vec3::X))
         };
 
@@ -1017,8 +1017,8 @@ fn to_asset_path(path: &str) -> String {
 }
 
 /// Get the absolute path of Bevy's assets directory.
-/// Uses the last-opened ProjectRoot if available, then falls back to
-/// the standard FileAssetReader lookup (BEVY_ASSET_ROOT / CARGO_MANIFEST_DIR / exe dir).
+/// Uses the last-opened `ProjectRoot` if available, then falls back to
+/// the standard `FileAssetReader` lookup (`BEVY_ASSET_ROOT` / `CARGO_MANIFEST_DIR` / exe dir).
 fn get_assets_base_dir() -> Option<std::path::PathBuf> {
     // Try ProjectRoot via recent projects config
     if let Some(project_dir) = crate::project::read_last_project() {

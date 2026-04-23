@@ -204,7 +204,7 @@ fn draw_collider_gizmos<S: Component>(
     }
 }
 
-/// Draw a wireframe for any parry shape using TypedShape pattern matching.
+/// Draw a wireframe for any parry shape using `TypedShape` pattern matching.
 fn draw_parry_shape(
     gizmos: &mut Gizmos<ColliderGizmoGroup>,
     shape: &SharedShape,

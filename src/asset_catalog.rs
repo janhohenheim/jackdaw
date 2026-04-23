@@ -11,9 +11,9 @@ use jackdaw_jsn::format::{JsnAssets, JsnCatalog, JsnHeader};
 /// the same `@Name`, they share the same handle (zero duplication).
 #[derive(Resource, Default)]
 pub struct AssetCatalog {
-    /// `@Name` -> loaded UntypedHandle (populated at project open).
+    /// `@Name` -> loaded `UntypedHandle` (populated at project open).
     pub handles: HashMap<String, UntypedHandle>,
-    /// The raw JsnAssets data (for re-serialization / UI browsing).
+    /// The raw `JsnAssets` data (for re-serialization / UI browsing).
     pub assets: JsnAssets,
     /// Reverse lookup: asset ID -> `@Name` (used during save to emit catalog refs).
     pub id_to_name: HashMap<UntypedAssetId, String>,
@@ -124,7 +124,7 @@ pub fn save_catalog(world: &mut World) {
     }
 }
 
-/// Add a named entry to the catalog's JsnAssets data (for persistence).
+/// Add a named entry to the catalog's `JsnAssets` data (for persistence).
 pub fn add_to_catalog_assets(
     catalog: &mut AssetCatalog,
     type_path: &str,

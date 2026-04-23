@@ -193,8 +193,8 @@ pub fn instantiate_jsn_prefab(world: &mut World, path: &str, position: Vec3) {
     finalize_instantiation(world, &roots);
 }
 
-/// Spawn entities from JsnEntity data, offset roots by position.
-/// Returns (all_spawned_entities, root_entities).
+/// Spawn entities from `JsnEntity` data, offset roots by position.
+/// Returns (`all_spawned_entities`, `root_entities`).
 fn spawn_jsn_entities(
     world: &mut World,
     jsn_entities: &[JsnEntity],
@@ -301,7 +301,7 @@ fn spawn_jsn_entities(
     (spawned, roots)
 }
 
-/// Build JsnPrefabBaseline for each spawned entity by serializing their current components.
+/// Build `JsnPrefabBaseline` for each spawned entity by serializing their current components.
 fn build_prefab_baselines(world: &mut World, spawned: &[Entity]) {
     let registry = world.resource::<AppTypeRegistry>().clone();
     let registry = registry.read();

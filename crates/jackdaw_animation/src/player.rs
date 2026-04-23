@@ -254,7 +254,7 @@ pub fn auto_bind_player(
     bound.mode = BindMode::Authored;
 }
 
-/// Walk a blend graph's single ClipRef -> Output connection to find
+/// Walk a blend graph's single `ClipRef` -> Output connection to find
 /// the clip being passed through. Only recognizes "one clip ref, one
 /// output, one connection." Returns `None` if incomplete.
 fn resolve_blend_graph_passthrough_source(

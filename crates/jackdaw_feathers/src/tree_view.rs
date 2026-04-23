@@ -400,8 +400,7 @@ fn category_dot(category: EntityCategory, icon_font: &Handle<Font>) -> impl Bund
     let icon_char = match category {
         EntityCategory::Camera => Icon::Video,
         EntityCategory::Light => Icon::Lightbulb,
-        EntityCategory::Mesh => Icon::Box,
-        EntityCategory::Scene => Icon::Box,
+        EntityCategory::Mesh | EntityCategory::Scene => Icon::Box,
         EntityCategory::Entity => Icon::Dot,
     };
     (
@@ -425,8 +424,8 @@ fn category_dot(category: EntityCategory, icon_font: &Handle<Font>) -> impl Bund
     )
 }
 
-/// Walk up the ChildOf chain from any deeply-nested UI entity until we find
-/// a TreeNode ancestor, then return its source entity.
+/// Walk up the [`ChildOf`] chain from any deeply-nested UI entity until we find
+/// a [`TreeNode`] ancestor, then return its source entity.
 fn find_source_entity(
     entity: Entity,
     parents: &Query<&ChildOf>,

@@ -23,7 +23,7 @@ fn on_context_menu_item_click(
 }
 
 /// Spawn a context menu at the given position with the given items.
-/// Each item is (action_id, label).
+/// Each item is `(action_id, label)`.
 pub fn spawn_context_menu(
     commands: &mut Commands,
     position: Vec2,

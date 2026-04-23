@@ -5,7 +5,7 @@ pub use lucide_icons::Icon;
 #[derive(Resource)]
 pub struct IconFont(pub Handle<Font>);
 
-/// Resource holding the loaded editor body font (FiraSans).
+/// Resource holding the loaded editor body font (Fira Sans).
 #[derive(Resource)]
 pub struct EditorFont(pub Handle<Font>);
 

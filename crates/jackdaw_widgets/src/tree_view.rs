@@ -26,7 +26,7 @@ pub struct TreeNodeExpanded(pub bool);
 #[derive(Component)]
 pub struct TreeRowContent;
 
-/// Marker on TreeRowContent when its source entity is selected
+/// Marker on `TreeRowContent` when its source entity is selected
 #[derive(Component)]
 pub struct TreeRowSelected;
 
@@ -176,7 +176,7 @@ impl Plugin for TreeViewPlugin {
     }
 }
 
-/// Keep TreeIndex in sync with TreeNode additions and removals.
+/// Keep `TreeIndex` in sync with `TreeNode` additions and removals.
 pub fn maintain_tree_index(
     mut index: ResMut<TreeIndex>,
     added: Query<(Entity, &TreeNode), Added<TreeNode>>,

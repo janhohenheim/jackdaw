@@ -695,7 +695,7 @@ fn spawn_brush_face_field_row(
     ));
 }
 
-/// Handle TextEditCommitEvent for brush face field bindings.
+/// Handle `TextEditCommitEvent` for brush face field bindings.
 pub(crate) fn on_brush_face_text_commit(
     event: On<TextEditCommitEvent>,
     bindings: Query<&BrushFaceFieldBinding>,

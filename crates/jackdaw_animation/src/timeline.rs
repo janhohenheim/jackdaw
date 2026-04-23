@@ -91,7 +91,7 @@ pub struct TimelineHeaderNewClipButton;
 #[derive(Component, Clone, Copy)]
 pub struct TimelineHeaderNewBlendGraphButton;
 
-/// Marker on the inline clip-name text_edit in the header. Carries
+/// Marker on the inline clip-name `text_edit` in the header. Carries
 /// the clip entity so the commit handler can route the rename through
 /// `SetJsnField`.
 #[derive(Component, Clone, Copy)]

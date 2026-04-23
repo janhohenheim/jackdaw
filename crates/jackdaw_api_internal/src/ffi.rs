@@ -92,7 +92,7 @@ pub const GAME_ENTRY_SYMBOL: &[u8] = b"jackdaw_game_entry_v1\0";
 /// that file into a `#[unsafe(no_mangle)] extern "Rust" fn`
 /// wrapper named `jackdaw_register_reflect_types_v1`.
 ///
-/// This is the pattern dexterous_developer uses. We don't reach
+/// This is the pattern `dexterous_developer` uses. We don't reach
 /// across the boundary into bevy's `inventory`-based
 /// `AutomaticReflectRegistrations`: that breaks under
 /// `bevy/dynamic_linking` because the shared-dylib proxy doesn't
@@ -146,7 +146,7 @@ pub struct ExtensionEntry {
 ///
 /// Same contract as [`ExtensionEntry`]: NUL-terminated static
 /// strings, same allocator on both sides (guaranteed by
-/// `bevy/dynamic_linking` + jackdaw_sdk's proxy dylib). Both
+/// `bevy/dynamic_linking` + `jackdaw_sdk`'s proxy dylib). Both
 /// `build` and `teardown` must be callable with any valid
 /// `*mut World`; the loader wraps each call in `catch_unwind` so a
 /// panic in game code doesn't abort the editor.

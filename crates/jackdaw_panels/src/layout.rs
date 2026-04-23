@@ -27,7 +27,7 @@ impl Default for AreaState {
     }
 }
 
-/// Capture the current live layout as a LayoutState for serialization.
+/// Capture the current live layout as a `LayoutState` for serialization.
 pub fn capture_layout_state(world: &mut World) -> LayoutState {
     let mut state = LayoutState::default();
 

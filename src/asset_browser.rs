@@ -689,7 +689,7 @@ fn load_thumbnail(path: &Path, asset_server: &AssetServer) -> Option<Handle<Imag
 }
 
 /// Removes `ImageNode` from entities whose loaded image uses an incompatible
-/// texture format (e.g. R16Uint) that would crash Bevy's UI renderer.
+/// texture format (e.g. `R16Uint`) that would crash Bevy's UI renderer.
 fn remove_incompatible_image_nodes(
     mut commands: Commands,
     image_nodes: Query<(Entity, &ImageNode)>,

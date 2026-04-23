@@ -1,7 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use bevy::prelude::*;
-use bevy::reflect::TypeRegistry;
+use bevy::reflect::{TypeRegistry, UnnamedField};
+use bevy::{prelude::*, reflect::NamedField};
 
 use crate::format::{JsnAssets, JsnEntity, JsnMetadata, JsnScene};
 
@@ -283,7 +283,7 @@ fn enum_variant_from_json_mut(
 }
 
 /// Find a field on the current variant by name (or index for tuple variants)
-/// and return its TypeRegistration. Used to advance `current_reg` after an
+/// and return its [`TypeRegistration`]. Used to advance `current_reg` after an
 /// enum has been unwrapped during path navigation.
 fn variant_field_type_registration<'a>(
     enum_info: &EnumInfo,
@@ -293,7 +293,7 @@ fn variant_field_type_registration<'a>(
 ) -> Option<&'a TypeRegistration> {
     let variant = enum_info.variant(variant_name)?;
     let field_type_id = match variant {
-        VariantInfo::Struct(s) => s.field(field_name).map(|f| f.type_id())?,
+        VariantInfo::Struct(s) => s.field(field_name).map(NamedField::type_id)?,
         VariantInfo::Tuple(t) => {
             let idx: usize = field_name.parse().ok()?;
             t.field_at(idx).map(|f| f.type_id())?
@@ -303,17 +303,17 @@ fn variant_field_type_registration<'a>(
     registry.get(field_type_id)
 }
 
-/// Get the TypeRegistration for a field by name, advancing through the type tree.
+/// Get the [`TypeRegistration`] for a field by name, advancing through the type tree.
 fn field_type_registration<'a>(
     type_info: &TypeInfo,
     field_name: &str,
     registry: &'a TypeRegistry,
 ) -> Option<&'a TypeRegistration> {
     let field_type_id = match type_info {
-        TypeInfo::Struct(s) => s.field(field_name).map(|f| f.type_id()),
+        TypeInfo::Struct(s) => s.field(field_name).map(NamedField::type_id),
         TypeInfo::TupleStruct(ts) => {
             let idx = field_name.parse::<usize>().ok()?;
-            ts.field_at(idx).map(|f| f.type_id())
+            ts.field_at(idx).map(UnnamedField::type_id)
         }
         TypeInfo::List(l) => Some(l.item_ty().id()),
         _ => None,

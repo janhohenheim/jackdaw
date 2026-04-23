@@ -477,13 +477,13 @@ impl<'a> ReflectDeserializerProcessor for JsnDeserializerProcessor<'a> {
         if registration.type_id() == TypeId::of::<f32>() {
             let val = deserializer
                 .deserialize_any(F32Visitor)
-                .map_err(|e| <D::Error as serde::de::Error>::custom(e))?;
+                .map_err(<D::Error as serde::de::Error>::custom)?;
             return Ok(Ok(Box::new(val).into_partial_reflect()));
         }
         if registration.type_id() == TypeId::of::<f64>() {
             let val = deserializer
                 .deserialize_any(F64Visitor)
-                .map_err(|e| <D::Error as serde::de::Error>::custom(e))?;
+                .map_err(<D::Error as serde::de::Error>::custom)?;
             return Ok(Ok(Box::new(val).into_partial_reflect()));
         }
 
@@ -1180,12 +1180,12 @@ fn build_scene_snapshot(
 /// `poll_scene_dialog`) and by `project_select`'s auto-load at
 /// project-open time.
 pub fn load_scene_from_file(world: &mut World, chosen: &std::path::Path) {
-    finish_load_scene(world, chosen)
+    finish_load_scene(world, chosen);
 }
 
 fn finish_load_scene(world: &mut World, chosen: &std::path::Path) {
     let path = chosen.to_string_lossy().to_string();
-    let last_dir = chosen.parent().map(|p| p.to_path_buf());
+    let last_dir = chosen.parent().map(std::path::Path::to_path_buf);
 
     // Update last directory
     world.resource_mut::<SceneFilePath>().last_directory = last_dir;
@@ -1274,7 +1274,7 @@ fn finish_load_scene(world: &mut World, chosen: &std::path::Path) {
 
 /// Deserialize inline assets from the generic assets table.
 /// Returns a map of `#Name` / `@Name` → `UntypedHandle` for the deserializer processor.
-/// Scan material definitions in JsnAssets to find image names used in non-color slots.
+/// Scan material definitions in `JsnAssets` to find image names used in non-color slots.
 /// These images must be loaded with `is_srgb = false` to avoid gamma decoding artifacts.
 fn collect_linear_image_names(assets: &JsnAssets) -> HashSet<String> {
     const LINEAR_SLOTS: &[&str] = &[
@@ -1903,7 +1903,7 @@ fn poll_scene_dialog(world: &mut World) {
             if let Some(file) = result {
                 let path = file.path().to_path_buf();
                 let path_str = path.to_string_lossy().to_string();
-                let last_dir = path.parent().map(|p| p.to_path_buf());
+                let last_dir = path.parent().map(std::path::Path::to_path_buf);
 
                 let mut scene_path = world.resource_mut::<SceneFilePath>();
                 scene_path.path = Some(path_str);
@@ -1945,7 +1945,7 @@ fn handle_scene_io_keys(world: &mut World) {
     }
 }
 
-/// Register a single ECS entity in the SceneJsnAst by serializing all its
+/// Register a single ECS entity in the `SceneJsnAst` by serializing all its
 /// scene-relevant components into JSON. Skips entities already in the AST.
 /// Serializer processor for AST registration: resolves `Handle<T>` to path
 /// strings and `Entity` to null (no scene-local index available at
@@ -2012,7 +2012,7 @@ pub fn register_entity_in_ast(world: &mut World, entity: Entity) {
     if ast.contains_entity(entity) {
         return;
     }
-    let parent = world.get::<ChildOf>(entity).map(|c| c.parent());
+    let parent = world.get::<ChildOf>(entity).map(bevy::bevy_ecs::hierarchy::ChildOf::parent);
     let idx = world
         .resource_mut::<jackdaw_jsn::SceneJsnAst>()
         .create_node(entity, parent);

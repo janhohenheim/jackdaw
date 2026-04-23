@@ -25,7 +25,7 @@ use crate::inspector::{ComponentDisplay, InspectorGroupSection, component_displa
 #[derive(Component)]
 pub struct RemoteInspector;
 
-/// Tracks which ComponentIds were temporarily inserted into the proxy for inspection.
+/// Tracks which `ComponentIds` were temporarily inserted into the proxy for inspection.
 #[derive(Component, Default)]
 struct PopulatedComponents(Vec<ComponentId>);
 

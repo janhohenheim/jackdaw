@@ -111,7 +111,7 @@ fn viz_toggle_button(
                 NavmeshVizToggle::Obstacles => config.show_obstacles = !config.show_obstacles,
                 NavmeshVizToggle::DetailMesh => config.show_detail_mesh = !config.show_detail_mesh,
                 NavmeshVizToggle::PolygonMesh => {
-                    config.show_polygon_mesh = !config.show_polygon_mesh
+                    config.show_polygon_mesh = !config.show_polygon_mesh;
                 }
             },
         ),

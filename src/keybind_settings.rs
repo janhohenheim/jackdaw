@@ -134,7 +134,7 @@ fn format_bindings(bindings: &[Keybind]) -> String {
     }
     bindings
         .iter()
-        .map(|b| b.to_string())
+        .map(std::string::ToString::to_string)
         .collect::<Vec<_>>()
         .join(" / ")
 }

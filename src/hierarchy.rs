@@ -47,7 +47,7 @@ pub struct HierarchyPanel;
 pub struct HierarchyTreeContainer;
 
 /// Controls whether the hierarchy shows all entities or only named ones.
-/// `false` = named only (default), `true` = all entities (minus EditorEntity).
+/// `false` = named only (default), `true` = all entities (minus `EditorEntity`).
 #[derive(Resource, Default)]
 pub struct HierarchyShowAll(pub bool);
 
@@ -140,7 +140,7 @@ fn has_visible_children(world: &World, entity: Entity) -> bool {
 }
 
 /// Spawn a single (non-recursive) tree row for a source entity.
-/// Updates TreeIndex immediately.
+/// Updates `TreeIndex` immediately.
 fn spawn_single_tree_row(world: &mut World, source: Entity, parent_container: Entity) -> Entity {
     let label = world
         .get::<Name>(source)
@@ -378,7 +378,7 @@ fn on_name_mutated(
     }
 }
 
-/// When an entity gets a parent (ChildOf added or changed), reparent or create its tree row.
+/// When an entity gets a parent (`ChildOf` added or changed), reparent or create its tree row.
 fn on_entity_reparented(
     trigger: On<Add, ChildOf>,
     mut commands: Commands,
@@ -453,7 +453,7 @@ fn on_entity_reparented(
     });
 }
 
-/// When ChildOf is removed (entity deparented back to root, e.g. via undo of
+/// When `ChildOf` is removed (entity deparented back to root, e.g. via undo of
 /// a reparent), move its tree row back to the root container. Without this,
 /// the tree UI shows stale parent information after an undo.
 fn on_entity_deparented(
@@ -492,7 +492,7 @@ fn on_entity_removed(
     }
 }
 
-/// When EditorHidden is added, remove the tree row if one exists (handles race with observers).
+/// When `EditorHidden` is added, remove the tree row if one exists (handles race with observers).
 fn on_entity_hidden(
     trigger: On<Add, EditorHidden>,
     mut commands: Commands,
@@ -1074,7 +1074,7 @@ fn on_visibility_toggled(
     });
 }
 
-/// Marker for inline rename text_edit entity, linking back to the label entity and source entity.
+/// Marker for inline rename `text_edit` entity, linking back to the label entity and source entity.
 #[derive(Component)]
 struct InlineRenameInput {
     label_entity: Entity,
@@ -1116,7 +1116,7 @@ fn cancel_inline_rename(
     }
 }
 
-/// Start inline rename: hide the label and spawn a text_edit sibling.
+/// Start inline rename: hide the label and spawn a `text_edit` sibling.
 fn on_tree_row_start_rename(
     event: On<TreeRowStartRename>,
     mut commands: Commands,
@@ -1191,7 +1191,7 @@ fn on_tree_row_start_rename(
     ));
 }
 
-/// Auto-focus inline rename text_edit inputs one frame after spawn.
+/// Auto-focus inline rename `text_edit` inputs one frame after spawn.
 fn auto_focus_inline_rename(
     rename_inputs: Query<(Entity, &InlineRenameInput, &Children)>,
     wrappers: Query<&jackdaw_feathers::text_edit::TextEditConfig>,
@@ -1221,7 +1221,7 @@ fn auto_focus_inline_rename(
     }
 }
 
-/// Handle TextEditCommitEvent for inline renames.
+/// Handle `TextEditCommitEvent` for inline renames.
 fn handle_inline_rename_commit(
     event: On<TextEditCommitEvent>,
     rename_inputs: Query<(Entity, &InlineRenameInput)>,
@@ -1469,7 +1469,7 @@ fn on_show_all_changed(show_all: Res<HierarchyShowAll>, mut commands: Commands) 
     }
 }
 
-/// Despawn all tree rows and clear the TreeIndex.
+/// Despawn all tree rows and clear the `TreeIndex`.
 pub fn clear_all_tree_rows(world: &mut World) {
     let container = world
         .query_filtered::<Entity, With<HierarchyTreeContainer>>()

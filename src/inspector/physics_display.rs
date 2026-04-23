@@ -1,5 +1,5 @@
-//! Dedicated "Physics" section in the inspector. Combines RigidBody +
-//! AvianCollider into a single enable/configure UI.
+//! Dedicated "Physics" section in the inspector. Combines `RigidBody` +
+//! `AvianCollider` into a single enable/configure UI.
 
 use avian3d::prelude::*;
 use bevy::{ecs::reflect::AppTypeRegistry, prelude::*};
@@ -240,7 +240,7 @@ pub(super) fn spawn_physics_section(
             enum_info
                 .variant_names()
                 .iter()
-                .map(|n| n.to_string())
+                .map(std::string::ToString::to_string)
                 .collect()
         } else {
             vec!["TrimeshFromMesh".to_string()]
@@ -304,7 +304,7 @@ pub(super) fn spawn_physics_section(
             };
             let field_name = enum_ref
                 .name_at(i)
-                .map(|n| n.to_string())
+                .map(std::string::ToString::to_string)
                 .unwrap_or_else(|| format!("{i}"));
             let child_path = format!("0.{field_name}");
 
@@ -339,7 +339,7 @@ pub(super) fn spawn_physics_section(
 }
 
 /// Collapsible "Advanced" sub-section showing all avian3d internal components
-/// (CollisionLayers, ColliderDensity, LinearVelocity, etc.)
+/// (`CollisionLayers`, `ColliderDensity`, `LinearVelocity`, etc.)
 fn spawn_advanced_section(
     commands: &mut Commands,
     parent: Entity,
@@ -537,11 +537,11 @@ pub(super) fn on_physics_enable_toggle(
 }
 
 /// Command that disables physics on an entity. Captures the full pre-disable
-/// state (RigidBody, AvianCollider, and all derived avian components in the
+/// state (`RigidBody`, `AvianCollider`, and all derived avian components in the
 /// AST) so undo restores them.
 struct DisablePhysics {
     entity: Entity,
-    /// Snapshot of AST components that were removed, keyed by type_path.
+    /// Snapshot of AST components that were removed, keyed by `type_path`.
     removed_components: std::collections::HashMap<String, serde_json::Value>,
     /// Derived components that were cleared on execute, for re-adding on undo.
     removed_derived: std::collections::HashSet<String>,

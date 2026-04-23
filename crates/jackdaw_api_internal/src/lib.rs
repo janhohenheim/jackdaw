@@ -178,7 +178,7 @@ impl<T: JackdawExtension> DynJackdawExtension for T {
     }
 
     fn dyn_register_input_context(&self, app: &mut App) {
-        T::register_input_context(app)
+        T::register_input_context(app);
     }
 }
 

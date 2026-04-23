@@ -41,7 +41,7 @@ impl ConnectionManager {
     }
 }
 
-/// In-flight connection task (app_info request).
+/// In-flight connection task (`app_info` request).
 #[derive(Resource)]
 pub struct ConnectionTask(pub Task<Result<serde_json::Value, anyhow::Error>>);
 

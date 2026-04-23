@@ -339,7 +339,7 @@ fn spawn_add_property_row(
     // Type selector ComboBox
     let type_names: Vec<String> = PropertyValue::all_type_names()
         .iter()
-        .map(|s| s.to_string())
+        .map(std::string::ToString::to_string)
         .collect();
     commands.spawn((
         CustomPropertyTypeSelector,
@@ -465,7 +465,7 @@ fn apply_custom_property_with_undo(
     history.push_executed(Box::new(cmd));
 }
 
-/// Handle TextEditCommitEvent for custom property numeric/string fields + axis bindings.
+/// Handle `TextEditCommitEvent` for custom property numeric/string fields + axis bindings.
 pub(crate) fn on_custom_property_text_commit(
     event: On<TextEditCommitEvent>,
     bindings: Query<&CustomPropertyBinding>,

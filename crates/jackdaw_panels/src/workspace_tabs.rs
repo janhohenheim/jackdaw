@@ -498,7 +498,7 @@ fn start_workspace_rename(
     }
 }
 
-/// Auto-focus a freshly-spawned workspace rename text_edit. Walks down
+/// Auto-focus a freshly-spawned workspace rename `text_edit`. Walks down
 /// to the inner `EditorTextEdit` (same nesting as inline renames in
 /// hierarchy.rs) and sets it as the focused entity.
 pub fn auto_focus_workspace_rename(
@@ -526,7 +526,7 @@ pub fn auto_focus_workspace_rename(
 }
 
 /// Commit (Enter / blur) finishes the rename: writes the new name into
-/// the workspace, despawns the text_edit, and restores the label.
+/// the workspace, despawns the `text_edit`, and restores the label.
 pub fn handle_workspace_rename_commit(
     event: On<TextEditCommitEvent>,
     rename_inputs: Query<(Entity, &WorkspaceRenameInput)>,

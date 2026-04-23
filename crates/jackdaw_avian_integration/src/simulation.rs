@@ -48,7 +48,7 @@ pub struct PhysicsDrag {
     pub grab_offset: Vec3,
     /// Starting position of the dragged entity at drag start.
     pub drag_start_pos: Vec3,
-    /// Starting positions of ALL selected RigidBody entities at drag start.
+    /// Starting positions of ALL selected `RigidBody` entities at drag start.
     /// Used to move the entire group by the same delta.
     pub start_positions: HashMap<Entity, Vec3>,
 }

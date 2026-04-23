@@ -18,7 +18,7 @@ pub struct MenuBar;
 #[derive(Component)]
 pub struct MenuBarItem {
     pub label: String,
-    /// (action_id, display_label) pairs for the dropdown.
+    /// (`action_id`, `display_label`) pairs for the dropdown.
     pub actions: Vec<(String, String)>,
 }
 
@@ -35,7 +35,7 @@ pub struct MenuBarDropdownItem {
 /// Tracks which menu is currently open.
 #[derive(Resource, Default)]
 pub struct MenuBarState {
-    /// The MenuBarItem entity whose dropdown is open, if any.
+    /// The `MenuBarItem` entity whose dropdown is open, if any.
     pub open_menu: Option<Entity>,
     /// The dropdown entity, if spawned.
     pub dropdown_entity: Option<Entity>,

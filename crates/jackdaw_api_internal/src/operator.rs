@@ -48,7 +48,7 @@ pub(super) fn plugin(app: &mut App) {
 ///
 /// Extensions then bind the operator to a key via pure BEI syntax. Use
 /// BEI binding modifiers (`Press`, `Release`, `Hold`) when specific
-/// input timing is needed. See the [jackdaw_api documentation](crate).
+/// input timing is needed. See the [`jackdaw_api` documentation](crate).
 pub trait Operator: InputAction + 'static {
     const ID: &'static str;
     const LABEL: &'static str;
@@ -286,7 +286,7 @@ impl<'a> OperatorCallBuilder<'a, Commands<'_, '_>> {
                 .run_system_cached(cancel_active_modal)
                 .map_err(BevyError::from);
             if let Err(err) = res {
-                error!("Failed to cancel active modal: {err}")
+                error!("Failed to cancel active modal: {err}");
             }
         });
     }

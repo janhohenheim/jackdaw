@@ -179,7 +179,7 @@ fn merge_fields_from_registry(
     }
 }
 
-/// Try to resolve a type path from the registry by TypeId.
+/// Try to resolve a type path from the registry by `TypeId`.
 fn resolve_type_path(registry: &TypeRegistry, type_id: std::any::TypeId) -> String {
     registry
         .get(type_id)

@@ -7,7 +7,7 @@
 //!
 //! Four node types are registered: `anim.clip_ref` (references
 //! another clip), `anim.blend`, `anim.additive`, and `anim.output`.
-//! Currently only single-clip passthrough compiles (ClipRef -> Output).
+//! Currently only single-clip passthrough compiles (`ClipRef` -> Output).
 
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};

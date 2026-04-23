@@ -133,13 +133,41 @@ anyhow = { version = "1", default-features = false }
 dirs = "6"
 regex = "1"
 pathdiff = "0.2"
+tracing = "0.1"
+tracing-subscriber = "0.3"
 
 # Idiomatic Bevy code often triggers these lints, and the CI workflow treats them as errors.
 [workspace.lints.clippy]
-too_many_arguments = "allow"
+doc_markdown = "warn"
+
+redundant_else = "warn"
+semicolon_if_nothing_returned = "warn"
 type_complexity = "allow"
+unwrap_or_default = "warn"
+needless_lifetimes = "allow"
+too_many_arguments = "allow"
+nonstandard_macro_braces = "warn"
+print_stdout = "warn"
+
+ptr_as_ptr = "warn"
+ptr_cast_constness = "warn"
+ref_as_ptr = "warn"
+
+# see: https://github.com/bevyengine/bevy/pull/15375#issuecomment-2366966219
+too_long_first_doc_paragraph = "allow"
+
+allow_attributes = "warn"
+allow_attributes_without_reason = "warn"
+
+# TODO: enable these if you have time!
+# undocumented_unsafe_blocks = "warn"
+# print_stderr = "warn"
+# redundant_closure_for_method_calls = "warn"
+# match_same_arms = "warn"
+# manual_let_else = "warn"
+
+# TODO: remove these if you have time!
 collapsible_if = "allow"
-redundant_closure = "allow"
 
 [dev-dependencies]
 bevy = { workspace = true, features = ["dynamic_linking"] }

@@ -966,7 +966,7 @@ fn spawn_keybind_help_content(
                 }
                 let key_str = bindings
                     .iter()
-                    .map(|b| b.to_string())
+                    .map(std::string::ToString::to_string)
                     .collect::<Vec<_>>()
                     .join(" / ");
                 entries.push((key_str, action.to_string()));

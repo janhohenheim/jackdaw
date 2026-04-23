@@ -276,7 +276,7 @@ pub(crate) fn build_inspector_displays(
         let is_overridden = baseline.as_ref().is_some_and(|bl| {
             let type_id = components
                 .get_info(component_id)
-                .and_then(|info| info.type_id());
+                .and_then(bevy::bevy_ecs::component::ComponentInfo::type_id);
             if let Some(type_id) = type_id
                 && let Some(registration) = registry.get(type_id)
                 && let Some(reflect_component) = registration.data::<ReflectComponent>()
@@ -309,7 +309,7 @@ pub(crate) fn build_inspector_displays(
         // Try Displayable first, then reflection, then fallback
         let type_id = components
             .get_info(component_id)
-            .and_then(|info| info.type_id());
+            .and_then(bevy::bevy_ecs::component::ComponentInfo::type_id);
 
         if let Some(type_id) = type_id
             && let Some(registration) = registry.get(type_id)
@@ -789,7 +789,7 @@ fn revert_component_to_baseline(world: &mut World, entity: Entity, component_id:
     let Some(type_id) = world
         .components()
         .get_info(component_id)
-        .and_then(|info| info.type_id())
+        .and_then(bevy::bevy_ecs::component::ComponentInfo::type_id)
     else {
         return;
     };

@@ -11,7 +11,7 @@ impl Plugin for CustomPropertiesPlugin {
     }
 }
 
-/// Undo command that stores old/new snapshots of the entire CustomProperties component.
+/// Undo command that stores old/new snapshots of the entire `CustomProperties` component.
 pub struct SetCustomProperties {
     pub entity: Entity,
     pub old_properties: CustomProperties,

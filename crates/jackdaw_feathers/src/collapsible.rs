@@ -6,7 +6,7 @@ use lucide_icons::Icon;
 
 use crate::tokens;
 
-/// Spawn a styled collapsible section. Returns (section_entity, body_entity).
+/// Spawn a styled collapsible section. Returns `(section_entity, body_entity)`.
 pub fn collapsible_section(
     commands: &mut Commands,
     title: &str,

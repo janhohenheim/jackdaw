@@ -46,6 +46,7 @@
 use std::env;
 use std::ffi::OsString;
 use std::process::{Command, ExitCode};
+use tracing::error;
 
 const ENV_SDK_DYLIB: &str = "JACKDAW_SDK_DYLIB";
 const ENV_SDK_DEPS: &str = "JACKDAW_SDK_DEPS";
@@ -65,11 +66,12 @@ const REDIRECTED_CRATES: &[&str] = &["bevy"];
 const INJECTED_CRATES: &[&str] = &["jackdaw_api"];
 
 fn main() -> ExitCode {
+    tracing_subscriber::fmt::init();
     let mut argv: Vec<OsString> = env::args_os().collect();
     // argv[0] is our binary; argv[1] is the real rustc path; argv[2..]
     // are rustc's args.
     if argv.len() < 2 {
-        eprintln!("jackdaw-rustc-wrapper: no rustc path provided");
+        error!("jackdaw-rustc-wrapper: no rustc path provided");
         return ExitCode::from(1);
     }
     let rustc = argv.remove(1);
@@ -78,11 +80,9 @@ fn main() -> ExitCode {
     let is_primary = env::var_os(ENV_PRIMARY_PACKAGE).is_some_and(|v| v == "1");
     let log = env::var_os(ENV_LOG).is_some_and(|v| v == "1");
 
-    if is_primary {
-        if let Err(e) = rewrite_primary_args(&mut rustc_args, log) {
-            eprintln!("jackdaw-rustc-wrapper: {e}");
-            return ExitCode::from(1);
-        }
+    if is_primary && let Err(e) = rewrite_primary_args(&mut rustc_args, log) {
+        error!("jackdaw-rustc-wrapper: {e}");
+        return ExitCode::from(1);
     }
 
     let status = Command::new(&rustc).args(&rustc_args).status();
@@ -90,7 +90,7 @@ fn main() -> ExitCode {
     match status {
         Ok(s) => ExitCode::from(s.code().unwrap_or(1) as u8),
         Err(e) => {
-            eprintln!("jackdaw-rustc-wrapper: failed to spawn {rustc:?}: {e}");
+            error!("jackdaw-rustc-wrapper: failed to spawn {rustc:?}: {e}");
             ExitCode::from(1)
         }
     }
@@ -112,7 +112,7 @@ fn rewrite_primary_args(argv: &mut Vec<OsString>, log: bool) -> Result<(), Strin
         if argv[i] == "--extern" && i + 1 < argv.len() {
             if let Some(new_value) = rewrite_extern(&argv[i + 1], &dylib) {
                 if log {
-                    eprintln!(
+                    error!(
                         "jackdaw-rustc-wrapper: rewrite --extern {:?} -> {:?}",
                         argv[i + 1],
                         new_value
@@ -133,7 +133,7 @@ fn rewrite_primary_args(argv: &mut Vec<OsString>, log: bool) -> Result<(), Strin
         argv.push(OsString::from("--extern"));
         argv.push(flag);
         if log {
-            eprintln!(
+            error!(
                 "jackdaw-rustc-wrapper: injected --extern {}={}",
                 alias,
                 dylib.to_string_lossy()
@@ -149,7 +149,7 @@ fn rewrite_primary_args(argv: &mut Vec<OsString>, log: bool) -> Result<(), Strin
     argv.push(OsString::from("prefer-dynamic"));
 
     if log {
-        eprintln!(
+        error!(
             "jackdaw-rustc-wrapper: appended -L dependency={} -C prefer-dynamic",
             deps.to_string_lossy()
         );

@@ -100,7 +100,7 @@ pub fn collect_add_menu_items(world: &mut World) -> Vec<AddMenuItem> {
         if entry.menu != "Add" {
             continue;
         }
-        let ext_entity = parent.map(|c| c.parent()).unwrap_or(Entity::PLACEHOLDER);
+        let ext_entity = parent.map(bevy::bevy_ecs::hierarchy::ChildOf::parent).unwrap_or(Entity::PLACEHOLDER);
         ext_entries.push((
             ext_entity,
             format!("op:{}", entry.operator_id),

@@ -45,11 +45,11 @@ pub struct JsnComponentDef {
 /// A single field's editor definition.
 #[derive(Serialize, Deserialize, Clone, Debug, Default)]
 pub struct JsnFieldDef {
-    /// Reflect type path (e.g., "f32", "bevy_math::Vec3").
+    /// Reflect type path (e.g., "f32", "`bevy_math::Vec3`").
     #[serde(rename = "type")]
     pub type_path: String,
-    /// Widget override: "slider", "color_picker", "file_picker",
-    /// "dropdown", "text_area", "toggle", "angle", or auto-detected.
+    /// Widget override: "slider", "`color_picker`", "`file_picker`",
+    /// "dropdown", "`text_area`", "toggle", "angle", or auto-detected.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub widget: Option<String>,
     /// Numeric range [min, max].

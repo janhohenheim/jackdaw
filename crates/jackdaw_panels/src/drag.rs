@@ -44,7 +44,7 @@ pub enum DropTarget {
         edge: DropEdge,
     },
     /// Dropped on the editor viewport's edge. Routes to the anchor
-    /// associated with that edge (left/right_sidebar/bottom_dock).
+    /// associated with that edge (`left/right_sidebar/bottom_dock`).
     ViewportEdge {
         anchor_id: String,
         edge: DropEdge,
@@ -308,7 +308,7 @@ fn on_drag_move(
                     let distance = child_transform.translation.distance_squared(cursor);
 
                     if closest_child.is_none_or(|(_, _, _, closest_dist)| distance < closest_dist) {
-                        closest_child = Some((child_transform, child_computed, index, distance))
+                        closest_child = Some((child_transform, child_computed, index, distance));
                     }
                 }
 
@@ -587,7 +587,7 @@ fn on_drag_end(
                         let wid = window_id.clone();
                         commands.queue(move |world: &mut World| {
                             drop_on_tab_row(world, &wid, bar, index);
-                        })
+                        });
                     }
                 }
             }

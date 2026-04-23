@@ -17,7 +17,7 @@ pub(super) fn plugin(app: &mut App) {
 #[derive(Resource)]
 struct TerrainMaterialHandle(Handle<StandardMaterial>);
 
-/// When a Terrain component is added or rebuild_all is set, despawn old chunks and create new ones.
+/// When a Terrain component is added or `rebuild_all` is set, despawn old chunks and create new ones.
 fn initialize_terrain_chunks(
     mut commands: Commands,
     mut terrains: Query<

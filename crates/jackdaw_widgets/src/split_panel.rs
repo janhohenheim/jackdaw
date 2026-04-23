@@ -203,13 +203,17 @@ fn on_handle_drag_end(
 fn get_drag_icon(direction: FlexDirection, index: usize, count: usize) -> SystemCursorIcon {
     let is_right_half = index > count / 2;
     match (direction, is_right_half) {
-        (FlexDirection::Row, false) => SystemCursorIcon::EResize,
-        (FlexDirection::Row, true) => SystemCursorIcon::WResize,
-        (FlexDirection::RowReverse, false) => SystemCursorIcon::WResize,
-        (FlexDirection::RowReverse, true) => SystemCursorIcon::EResize,
-        (FlexDirection::Column, false) => SystemCursorIcon::NResize,
-        (FlexDirection::Column, true) => SystemCursorIcon::SResize,
-        (FlexDirection::ColumnReverse, false) => SystemCursorIcon::SResize,
-        (FlexDirection::ColumnReverse, true) => SystemCursorIcon::NResize,
+        (FlexDirection::Row, false) | (FlexDirection::RowReverse, true) => {
+            SystemCursorIcon::EResize
+        }
+        (FlexDirection::Row, true) | (FlexDirection::RowReverse, false) => {
+            SystemCursorIcon::WResize
+        }
+        (FlexDirection::Column, false) | (FlexDirection::ColumnReverse, true) => {
+            SystemCursorIcon::NResize
+        }
+        (FlexDirection::Column, true) | (FlexDirection::ColumnReverse, false) => {
+            SystemCursorIcon::SResize
+        }
     }
 }

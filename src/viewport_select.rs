@@ -44,10 +44,10 @@ pub struct BoxSelectState {
     pub current: Vec2,
 }
 
-/// Tracks whether the user is editing inside a BrushGroup (entered via double-click).
+/// Tracks whether the user is editing inside a `BrushGroup` (entered via double-click).
 #[derive(Resource, Default)]
 pub struct GroupEditState {
-    /// The BrushGroup entity we're currently editing inside of.
+    /// The `BrushGroup` entity we're currently editing inside of.
     pub active_group: Option<Entity>,
 }
 
@@ -415,7 +415,7 @@ fn find_selectable_ancestor(
     }
 }
 
-/// Exit BrushGroup edit mode when Escape is pressed.
+/// Exit `BrushGroup` edit mode when Escape is pressed.
 fn exit_group_on_escape(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut group_edit: ResMut<GroupEditState>,

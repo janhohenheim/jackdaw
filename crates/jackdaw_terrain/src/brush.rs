@@ -53,7 +53,7 @@ fn average_neighbors(heightmap: &Heightmap, x: u32, z: u32) -> f32 {
 /// `strength`: brush strength per second.
 /// `falloff`: falloff power (1.0 = linear, 2.0 = quadratic, etc.).
 /// `dt`: frame delta time.
-/// `noise_fn`: optional noise function for the Noise tool; takes (grid_x, grid_z).
+/// `noise_fn`: optional noise function for the Noise tool; takes (`grid_x`, `grid_z`).
 pub fn apply_brush(
     heightmap: &mut Heightmap,
     tool: SculptTool,

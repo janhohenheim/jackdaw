@@ -126,7 +126,7 @@ fn cstr_to_string(ptr: *const c_char, field: &'static str) -> Result<String, Com
         .map_err(|_| CompatError::NonUtf8 { field })
 }
 
-/// Read one of our own host-side constant CStrs into an owned
+/// Read one of our own host-side constant `CStrs` into an owned
 /// `String`. The `to_str` cannot fail for the hard-coded values but
 /// we still return `String` to share the comparison type with the
 /// extension-side lookup.

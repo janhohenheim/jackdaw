@@ -54,6 +54,10 @@ impl ButtonVariant {
         }
     }
     pub fn bg_opacity(&self, hovered: bool) -> f32 {
+        #[expect(
+            clippy::match_same_arms,
+            reason = "We want to tweak the values that happen to be the same differently"
+        )]
         match (self, hovered) {
             (Self::Ghost, false) | (Self::Disabled, _) => 0.0,
             (Self::Active, false) => 0.1,

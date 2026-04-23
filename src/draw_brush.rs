@@ -385,7 +385,7 @@ pub(crate) fn brush_data_from_entity(world: &mut World, entity: Entity) -> Brush
         transform: *world.get::<Transform>(entity).unwrap(),
         name: world
             .get::<Name>(entity)
-            .map(|n| n.to_string())
+            .map(std::string::ToString::to_string)
             .unwrap_or_default(),
         parent_stable_id,
     }
@@ -1837,7 +1837,7 @@ fn manage_draw_preview_mesh(
     }
 
     // Build triangle mesh from face polygons
-    let positions: Vec<[f32; 3]> = verts.iter().map(|v| v.to_array()).collect();
+    let positions: Vec<[f32; 3]> = verts.iter().map(bevy::bevy_math::Vec3::to_array).collect();
     let mut all_indices: Vec<u32> = Vec::new();
     for polygon in &face_polys {
         if polygon.len() < 3 {
@@ -2063,7 +2063,7 @@ fn footprint_corners(active: &ActiveDraw) -> [Vec3; 4] {
     ]
 }
 
-/// Build 6 world-space cutter planes from the ActiveDraw cuboid.
+/// Build 6 world-space cutter planes from the `ActiveDraw` cuboid.
 fn build_cutter_planes(active: &ActiveDraw) -> Vec<BrushFaceData> {
     let plane = &active.plane;
 
@@ -2108,7 +2108,7 @@ fn build_cutter_planes(active: &ActiveDraw) -> Vec<BrushFaceData> {
         .collect()
 }
 
-/// Build N+2 world-space cutter planes from a polygon prism ActiveDraw.
+/// Build N+2 world-space cutter planes from a polygon prism `ActiveDraw`.
 fn build_cutter_planes_polygon(active: &ActiveDraw) -> Vec<BrushFaceData> {
     let verts = &active.polygon_vertices;
     let normal = active.plane.normal;
@@ -2176,7 +2176,7 @@ fn build_cutter_planes_polygon(active: &ActiveDraw) -> Vec<BrushFaceData> {
     faces
 }
 
-/// If `entity` is a child of a BrushGroup, return (parent_entity, parent_translation).
+/// If `entity` is a child of a `BrushGroup`, return (`parent_entity`, `parent_translation`).
 fn brush_parent_group(world: &World, entity: Entity) -> Option<(Entity, Vec3)> {
     let parent = world.get::<ChildOf>(entity)?.0;
     world.get::<BrushGroup>(parent)?;
@@ -3028,7 +3028,7 @@ pub(crate) fn csg_intersect_selected_impl(world: &mut World) {
         })
         .collect();
 
-    let face_refs: Vec<&[BrushFaceData]> = world_face_sets.iter().map(|v| v.as_slice()).collect();
+    let face_refs: Vec<&[BrushFaceData]> = world_face_sets.iter().map(std::vec::Vec::as_slice).collect();
     let Some(intersection_faces) = intersect_brushes(&face_refs) else {
         return;
     };

@@ -28,7 +28,7 @@ pub struct AnchorHost {
 }
 
 /// Binds an entity to a tree node. Present on both leaf-style entities
-/// (DockArea) and split wrapper entities (PanelGroup).
+/// (`DockArea`) and split wrapper entities (`PanelGroup`).
 #[derive(Component, Copy, Clone, Debug)]
 pub struct NodeBinding(pub NodeId);
 
@@ -345,7 +345,7 @@ fn collect_content_window_ids(world: &mut World, entity: Entity) -> Vec<String> 
     out
 }
 
-/// If `entity` currently looks like a split host (PanelGroup with three
+/// If `entity` currently looks like a split host (`PanelGroup` with three
 /// children: panel, handle, panel), return them in order.
 fn collect_split_children(world: &mut World, entity: Entity) -> Option<(Entity, Entity, Entity)> {
     let children: Vec<Entity> = world

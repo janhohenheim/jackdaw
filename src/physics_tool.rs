@@ -44,11 +44,11 @@ impl Plugin for PhysicsToolPlugin {
     }
 }
 
-/// Track the previous EditMode to detect transitions into/out of Physics.
+/// Track the previous `EditMode` to detect transitions into/out of Physics.
 #[derive(Resource, Default)]
 struct PreviousEditMode(EditMode);
 
-/// Detect when EditMode changes to/from Physics and run entry/exit logic.
+/// Detect when `EditMode` changes to/from Physics and run entry/exit logic.
 fn on_edit_mode_transition(world: &mut World) {
     let edit_mode = *world.resource::<EditMode>();
     let prev = world.get_resource_or_init::<PreviousEditMode>().0;

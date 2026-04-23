@@ -114,7 +114,7 @@ fn check_project_watcher(
     }
 }
 
-/// Rebuild the root-level tree when needs_refresh is set.
+/// Rebuild the root-level tree when `needs_refresh` is set.
 fn refresh_project_tree(
     mut state: ResMut<ProjectFilesState>,
     tree_query: Query<(Entity, Option<&Children>), With<ProjectFilesTree>>,
@@ -243,7 +243,7 @@ fn handle_directory_expand(
     }
 }
 
-/// Scan a directory and return (path, is_directory) entries.
+/// Scan a directory and return (path, `is_directory`) entries.
 fn scan_directory(dir: &Path) -> Vec<(PathBuf, bool)> {
     let Ok(read_dir) = std::fs::read_dir(dir) else {
         return Vec::new();

@@ -56,7 +56,7 @@ impl AssetLoader for JsnAssetLoader {
 
         // Build a DynamicScene by spawning into a temporary world
         let scene = build_dynamic_scene(&jsn.scene, &self.type_registry)
-            .map_err(|e| JsnLoadError::Scene(e))?;
+            .map_err(JsnLoadError::Scene)?;
 
         Ok(scene)
     }
@@ -66,7 +66,7 @@ impl AssetLoader for JsnAssetLoader {
     }
 }
 
-/// Spawn JsnEntity list into a temp world, then extract a DynamicScene.
+/// Spawn `JsnEntity` list into a temp world, then extract a `DynamicScene`.
 fn build_dynamic_scene(
     entities: &[JsnEntity],
     type_registry: &TypeRegistryArc,

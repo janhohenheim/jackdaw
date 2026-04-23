@@ -90,7 +90,7 @@ pub struct SnapSettings {
     pub rotate_increment: f32,
     pub scale_snap: bool,
     pub scale_increment: f32,
-    /// Exponential grid power. Actual grid size = 2^grid_power.
+    /// Exponential grid power. Actual grid size = `2^grid_power`.
     pub grid_power: i32,
 }
 
@@ -110,7 +110,7 @@ impl Default for SnapSettings {
 }
 
 impl SnapSettings {
-    /// Actual grid size derived from grid_power: 2^grid_power.
+    /// Actual grid size derived from `grid_power`: `2^grid_power`.
     pub fn grid_size(&self) -> f32 {
         2.0_f32.powi(self.grid_power)
     }

@@ -123,7 +123,7 @@ struct MaterialBrowserFolderTask(Task<Option<rfd::FileHandle>>);
 #[derive(Component)]
 struct PreviewAreaContainer;
 
-/// The ImageNode displaying the render-to-texture preview.
+/// The `ImageNode` displaying the render-to-texture preview.
 #[derive(Component)]
 struct PreviewAreaImage;
 
@@ -443,7 +443,7 @@ fn scan_dir_recursive(
 fn scan_material_definitions(world: &mut World) {
     let assets_dir = world
         .get_resource::<crate::project::ProjectRoot>()
-        .map(|p| p.assets_dir())
+        .map(super::project::ProjectRoot::assets_dir)
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_default().join("assets"));
     world.resource_mut::<MaterialBrowserState>().scan_directory = assets_dir.clone();
 
@@ -517,7 +517,7 @@ fn rescan_material_definitions(world: &mut World) {
 
     let assets_dir = world
         .get_resource::<crate::project::ProjectRoot>()
-        .map(|p| p.assets_dir())
+        .map(super::project::ProjectRoot::assets_dir)
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_default().join("assets"));
 
     {
@@ -590,7 +590,7 @@ fn save_catalog_if_dirty(world: &mut World) {
     // Re-serialize all registry materials so in-memory edits persist.
     let assets_dir = world
         .get_resource::<crate::project::ProjectRoot>()
-        .map(|p| p.assets_dir())
+        .map(super::project::ProjectRoot::assets_dir)
         .unwrap_or_default();
     let entries: Vec<(String, UntypedHandle)> = world
         .resource::<MaterialRegistry>()
@@ -1145,7 +1145,7 @@ fn update_preview_area(
     );
 }
 
-/// Handle TextEditCommitEvent for material parameter inputs.
+/// Handle `TextEditCommitEvent` for material parameter inputs.
 fn on_material_param_commit(
     event: On<TextEditCommitEvent>,
     param_query: Query<&MaterialParamInput>,

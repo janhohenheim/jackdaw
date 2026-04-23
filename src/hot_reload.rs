@@ -71,7 +71,7 @@ struct HotReloadState {
     pending_install: Option<PathBuf>,
 }
 
-/// Cargo's write fires a burst of events (Create, Modify, CloseWrite).
+/// Cargo's write fires a burst of events (Create, Modify, `CloseWrite`).
 /// Collapse them into one install.
 const DEBOUNCE_WINDOW: Duration = Duration::from_millis(200);
 
@@ -233,7 +233,7 @@ fn drain_artifact_changes(
 /// Exclusive system in Last. Runs the full
 /// `extensions_dialog::handle_install_from_path` pipeline: atomic
 /// rename into the per-user games dir, teardown of the prior dylib,
-/// dlopen, new build(), catalog update.
+/// dlopen, new `build()`, catalog update.
 fn apply_pending_install(world: &mut World) {
     let artifact_opt = world
         .resource_mut::<HotReloadState>()

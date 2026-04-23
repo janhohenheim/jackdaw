@@ -21,7 +21,7 @@ pub struct RemoteEntityProxy {
 }
 
 /// Display name extracted from snapshot, stored on proxy entities.
-/// bevy_monitors watches this for Mutation events.
+/// `bevy_monitors` watches this for Mutation events.
 #[derive(Component, Default)]
 pub struct RemoteEntityName(pub Option<String>);
 
@@ -93,7 +93,7 @@ fn extract_parent(entity: &RemoteEntity) -> Option<u64> {
     entity
         .components
         .get("bevy_ecs::hierarchy::ChildOf")
-        .and_then(|v| v.as_u64())
+        .and_then(serde_json::Value::as_u64)
 }
 
 fn display_name(entity: &RemoteEntity) -> String {
@@ -154,7 +154,7 @@ pub fn remote_debug_workspace_content() -> impl Bundle {
 
 // ─────────────────────────── Reactive Name Watcher ───────────────────────────
 
-/// Spawn a watcher entity that notifies us when RemoteEntityName is mutated.
+/// Spawn a watcher entity that notifies us when `RemoteEntityName` is mutated.
 pub fn setup_remote_name_watcher(mut commands: Commands) {
     commands
         .spawn(NotifyChanged::<RemoteEntityName>::default())
@@ -537,7 +537,7 @@ fn update_expanded_children(world: &mut World, entities: &[RemoteEntity], new_bi
     }
 }
 
-/// Remove a tree row (and its descendants) from RemoteTreeRowIndex.
+/// Remove a tree row (and its descendants) from `RemoteTreeRowIndex`.
 fn remove_tree_row_from_index(world: &mut World, tree_row: Entity) {
     // Remove mapping for this tree row's proxy
     if let Some(tn) = world.get::<TreeNode>(tree_row) {
@@ -684,7 +684,7 @@ pub fn on_remote_tree_node_expanded(
                 .cloned()
                 .collect();
 
-            children.sort_by_key(|a| display_name(a));
+            children.sort_by_key(display_name);
 
             let gc_map: HashMap<u64, bool> = children
                 .iter()
@@ -803,7 +803,7 @@ pub(crate) fn cleanup_remote_proxies(
 
     // Clear tree rows inside the remote tree container
     // (they reference proxies that were just despawned, so they'll be cleaned up
-    //  by Bevy's despawn propagation via TreeNode relationship)
+    //  by Bevy's despawn propagation via `TreeNode` relationship)
 
     proxy_index.map.clear();
     tree_row_index.map.clear();

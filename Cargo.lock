@@ -4667,6 +4667,10 @@ dependencies = [
 [[package]]
 name = "jackdaw_rustc_wrapper"
 version = "0.4.0"
+dependencies = [
+ "tracing",
+ "tracing-subscriber",
+]
 
 [[package]]
 name = "jackdaw_sdk"

@@ -194,7 +194,7 @@ pub fn scaffold_project(
 
 /// Write a `.cargo/config.toml` into the scaffolded project with
 /// absolute paths pointing at jackdaw's rustc wrapper and SDK so
-/// that **any** cargo invocation (terminal, rust-analyzer, VSCode
+/// that **any** cargo invocation (terminal, rust-analyzer, `VSCode`
 /// build task, etc.) picks up the same linkage jackdaw's Build
 /// button uses.
 ///

@@ -349,24 +349,23 @@ impl ReflectDeserializerProcessor for RuntimeDeserializerProcessor<'_> {
         if registration.type_id() == TypeId::of::<f32>() {
             let val = deserializer
                 .deserialize_any(F32Visitor)
-                .map_err(|e| <D::Error as serde::de::Error>::custom(e))?;
+                .map_err(<D::Error as serde::de::Error>::custom)?;
             return Ok(Ok(Box::new(val).into_partial_reflect()));
         }
         if registration.type_id() == TypeId::of::<f64>() {
             let val = deserializer
                 .deserialize_any(F64Visitor)
-                .map_err(|e| <D::Error as serde::de::Error>::custom(e))?;
+                .map_err(<D::Error as serde::de::Error>::custom)?;
             return Ok(Ok(Box::new(val).into_partial_reflect()));
         }
 
         if registration.data::<ReflectHandle>().is_some() {
             let path_str = deserializer.deserialize_any(StringOrNullVisitor)?;
 
-            if path_str.is_empty() {
-                if let Some(rd) = registration.data::<ReflectDefault>() {
+            if path_str.is_empty()
+                && let Some(rd) = registration.data::<ReflectDefault>() {
                     return Ok(Ok(rd.default().into_partial_reflect()));
                 }
-            }
 
             if path_str.starts_with('@') {
                 warn!("Catalog asset '{path_str}' is not supported at runtime -- using default");

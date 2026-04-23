@@ -274,13 +274,13 @@ fn modal_update(
                 }
                 ModalConstraint::Axis(axis) => match axis {
                     GizmoAxis::X => {
-                        new_scale.x = (active.start_transform.scale.x * factor).max(0.01)
+                        new_scale.x = (active.start_transform.scale.x * factor).max(0.01);
                     }
                     GizmoAxis::Y => {
-                        new_scale.y = (active.start_transform.scale.y * factor).max(0.01)
+                        new_scale.y = (active.start_transform.scale.y * factor).max(0.01);
                     }
                     GizmoAxis::Z => {
-                        new_scale.z = (active.start_transform.scale.z * factor).max(0.01)
+                        new_scale.z = (active.start_transform.scale.z * factor).max(0.01);
                     }
                 },
                 ModalConstraint::Plane(excluded) => {

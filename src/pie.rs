@@ -1,7 +1,7 @@
 //! Play-In-Editor runtime.
 //!
 //! Jackdaw hosts a game's systems in its own `App` (same World,
-//! not a SubApp). Games are dylibs loaded at startup via the
+//! not a `SubApp`). Games are dylibs loaded at startup via the
 //! `jackdaw_game_entry_v1` FFI symbol; their `build(&mut App)`
 //! callback registers systems into the editor's schedule. Game
 //! systems gate their execution on [`PlayState::Playing`] so they

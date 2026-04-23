@@ -342,7 +342,7 @@ fn handle_popover_dismiss(
         // Don't dismiss on click if the anchor (trigger) is hovered,
         // let the anchor's click handler manage open/close toggling.
         if clicked && !esc_pressed {
-            let anchor_is_hovered = anchor_hovered.get(anchor.entity).is_ok_and(|h| h.get());
+            let anchor_is_hovered = anchor_hovered.get(anchor.entity).is_ok_and(Hovered::get);
             if anchor_is_hovered {
                 continue;
             }

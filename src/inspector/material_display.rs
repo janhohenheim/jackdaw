@@ -175,14 +175,14 @@ fn spawn_material_fields(world: &mut World, body_entity: Entity, source_entity: 
     ));
 }
 
-/// Binding that links a material text_edit to a source entity and material field mutator.
+/// Binding that links a material `text_edit` to a source entity and material field mutator.
 #[derive(Component)]
 pub(super) struct MaterialFieldBinding {
     pub(super) source_entity: Entity,
     pub(super) apply_fn: fn(&mut StandardMaterial, f64),
 }
 
-/// Handle TextEditCommitEvent for material field bindings.
+/// Handle `TextEditCommitEvent` for material field bindings.
 pub(super) fn on_material_text_commit(
     event: On<TextEditCommitEvent>,
     bindings: Query<&MaterialFieldBinding>,

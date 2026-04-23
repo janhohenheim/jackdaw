@@ -661,7 +661,7 @@ fn on_clip_selector_change(
     });
 }
 
-/// Observer: when the inline clip-name text_edit commits, route the
+/// Observer: when the inline clip-name `text_edit` commits, route the
 /// rename through `SetJsnField` on the `Name` component so it
 /// participates in undo and round-trips through JSN.
 fn on_clip_name_commit(
@@ -1050,7 +1050,7 @@ impl DespawnKeyframeCmd {
     /// component types, so the caller can fall through to a
     /// generic despawn.
     fn try_from_entity(world: &World, entity: Entity) -> Option<Self> {
-        let track = world.get::<ChildOf>(entity).map(|c| c.parent())?;
+        let track = world.get::<ChildOf>(entity).map(bevy::bevy_ecs::hierarchy::ChildOf::parent)?;
         if let Some(kf) = world.get::<jackdaw_animation::Vec3Keyframe>(entity) {
             return Some(Self::Vec3 {
                 keyframe: entity,
@@ -1412,7 +1412,7 @@ fn handle_keyframe_copy(world: &mut World) {
 
     let mut entries: Vec<(f32, jackdaw_animation::KeyframeClipboardEntry)> = Vec::new();
     for &entity in &selected {
-        let Some(track_entity) = world.get::<ChildOf>(entity).map(|c| c.parent()) else {
+        let Some(track_entity) = world.get::<ChildOf>(entity).map(bevy::bevy_ecs::hierarchy::ChildOf::parent) else {
             continue;
         };
         let Some(track) = world.get::<jackdaw_animation::AnimationTrack>(track_entity) else {
@@ -1763,7 +1763,7 @@ fn register_animation_entities_in_ast(
 ///
 /// Lives in the main crate rather than `jackdaw_animation` because it
 /// needs to read `jackdaw_jsn::GltfSource`, and we'd rather not wire a
-/// jackdaw_jsn dep into the animation crate.
+/// `jackdaw_jsn` dep into the animation crate.
 ///
 /// [`GltfSource`]: jackdaw_jsn::GltfSource
 fn discover_gltf_clips(
@@ -2643,11 +2643,11 @@ fn auto_save_layout_on_change(
     }
 }
 
-/// Build the final DockTree (saved or default-split) BEFORE the
+/// Build the final `DockTree` (saved or default-split) BEFORE the
 /// reconciler materializes any content. This way each window's `build_fn`
 /// runs exactly once into its final home with no rebuild churn, which
 /// would otherwise despawn freshly-spawned content while its deferred
-/// init systems (project_files refresh, material_browser scan, etc.)
+/// init systems (`project_files` refresh, `material_browser` scan, etc.)
 /// still hold pointers to it.
 ///
 /// Supports three save formats (in priority order):

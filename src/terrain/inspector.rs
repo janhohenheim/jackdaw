@@ -372,7 +372,7 @@ fn update_terrain_inspector(
     ));
 }
 
-/// Sync brush resource values into existing text_edit widgets without rebuilding the UI.
+/// Sync brush resource values into existing `text_edit` widgets without rebuilding the UI.
 fn sync_brush_fields(
     brush_settings: Res<TerrainBrushSettings>,
     input_focus: Res<InputFocus>,
@@ -596,7 +596,7 @@ fn spawn_erosion_field(
     ));
 }
 
-/// Handle TextEditCommitEvent for terrain inspector fields (brush, gen, erosion).
+/// Handle `TextEditCommitEvent` for terrain inspector fields (brush, gen, erosion).
 fn on_terrain_text_commit(
     event: On<TextEditCommitEvent>,
     brush_bindings: Query<&BrushField>,

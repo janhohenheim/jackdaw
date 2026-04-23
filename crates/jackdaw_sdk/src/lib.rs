@@ -16,7 +16,7 @@
 //! code writes plain `use bevy::prelude::*;` and
 //! `use jackdaw_api::prelude::*;`. Both resolve to this crate's
 //! re-exports, which ultimately point at the one compilation of
-//! bevy and jackdaw_api that was built alongside the editor.
+//! bevy and `jackdaw_api` that was built alongside the editor.
 //!
 //! Re-exports mirror `jackdaw_api`'s public surface. Editor-host
 //! plumbing (loader plugin, catalog, enable/disable helpers) lives

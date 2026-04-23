@@ -25,6 +25,7 @@ pub fn headless_app() -> App {
     app
 }
 
+#[expect(clippy::allow_attributes, reason = "Some tests use this")]
 #[allow(
     dead_code,
     reason = "shared across integration test binaries; not every test file exercises operator dispatch."

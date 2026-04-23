@@ -136,7 +136,7 @@ impl<'w, 's> ActiveModalQuery<'w, 's> {
                 .run_system_cached(cancel_active_modal)
                 .map_err(BevyError::from);
             if let Err(err) = res {
-                error!("Failed to cancel active modal: {err}")
+                error!("Failed to cancel active modal: {err}");
             }
         });
     }

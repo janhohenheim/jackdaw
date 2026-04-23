@@ -19,7 +19,7 @@ use serde_json::Value;
 pub struct RemoteEntity {
     /// Bevy entity bits (u64) for tracking across snapshots.
     pub entity: u64,
-    /// ALL reflectable components, keyed by type path, serialized via TypedReflectSerializer.
+    /// ALL reflectable components, keyed by type path, serialized via `TypedReflectSerializer`.
     pub components: HashMap<String, Value>,
 }
 
@@ -88,9 +88,9 @@ impl ReflectSerializerProcessor for RemoteSerializerProcessor {
         let type_id = value.reflect_type_info().type_id();
 
         // Non-finite floats
-        if type_id == TypeId::of::<f32>() {
-            if let Some(&v) = value.as_any().downcast_ref::<f32>() {
-                if !v.is_finite() {
+        if type_id == TypeId::of::<f32>()
+            && let Some(&v) = value.as_any().downcast_ref::<f32>()
+                && !v.is_finite() {
                     let s = if v == f32::INFINITY {
                         "inf"
                     } else if v == f32::NEG_INFINITY {
@@ -100,11 +100,9 @@ impl ReflectSerializerProcessor for RemoteSerializerProcessor {
                     };
                     return Ok(Ok(serializer.serialize_str(s)?));
                 }
-            }
-        }
-        if type_id == TypeId::of::<f64>() {
-            if let Some(&v) = value.as_any().downcast_ref::<f64>() {
-                if !v.is_finite() {
+        if type_id == TypeId::of::<f64>()
+            && let Some(&v) = value.as_any().downcast_ref::<f64>()
+                && !v.is_finite() {
                     let s = if v == f64::INFINITY {
                         "inf"
                     } else if v == f64::NEG_INFINITY {
@@ -114,8 +112,6 @@ impl ReflectSerializerProcessor for RemoteSerializerProcessor {
                     };
                     return Ok(Ok(serializer.serialize_str(s)?));
                 }
-            }
-        }
 
         // Handle<T> → null
         if registry.get_type_data::<ReflectHandle>(type_id).is_some() {

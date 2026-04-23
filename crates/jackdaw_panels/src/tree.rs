@@ -1,12 +1,12 @@
 //! Pure data model for the dock layout.
 //!
-//! Mature docking systems (egui_dock, Dear ImGui, Dockview) separate the
+//! Mature docking systems (`egui_dock`, Dear `ImGui`, Dockview) separate the
 //! layout *data* from the UI *entities*. Mutations happen on the tree; a
 //! reconciler materializes the tree into UI each frame. This module owns
 //! the data side. No Bevy UI imports.
 //!
 //! Binary tree: every split has exactly two children. Multi-way layouts
-//! are nested binary splits. Matches egui_dock's `Node` enum and ImGui's
+//! are nested binary splits. Matches `egui_dock`'s `Node` enum and `ImGui`'s
 //! `DockNode.ChildNodes[2]`.
 
 use std::collections::HashMap;
@@ -506,7 +506,7 @@ impl DockTree {
 }
 
 /// Generate a unique synthetic area id for a newly-created split leaf.
-/// Pairs the source window with the new leaf's NodeId so independent
+/// Pairs the source window with the new leaf's `NodeId` so independent
 /// splits of the same window don't collide.
 fn fresh_area_id(window_id: &str, leaf_id: NodeId) -> String {
     format!("split.{window_id}.{}", leaf_id.0)
