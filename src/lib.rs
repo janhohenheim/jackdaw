@@ -75,7 +75,7 @@ use selection::Selection;
 
 /// Everything needed to start using Jackdaw.
 pub mod prelude {
-    pub use crate::EditorPlugins;
+    pub use crate::{DylibLoaderPlugin, EditorPlugins, ExtensionPlugin};
     pub use jackdaw_api::prelude::*;
 }
 
@@ -159,6 +159,7 @@ plugin_group! {
     ///         .build())
     ///     .run();
     /// ```
+    #[derive(Default)]
     pub struct EditorPlugins {
         :EditorCorePlugin,
         :ExtensionPlugin,
