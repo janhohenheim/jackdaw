@@ -73,11 +73,6 @@ fn fixture_path() -> PathBuf {
 /// Tests drive loading explicitly via [`load_from_path`].
 fn headless_app_with_empty_dylib_loader() -> App {
     let mut app = util::headless_app();
-    app.add_plugins(DylibLoaderPlugin {
-        extra_paths: Vec::new(),
-        include_user_dir: false,
-        include_env_dir: false,
-    });
     app
 }
 
