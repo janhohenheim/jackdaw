@@ -105,7 +105,7 @@ fn hello_time(_: In<OperatorParameters>, time: Res<Time>) -> OperatorResult {
 // which is harmless.
 jackdaw_api::export_extension!(
     "sample",
-    "Sample Extension",
-    "A sample extension that logs hello messages",
+    "Example Extension",
+    "Just a tiny example extension :)",
     || Box::new(SampleExtension)
 );
