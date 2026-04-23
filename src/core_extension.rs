@@ -44,6 +44,7 @@ impl JackdawExtension for JackdawCoreExtension {
             ),
         ));
         ctx.register_operator::<CancelModalOp>();
+        ctx.register_operator::<crate::asset_browser::ApplyTextureOp>();
         crate::draw_brush::add_to_extension(ctx);
     }
 

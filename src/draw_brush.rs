@@ -231,8 +231,11 @@ const MIN_FOOTPRINT_SIZE: f32 = 0.01;
 const MIN_EXTRUDE_DEPTH: f32 = 0.01;
 const MIN_FRAGMENT_SIZE: f32 = 0.005;
 
-/// Stable identifier that persists across despawn/respawn cycles for undo/redo.
-#[derive(Component, Clone, Copy, PartialEq, Eq, Hash, Debug)]
+/// Stable identifier that survives the snapshot round-trip (undo
+/// respawns fresh entity ids; selection is restored by matching
+/// on this).
+#[derive(Component, Clone, Copy, PartialEq, Eq, Hash, Debug, Reflect)]
+#[reflect(Component)]
 pub struct BrushStableId(u64);
 
 #[derive(Resource, Default)]
@@ -252,6 +255,23 @@ fn entity_by_stable_id(world: &mut World, id: BrushStableId) -> Option<Entity> {
         .iter(world)
         .find(|(_, sid)| **sid == id)
         .map(|(e, _)| e)
+}
+
+/// Lazily give every `Brush` a `BrushStableId` so the undo selection-restore
+/// path (`apply_ast_to_world`) can match selections across scene reloads.
+/// Brushes loaded from JSN carry the serialized id if they had one; fresh
+/// draws that didn't insert one explicitly get one here.
+fn assign_missing_brush_stable_ids(
+    mut commands: Commands,
+    mut counter: ResMut<StableIdCounter>,
+    brushes: Query<Entity, (With<crate::brush::Brush>, Without<BrushStableId>)>,
+) {
+    for entity in &brushes {
+        let sid = counter.next();
+        if let Ok(mut ec) = commands.get_entity(entity) {
+            ec.insert(sid);
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -484,7 +504,10 @@ pub(crate) struct CutPreviewHidden;
 impl Plugin for DrawBrushPlugin {
     fn build(&self, app: &mut App) {
         // TODO: Move *all* of this into the `extension` method and turn systems into ops on the way.
-        app.init_gizmo_group::<DrawBrushGizmoGroup>()
+        app.register_type::<BrushStableId>()
+            .init_resource::<StableIdCounter>()
+            .add_systems(Update, assign_missing_brush_stable_ids)
+            .init_gizmo_group::<DrawBrushGizmoGroup>()
             .add_systems(Startup, configure_draw_brush_gizmos)
             .add_systems(
                 Update,
@@ -1006,12 +1029,12 @@ fn draw_brush_cancel(
     let Some(ref mut active) = draw_state.active else {
         return;
     };
-    if active.mode == DrawMode::Add {
-        // Already migrated to operator
-        return;
-    }
 
-    // Polygon mode: Enter closes polygon (via convex hull), Backspace removes last vertex
+    // Polygon mode: Enter closes the polygon (via convex hull) and
+    // transitions to ExtrudingDepth, Backspace removes the last
+    // placed vertex. Lives outside the operator framework for now
+    // and runs in both Add and Cut modes — the Add-mode operator
+    // migration stopped short of migrating these keybinds.
     if active.phase == DrawPhase::DrawingPolygon {
         if keybinds.just_pressed(EditorAction::ClosePolygon, &keyboard) {
             let hull = convex_hull_on_plane(&active.polygon_vertices, &active.plane);
@@ -1036,6 +1059,14 @@ fn draw_brush_cancel(
             }
             return;
         }
+    }
+
+    // Add-mode cancel is handled by the `CancelModalOp` operator
+    // (bound to Esc via the core extension) so it goes through the
+    // proper modal-finalize path. Right-click-to-cancel is still
+    // only wired up for Cut mode.
+    if active.mode == DrawMode::Add {
+        return;
     }
 
     if keybinds.just_pressed(EditorAction::CancelDraw, &keyboard)
@@ -1264,6 +1295,7 @@ fn spawn_drawn_brush(active: &ActiveDraw, commands: &mut Commands) {
             }
         }
 
+        let stable_id = world.resource_mut::<StableIdCounter>().next();
         let entity = world
             .spawn((
                 Name::new("Brush"),
@@ -1274,6 +1306,7 @@ fn spawn_drawn_brush(active: &ActiveDraw, commands: &mut Commands) {
                     scale: Vec3::ONE,
                 },
                 Visibility::default(),
+                stable_id,
             ))
             .id();
 
@@ -1675,6 +1708,7 @@ fn spawn_polygon_brush(active: &ActiveDraw, commands: &mut Commands) {
             }
         }
 
+        let stable_id = world.resource_mut::<StableIdCounter>().next();
         let entity = world
             .spawn((
                 Name::new("Brush"),
@@ -1685,6 +1719,7 @@ fn spawn_polygon_brush(active: &ActiveDraw, commands: &mut Commands) {
                     scale: Vec3::ONE,
                 },
                 Visibility::default(),
+                stable_id,
             ))
             .id();
 
