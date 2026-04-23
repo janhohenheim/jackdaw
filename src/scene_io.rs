@@ -1585,9 +1585,15 @@ fn cleanup_pending_new_scene(
 
 /// Collect scene entities (named non-editor entities and all their descendants).
 /// Requires `&mut World` for `query_filtered`.
+///
+/// BEI action entities carry a `Name` (via `Action<A>`'s
+/// `#[require(Name::new(any::type_name::<A>()), ActionSettings, …)]`)
+/// but are editor infrastructure — filter them out via
+/// `Without<ActionSettings>` so they don't get serialized into
+/// undo snapshots and re-spawned as scene entities on undo.
 fn collect_scene_entities_from_set(world: &mut World, editor_set: &HashSet<Entity>) -> Vec<Entity> {
     let roots: Vec<Entity> = world
-        .query_filtered::<Entity, With<Name>>()
+        .query_filtered::<Entity, (With<Name>, Without<bevy_enhanced_input::prelude::ActionSettings>)>()
         .iter(world)
         .filter(|e| !editor_set.contains(e))
         .collect();
@@ -1692,6 +1698,72 @@ pub(crate) fn despawn_scene_entities(world: &mut World) {
             entity_mut.despawn();
         }
     }
+}
+
+/// Build a self-contained `SceneJsnAst` snapshot of the current
+/// scene by running the same full-scene serialization pass as
+/// `save_scene_inner`. This picks up **runtime asset handles** (ad-
+/// hoc materials etc.) as inline assets under `#Name` keys — the
+/// live `SceneJsnAst` resource can't do that because
+/// `sync_component_to_ast` uses the stateless `AstSerializerProcessor`
+/// which serializes runtime handles as `null`.
+///
+/// Used by `JsnAstSnapshotter::capture` so undo/redo round-trips
+/// include inline asset data. On the apply side, `apply_ast_to_world`
+/// already reads `scene.assets` via `load_inline_assets` and passes
+/// the resulting `local_assets` into `load_scene_from_jsn`, which
+/// wires runtime handles back up by `#Name`.
+///
+/// Cost: O(scene entities × registered components) per snapshot.
+/// Called once per history-creating operator dispatch, not per
+/// frame — acceptable for the current editor workload.
+pub fn build_snapshot_ast(world: &mut World) -> jackdaw_jsn::SceneJsnAst {
+    let parent_path: Cow<'_, Path> = match world
+        .get_resource::<crate::project::ProjectRoot>()
+        .map(|r| r.root.clone())
+    {
+        Some(p) => Cow::Owned(p),
+        None => Cow::Owned(env::current_dir().unwrap_or_else(|_| PathBuf::from("."))),
+    };
+
+    let editor_set = collect_editor_entities(world);
+    let scene_entities = collect_scene_entities_from_set(world, &editor_set);
+
+    let registry = world.resource::<AppTypeRegistry>().clone();
+    let registry_guard = registry.read();
+
+    let catalog_id_to_name = world
+        .get_resource::<crate::asset_catalog::AssetCatalog>()
+        .map(|c| c.id_to_name.clone())
+        .unwrap_or_default();
+
+    let (inline_assets, inline_asset_data) = collect_inline_assets(
+        world,
+        &registry_guard,
+        &parent_path,
+        &scene_entities,
+        &catalog_id_to_name,
+    );
+
+    let entities = build_scene_snapshot(
+        world,
+        &registry_guard,
+        &parent_path,
+        &inline_assets,
+        &scene_entities,
+    );
+
+    drop(registry_guard);
+
+    let jsn = JsnScene {
+        jsn: JsnHeader::default(),
+        metadata: JsnMetadata::default(),
+        assets: JsnAssets(inline_asset_data),
+        editor: None,
+        scene: entities,
+    };
+
+    jackdaw_jsn::SceneJsnAst::from_jsn_scene(&jsn, &scene_entities)
 }
 
 /// Replace the current world's scene with the one encoded in `ast`.

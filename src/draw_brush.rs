@@ -1006,12 +1006,12 @@ fn draw_brush_cancel(
     let Some(ref mut active) = draw_state.active else {
         return;
     };
-    if active.mode == DrawMode::Add {
-        // Already migrated to operator
-        return;
-    }
 
-    // Polygon mode: Enter closes polygon (via convex hull), Backspace removes last vertex
+    // Polygon mode: Enter closes the polygon (via convex hull) and
+    // transitions to ExtrudingDepth, Backspace removes the last
+    // placed vertex. Lives outside the operator framework for now
+    // and runs in both Add and Cut modes — the Add-mode operator
+    // migration stopped short of migrating these keybinds.
     if active.phase == DrawPhase::DrawingPolygon {
         if keybinds.just_pressed(EditorAction::ClosePolygon, &keyboard) {
             let hull = convex_hull_on_plane(&active.polygon_vertices, &active.plane);
@@ -1036,6 +1036,14 @@ fn draw_brush_cancel(
             }
             return;
         }
+    }
+
+    // Add-mode cancel is handled by the `CancelModalOp` operator
+    // (bound to Esc via the core extension) so it goes through the
+    // proper modal-finalize path. Right-click-to-cancel is still
+    // only wired up for Cut mode.
+    if active.mode == DrawMode::Add {
+        return;
     }
 
     if keybinds.just_pressed(EditorAction::CancelDraw, &keyboard)

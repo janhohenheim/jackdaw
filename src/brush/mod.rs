@@ -132,12 +132,44 @@ impl EditorCommand for SetBrush {
 
 /// Serialize a Brush component to JSON and store it in the AST.
 pub fn sync_brush_to_ast(world: &mut World, entity: Entity, brush: &Brush) {
+    // `jackdaw_jsn::types::Brush` — the canonical reflected type
+    // path (Brush is defined directly in `jackdaw_jsn::types`, not a
+    // `types::brush` submodule; historically this string was wrong
+    // and the AST ended up with a `types::brush::Brush` key that
+    // `load_scene_from_jsn` then skipped with an `Unknown type`
+    // warning and silently lost the Brush on every scene reload).
     crate::commands::sync_component_to_ast(
         world,
         entity,
-        "jackdaw_jsn::types::brush::Brush",
+        "jackdaw_jsn::types::Brush",
         brush,
     );
+}
+
+/// Watch for any `Changed<Brush>` and mirror the new state into the
+/// scene AST. This lets callers that mutate `Brush` directly (and
+/// push `SetBrush` to history as already-executed via
+/// `push_executed`) skip a manual `sync_brush_to_ast` call — without
+/// this system, the modal draw-brush operator's `before_snapshot`
+/// would capture the pre-mutation AST and an undo across the draw
+/// would wipe the prior Brush edit (e.g. undoing a new brush would
+/// also strip a material that had been applied beforehand).
+///
+/// Cloning the Brush per change is cheap (a small `Vec<BrushFaceData>`),
+/// and in practice `Changed<Brush>` is near-empty every frame.
+fn sync_changed_brushes_to_ast(
+    changed: Query<(Entity, &Brush), Changed<Brush>>,
+    mut commands: Commands,
+) {
+    let entries: Vec<(Entity, Brush)> = changed.iter().map(|(e, b)| (e, b.clone())).collect();
+    if entries.is_empty() {
+        return;
+    }
+    commands.queue(move |world: &mut World| {
+        for (entity, brush) in entries {
+            sync_brush_to_ast(world, entity, &brush);
+        }
+    });
 }
 
 impl EditorMeta for Brush {
@@ -195,6 +227,10 @@ impl Plugin for BrushPlugin {
                     .chain()
                     .after(crate::EditorInteractionSystems)
                     .run_if(in_state(crate::AppState::Editor)),
+            )
+            .add_systems(
+                Update,
+                sync_changed_brushes_to_ast.run_if(in_state(crate::AppState::Editor)),
             );
     }
 }
