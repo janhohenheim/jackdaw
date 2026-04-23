@@ -912,10 +912,7 @@ fn set_template_input_text(world: &mut World, new_text: String) {
 /// Walk from the outer Template-field entity to its inner
 /// `TextInputQueue`-bearing entity. Mirror of
 /// `inspector::find_text_edit_entities_local`.
-fn find_text_edit_entities_for_template(
-    world: &World,
-    outer: Entity,
-) -> Option<(Entity, Entity)> {
+fn find_text_edit_entities_for_template(world: &World, outer: Entity) -> Option<(Entity, Entity)> {
     use jackdaw_feathers::text_edit::TextEditWrapper;
     let children = world.get::<Children>(outer)?;
     for child in children.iter() {

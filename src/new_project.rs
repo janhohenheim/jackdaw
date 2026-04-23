@@ -3,9 +3,9 @@
 //! The editor's **New Project** flow creates a fresh extension or
 //! game project by shelling out to `bevy new -t <URL> --yes
 //! <NAME>`. Templates live in their own GitHub repos (see
-//! [`TEMPLATE_EXTENSION_URL`] / [`TEMPLATE_GAME_URL`]) so the
-//! jackdaw binary itself carries no template files — users always
-//! pull the latest version at scaffold time.
+//! [`TEMPLATE_EXTENSION_STATIC_URL`] / [`TEMPLATE_GAME_STATIC_URL`]
+//! and the Dylib counterparts) so the jackdaw binary itself carries
+//! no template files; users always pull the latest at scaffold time.
 //!
 //! Call [`scaffold_project`] from a worker thread (it spawns
 //! `bevy` and blocks until the subprocess exits). The UI wires
@@ -37,8 +37,7 @@ pub const TEMPLATE_EXTENSION_DYLIB_URL: &str =
 /// Dylib game template. Overridable via
 /// `JACKDAW_TEMPLATE_GAME_DYLIB_URL`, falling back to the legacy
 /// `JACKDAW_TEMPLATE_GAME_URL`.
-pub const TEMPLATE_GAME_DYLIB_URL: &str =
-    "https://github.com/jbuehler23/jackdaw_template_game";
+pub const TEMPLATE_GAME_DYLIB_URL: &str = "https://github.com/jbuehler23/jackdaw_template_game";
 
 /// Which template variant the scaffolded project uses.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
