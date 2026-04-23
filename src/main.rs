@@ -82,7 +82,7 @@ fn main() -> AppExit {
 /// them, rather than bundling them statically into the editor
 /// binary.
 fn editor_plugin() -> EditorPlugin {
-    EditorPlugin::new().with_dylib_loader()
+    EditorPlugins::default().with_dylib_loader()
 }
 
 fn spawn_scene(mut commands: Commands) {

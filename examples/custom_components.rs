@@ -10,7 +10,7 @@ use jackdaw::{EditorMeta, EditorPlugin, ReflectEditorMeta};
 
 fn main() -> AppExit {
     App::new()
-        .add_plugins((DefaultPlugins, EditorPlugin::new().build()))
+        .add_plugins((DefaultPlugins, EditorPlugins::default().build()))
         .register_type::<Health>()
         .register_type::<Speed>()
         .register_type::<Team>()
