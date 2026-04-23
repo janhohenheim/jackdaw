@@ -16,7 +16,7 @@
 //! coverage belongs in a follow-up test harness built with
 //! `--features dylib` that wires the proxy SDK.
 
-use std::path::PathBuf;
+use std::{mem::ManuallyDrop, path::PathBuf};
 
 use bevy::prelude::*;
 use jackdaw_api_internal::lifecycle::ExtensionCatalog;
@@ -71,14 +71,14 @@ fn fixture_path() -> PathBuf {
 /// Headless `App` with an empty [`DylibLoaderPlugin`] wired in so
 /// [`LoadedDylibs`] exists but no on-disk directory is scanned.
 /// Tests drive loading explicitly via [`load_from_path`].
-fn headless_app_with_empty_dylib_loader() -> App {
+fn headless_app_with_empty_dylib_loader() -> LeakyApp {
     let mut app = util::headless_app();
     app.add_plugins(DylibLoaderPlugin {
         extra_paths: Vec::new(),
         include_user_dir: false,
         include_env_dir: false,
     });
-    app
+    LeakyApp(ManuallyDrop::new(app))
 }
 
 /// Skip the `App`'s destructor. Dropping an `App` that holds a
@@ -88,8 +88,13 @@ fn headless_app_with_empty_dylib_loader() -> App {
 /// library. If the library unloads first, the vtable drop-glue
 /// segfaults. Leaking is harmless in a test binary — the OS reclaims
 /// everything at process exit.
-fn forget_app(app: App) {
-    std::mem::forget(app);
+#[derive(Deref, DerefMut)]
+struct LeakyApp(ManuallyDrop<App>);
+
+impl Drop for LeakyApp {
+    fn drop(&mut self) {
+        // intentionally don't call `std::mem::drop(self.0)`!
+    }
 }
 
 #[test]
@@ -120,8 +125,6 @@ fn load_from_path_registers_extension() {
         "fixture extension missing from catalog after load"
     );
     assert_eq!(app.world().resource::<LoadedDylibs>().len(), 1);
-
-    forget_app(app);
 }
 
 #[test]
@@ -144,8 +147,6 @@ fn repeat_load_is_idempotent() {
     // Both library handles are retained so any live function
     // pointers from either copy stay callable.
     assert_eq!(app.world().resource::<LoadedDylibs>().len(), 2);
-
-    forget_app(app);
 }
 
 #[test]
