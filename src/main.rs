@@ -85,10 +85,8 @@ fn editor_plugin() -> EditorPlugin {
 
     #[cfg(feature = "dev")]
     let plugin = plugin
-        .with_extension("sample", || Box::new(sample_extension::SampleExtension))
-        .with_extension("viewable_camera", || {
-            Box::new(viewable_camera_extension::ViewableCameraExtension)
-        });
+        .with_extension::<sample_extension::SampleExtension>()
+        .with_extension::<viewable_camera_extension::ViewableCameraExtension>();
 
     plugin
 }

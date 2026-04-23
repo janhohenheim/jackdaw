@@ -211,7 +211,7 @@ impl LoadedKind {
 /// gets reopened from its final destination.
 pub fn peek_kind(path: &Path) -> Result<LoadedKind, LoadError> {
     match open_and_verify(path)? {
-        OpenedDylib::Extension { name, .. } => Ok(LoadedKind::Extension(name)),
+        OpenedDylib::Extension { id: name, .. } => Ok(LoadedKind::Extension(name)),
         OpenedDylib::Game { name, .. } => Ok(LoadedKind::Game(name)),
     }
 }
@@ -339,7 +339,9 @@ fn is_dylib(path: &Path) -> bool {
 enum OpenedDylib {
     Extension {
         lib: libloading::Library,
-        name: String,
+        id: String,
+        label: String,
+        description: String,
         ctor: unsafe extern "C" fn() -> Box<dyn jackdaw_api_internal::JackdawExtension>,
     },
     Game {
@@ -409,17 +411,22 @@ fn open_and_verify(path: &Path) -> Result<OpenedDylib, LoadError> {
 
     compat::verify_compat(&entry)?;
 
-    // SAFETY: `verify_compat` rejected null; the library stays
-    // alive at least until `lib` is dropped by the caller.
-    let name_cstr = unsafe { CStr::from_ptr(entry.name) };
-    let name = name_cstr
-        .to_str()
-        .map_err(|_| LoadError::InvalidName)?
-        .to_owned();
+    let read_cstr = |field| -> Result<String, LoadError> {
+        // SAFETY: `verify_compat` rejected null; the library stays
+        // alive at least until `lib` is dropped by the caller.
+        let id_ctstr = unsafe { CStr::from_ptr(field) };
+        let owned = id_ctstr
+            .to_str()
+            .map_err(|_| LoadError::InvalidName)?
+            .to_owned();
+        Ok(owned)
+    };
 
     Ok(OpenedDylib::Extension {
         lib,
-        name,
+        id: read_cstr(entry.id)?,
+        label: read_cstr(entry.label)?,
+        description: read_cstr(entry.description)?,
         ctor: entry.ctor,
     })
 }
@@ -431,7 +438,15 @@ fn try_load(app: &mut App, path: &Path) -> Result<LoadedKind, LoadError> {
     // while still holding it on our side of ownership.
     let lib_and_kind = open_and_verify_keep_lib(path)?;
     match lib_and_kind {
-        (lib, OpenedKind::Extension { name, ctor }) => {
+        (
+            lib,
+            OpenedKind::Extension {
+                id,
+                label,
+                description,
+                ctor,
+            },
+        ) => {
             // Run the per-dylib reflect registrar against our registry
             // BEFORE handing the library off. Uses the exported
             // `REFLECT_REGISTER_SYMBOL` (if present); absent on older
@@ -449,7 +464,9 @@ fn try_load(app: &mut App, path: &Path) -> Result<LoadedKind, LoadError> {
 
             jackdaw_api_internal::lifecycle::register_dylib_extension(
                 app.world_mut(),
-                &name,
+                &id,
+                label,
+                description,
                 kind,
                 move || {
                     // SAFETY: the dylib stays loaded because its
@@ -471,7 +488,7 @@ fn try_load(app: &mut App, path: &Path) -> Result<LoadedKind, LoadError> {
             // the game to start querying.
             register_derived_component_ids(app.world_mut());
 
-            Ok(LoadedKind::Extension(name))
+            Ok(LoadedKind::Extension(id))
         }
         (
             lib,
@@ -556,7 +573,15 @@ fn try_load(app: &mut App, path: &Path) -> Result<LoadedKind, LoadError> {
 pub fn load_from_path(world: &mut World, path: &Path) -> Result<LoadedKind, LoadError> {
     let lib_and_kind = open_and_verify_keep_lib(path)?;
     match lib_and_kind {
-        (lib, OpenedKind::Extension { name, ctor }) => {
+        (
+            lib,
+            OpenedKind::Extension {
+                id: name,
+                label,
+                description,
+                ctor,
+            },
+        ) => {
             // Already-registered extensions come through this path
             // when the user re-installs a rebuild. Don't double-
             // register; registering the same extension twice produces
@@ -588,6 +613,8 @@ pub fn load_from_path(world: &mut World, path: &Path) -> Result<LoadedKind, Load
             jackdaw_api_internal::lifecycle::register_dylib_extension(
                 world,
                 &name,
+                label,
+                description,
                 kind,
                 move || unsafe { ctor() },
             );
@@ -661,7 +688,9 @@ pub fn load_from_path(world: &mut World, path: &Path) -> Result<LoadedKind, Load
 #[allow(improper_ctypes_definitions)]
 enum OpenedKind {
     Extension {
-        name: String,
+        id: String,
+        label: String,
+        description: String,
         ctor: unsafe extern "C" fn() -> Box<dyn jackdaw_api_internal::JackdawExtension>,
     },
     Game {
@@ -677,9 +706,21 @@ enum OpenedKind {
 /// into `LoadedDylibs`.
 fn open_and_verify_keep_lib(path: &Path) -> Result<(libloading::Library, OpenedKind), LoadError> {
     match open_and_verify(path)? {
-        OpenedDylib::Extension { lib, name, ctor } => {
-            Ok((lib, OpenedKind::Extension { name, ctor }))
-        }
+        OpenedDylib::Extension {
+            lib,
+            id,
+            label,
+            description,
+            ctor,
+        } => Ok((
+            lib,
+            OpenedKind::Extension {
+                id,
+                label,
+                description,
+                ctor,
+            },
+        )),
         OpenedDylib::Game {
             lib,
             name,
