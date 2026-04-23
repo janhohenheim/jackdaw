@@ -31,8 +31,11 @@ mod util;
 ///
 /// `test_fixture_extension` is a `dev-dependency` of the root
 /// `jackdaw` crate (see `Cargo.toml`), so cargo compiles its cdylib
-/// before any test binary runs. No shell-out needed — just read the
-/// artifact at its known path.
+/// before any test binary runs. Cargo drops the `.so` in
+/// `target/<profile>/deps/` and (when a top-level build is what
+/// drove the compile) also copies it to `target/<profile>/`. CI's
+/// nextest-only invocation skips the top-level copy, so we check
+/// the `deps/` location first.
 fn fixture_path() -> PathBuf {
     let target_root = std::env::var_os("CARGO_TARGET_DIR")
         .map(PathBuf::from)
@@ -47,15 +50,22 @@ fn fixture_path() -> PathBuf {
         std::env::consts::DLL_PREFIX,
         std::env::consts::DLL_SUFFIX,
     );
-    let path = target_root.join(profile_dir).join(filename);
-    assert!(
-        path.exists(),
-        "fixture artifact missing at {} — cargo should have built it via the \
-         dev-dependency; if running a trimmed test harness, `cargo build -p \
-         test_fixture_extension --lib` first",
-        path.display()
+    let profile_root = target_root.join(profile_dir);
+    let candidates = [
+        profile_root.join("deps").join(&filename),
+        profile_root.join(&filename),
+    ];
+    for candidate in &candidates {
+        if candidate.exists() {
+            return candidate.clone();
+        }
+    }
+    panic!(
+        "fixture artifact missing. Checked {} and {}. If running a trimmed \
+         test harness, `cargo build -p test_fixture_extension --lib` first.",
+        candidates[0].display(),
+        candidates[1].display(),
     );
-    path
 }
 
 /// Headless `App` with an empty [`DylibLoaderPlugin`] wired in so
