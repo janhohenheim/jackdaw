@@ -1,16 +1,14 @@
 use bevy::{
-    input_focus::InputFocus,
     picking::mesh_picking::ray_cast::{MeshRayCast, MeshRayCastSettings, RayCastVisibility},
     prelude::*,
     ui::UiGlobalTransform,
     window::{CursorGrabMode, CursorOptions},
 };
 
-use crate::default_style;
 use crate::{
     commands::{CommandHistory, SetTransform},
     gizmos::{GizmoAxis, GizmoDragState, GizmoHoverState, GizmoMode},
-    selection::{Selected, Selection},
+    selection::Selection,
     snapping::SnapSettings,
     viewport::{MainViewportCamera, SceneViewport},
     viewport_util::window_to_viewport_cursor,
