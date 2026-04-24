@@ -363,7 +363,7 @@ fn poll_install_task(
                 // teardown first and then calls the new build.
                 // No restart needed.
                 if let Err(err) = world.run_system_cached_with(handle_install, src) {
-                    error!("Failed to install extension: {err}")
+                    error!("Failed to install extension: {err}");
                 }
             });
         }

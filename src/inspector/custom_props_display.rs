@@ -360,7 +360,7 @@ fn spawn_add_property_row(
         TextColor(tokens::TEXT_ACCENT),
         ChildOf(row),
         observe(move |_: On<Pointer<Click>>, mut commands: Commands| {
-            commands.run_system_cached_with(add_custom_property_from_ui, source_entity)
+            commands.run_system_cached_with(add_custom_property_from_ui, source_entity);
         }),
     ));
 }

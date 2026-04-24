@@ -28,8 +28,6 @@ struct PrefabPickerSearch;
 
 #[derive(Component)]
 struct PrefabPickerEntry {
-    #[expect(dead_code)]
-    path: String,
     display_name: String,
 }
 
@@ -150,7 +148,6 @@ pub fn open_prefab_picker(world: &mut World) {
         let entry_id = commands
             .spawn((
                 PrefabPickerEntry {
-                    path: entry_path.clone(),
                     display_name: entry_display.clone(),
                 },
                 Node {

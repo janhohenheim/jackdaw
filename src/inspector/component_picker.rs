@@ -371,7 +371,7 @@ pub(crate) fn on_add_component_button_click(
                                     }
                                 }
                             }
-                            commands.run_system_cached_with(remove_pickers, (source_entity, cmd))
+                            commands.run_system_cached_with(remove_pickers, (source_entity, cmd));
                         }
                     }),
                     observe(

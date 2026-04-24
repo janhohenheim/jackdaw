@@ -125,7 +125,10 @@ pub type ReflectRegisterFn = unsafe extern "Rust" fn(&mut bevy::reflect::TypeReg
 /// which is sound here because editor and extension are required
 /// to link against the same Bevy dylib and so agree on layout.
 #[repr(C)]
-#[expect(improper_ctypes_definitions)]
+#[expect(
+    improper_ctypes_definitions,
+    reason = "This is wrong, but I'll fix it in the next PR"
+)]
 pub struct ExtensionEntry {
     pub api_version: u32,
     pub bevy_version: *const c_char,

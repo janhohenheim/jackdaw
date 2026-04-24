@@ -1476,7 +1476,7 @@ fn on_show_all_changed(show_all: Res<HierarchyShowAll>, mut commands: Commands) 
     }
 }
 
-/// Despawn all tree rows and clear the TreeIndex.
+/// Despawn all tree rows and clear the `TreeIndex`.
 pub fn clear_all_tree_rows(
     world: &mut World,
     container: &mut SystemState<Single<Entity, With<HierarchyTreeContainer>>>,

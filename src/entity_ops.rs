@@ -557,9 +557,9 @@ pub fn handle_entity_keys(
     } else if reset_scale {
         reset_transform_selected(world, TransformReset::Scale);
     } else if unhide_all {
-        world.run_system_cached(unhide_all_entities)?
+        world.run_system_cached(unhide_all_entities)?;
     } else if hide_unselected {
-        world.run_system_cached(hide_all_entities)?
+        world.run_system_cached(hide_all_entities)?;
     } else if do_hide_selected {
         hide_selected(world);
     } else if any_rotation {
