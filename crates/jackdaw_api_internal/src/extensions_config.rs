@@ -28,6 +28,7 @@ pub fn read_enabled_list() -> Option<Vec<String>> {
     Some(config.enabled)
 }
 
+/// Add the extension with the given ID to the enabled list if it is not already present.
 pub fn init_enabled(id: impl Into<String>) {
     let id = id.into();
     let Some(mut enabled) = read_enabled_list() else {
