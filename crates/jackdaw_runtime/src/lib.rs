@@ -369,9 +369,10 @@ impl ReflectDeserializerProcessor for RuntimeDeserializerProcessor<'_> {
             let path_str = deserializer.deserialize_any(StringOrNullVisitor)?;
 
             if path_str.is_empty()
-                && let Some(rd) = registration.data::<ReflectDefault>() {
-                    return Ok(Ok(rd.default().into_partial_reflect()));
-                }
+                && let Some(rd) = registration.data::<ReflectDefault>()
+            {
+                return Ok(Ok(rd.default().into_partial_reflect()));
+            }
 
             if path_str.starts_with('@') {
                 warn!("Catalog asset '{path_str}' is not supported at runtime -- using default");

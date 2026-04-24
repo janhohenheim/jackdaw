@@ -55,8 +55,8 @@ impl AssetLoader for JsnAssetLoader {
         };
 
         // Build a DynamicScene by spawning into a temporary world
-        let scene = build_dynamic_scene(&jsn.scene, &self.type_registry)
-            .map_err(JsnLoadError::Scene)?;
+        let scene =
+            build_dynamic_scene(&jsn.scene, &self.type_registry).map_err(JsnLoadError::Scene)?;
 
         Ok(scene)
     }

@@ -68,7 +68,10 @@ pub fn write_enabled_list(enabled: &[String]) {
 /// trusted exactly as written.
 pub fn resolve_enabled_list(world: &World) -> Vec<String> {
     let catalog = world.resource::<ExtensionCatalog>();
-    let available: Vec<String> = catalog.iter().map(std::string::ToString::to_string).collect();
+    let available: Vec<String> = catalog
+        .iter()
+        .map(std::string::ToString::to_string)
+        .collect();
     let builtins: HashSet<String> = catalog
         .iter_with_kind()
         .filter(|(_, kind)| *kind == ExtensionKind::Builtin)

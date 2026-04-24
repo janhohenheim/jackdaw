@@ -90,28 +90,30 @@ impl ReflectSerializerProcessor for RemoteSerializerProcessor {
         // Non-finite floats
         if type_id == TypeId::of::<f32>()
             && let Some(&v) = value.as_any().downcast_ref::<f32>()
-                && !v.is_finite() {
-                    let s = if v == f32::INFINITY {
-                        "inf"
-                    } else if v == f32::NEG_INFINITY {
-                        "-inf"
-                    } else {
-                        "NaN"
-                    };
-                    return Ok(Ok(serializer.serialize_str(s)?));
-                }
+            && !v.is_finite()
+        {
+            let s = if v == f32::INFINITY {
+                "inf"
+            } else if v == f32::NEG_INFINITY {
+                "-inf"
+            } else {
+                "NaN"
+            };
+            return Ok(Ok(serializer.serialize_str(s)?));
+        }
         if type_id == TypeId::of::<f64>()
             && let Some(&v) = value.as_any().downcast_ref::<f64>()
-                && !v.is_finite() {
-                    let s = if v == f64::INFINITY {
-                        "inf"
-                    } else if v == f64::NEG_INFINITY {
-                        "-inf"
-                    } else {
-                        "NaN"
-                    };
-                    return Ok(Ok(serializer.serialize_str(s)?));
-                }
+            && !v.is_finite()
+        {
+            let s = if v == f64::INFINITY {
+                "inf"
+            } else if v == f64::NEG_INFINITY {
+                "-inf"
+            } else {
+                "NaN"
+            };
+            return Ok(Ok(serializer.serialize_str(s)?));
+        }
 
         // Handle<T> → null
         if registry.get_type_data::<ReflectHandle>(type_id).is_some() {

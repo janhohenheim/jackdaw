@@ -252,10 +252,12 @@ fn resolve_input(
     results: &Query<&mut NodeResult>,
 ) -> f32 {
     for conn in connections.iter() {
-        if conn.target_node == node && conn.target_terminal == terminal
-            && let Ok(result) = results.get(conn.source_node) {
-                return result.0;
-            }
+        if conn.target_node == node
+            && conn.target_terminal == terminal
+            && let Ok(result) = results.get(conn.source_node)
+        {
+            return result.0;
+        }
     }
     0.0
 }
