@@ -1041,11 +1041,10 @@ pub fn handle_add_keyframe_click(
         // is visible on the timeline. Without this, dropping a
         // keyframe at t=5 on a clip with duration=2 would spawn the
         // keyframe correctly but leave it outside the visual range.
-        if let Some(mut clip) = world.get_mut::<Clip>(clip_entity) {
-            if cursor_time > clip.duration {
+        if let Some(mut clip) = world.get_mut::<Clip>(clip_entity)
+            && cursor_time > clip.duration {
                 clip.duration = cursor_time;
             }
-        }
 
         // Ensure the timeline repaints to show the new diamond.
         if let Some(mut dirty) = world.get_resource_mut::<TimelineDirty>() {

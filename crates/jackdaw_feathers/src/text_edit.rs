@@ -835,8 +835,8 @@ fn handle_drag_value(
         };
         let input_entity = wrapper.0;
 
-        if mouse.just_pressed(MouseButton::Left) && *interaction == Interaction::Pressed {
-            if let Some(pos) = cursor_pos {
+        if mouse.just_pressed(MouseButton::Left) && *interaction == Interaction::Pressed
+            && let Some(pos) = cursor_pos {
                 let Ok((_, buffer, _, suffix, _)) = text_edits.get(input_entity) else {
                     continue;
                 };
@@ -848,7 +848,6 @@ fn handle_drag_value(
                     .insert(ActiveCursor(bevy::window::SystemCursorIcon::ColResize));
                 commands.entity(child_of.parent()).insert(TextEditDragging);
             }
-        }
 
         if mouse.just_released(MouseButton::Left) {
             if hitbox.dragging {
@@ -874,8 +873,8 @@ fn handle_drag_value(
             });
         }
 
-        if hitbox.dragging {
-            if let Some(pos) = cursor_pos {
+        if hitbox.dragging
+            && let Some(pos) = cursor_pos {
                 let Ok((variant, _, mut queue, _, range)) = text_edits.get_mut(input_entity) else {
                     continue;
                 };
@@ -898,7 +897,6 @@ fn handle_drag_value(
 
                 update_input_value(&mut queue, rounded, *variant, range);
             }
-        }
     }
 }
 

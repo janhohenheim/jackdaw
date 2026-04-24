@@ -169,11 +169,10 @@ impl Debounce {
 
     fn should_emit(&mut self, path: &Path) -> bool {
         let now = Instant::now();
-        if let Some((last_path, last_at)) = &self.last {
-            if last_path == path && now.duration_since(*last_at) < self.window {
+        if let Some((last_path, last_at)) = &self.last
+            && last_path == path && now.duration_since(*last_at) < self.window {
                 return false;
             }
-        }
         self.last = Some((path.to_path_buf(), now));
         true
     }

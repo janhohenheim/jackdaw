@@ -407,15 +407,14 @@ fn spawn_file_tree_row(
                 // Toggle children visibility
                 if let Ok(children) = children_query.get(node_for_click) {
                     for child in children.iter() {
-                        if children_containers.get(child).is_ok() {
-                            if let Ok(mut node) = node_query.get_mut(child) {
+                        if children_containers.get(child).is_ok()
+                            && let Ok(mut node) = node_query.get_mut(child) {
                                 node.display = if is_expanded {
                                     Display::Flex
                                 } else {
                                     Display::None
                                 };
                             }
-                        }
                     }
                 }
 
@@ -425,15 +424,14 @@ fn spawn_file_tree_row(
                     for cc in content_children.iter() {
                         if let Ok(content_kids) = children_query.get(cc) {
                             for kid in content_kids.iter() {
-                                if toggle_markers.get(kid).is_ok() {
-                                    if let Ok(mut text) = text_query.get_mut(kid) {
+                                if toggle_markers.get(kid).is_ok()
+                                    && let Ok(mut text) = text_query.get_mut(kid) {
                                         text.0 = String::from(if is_expanded {
                                             Icon::ChevronDown.unicode()
                                         } else {
                                             Icon::ChevronRight.unicode()
                                         });
                                     }
-                                }
                             }
                         }
                     }

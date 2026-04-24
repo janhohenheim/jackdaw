@@ -268,11 +268,10 @@ fn physics_tool_drag(
             // Capture starting positions of ALL selected RigidBody entities
             let mut start_positions = bevy::platform::collections::HashMap::default();
             for &sel_entity in &selection.entities {
-                if rb_check.contains(sel_entity) {
-                    if let Ok(sel_tf) = transforms.get(sel_entity) {
+                if rb_check.contains(sel_entity)
+                    && let Ok(sel_tf) = transforms.get(sel_entity) {
                         start_positions.insert(sel_entity, sel_tf.translation);
                     }
-                }
             }
 
             tool_state.drag = Some(PhysicsDrag {

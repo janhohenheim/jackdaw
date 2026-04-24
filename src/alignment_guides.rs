@@ -61,11 +61,10 @@ fn is_translate_drag_active(
     if gizmo_drag.active && *gizmo_mode == GizmoMode::Translate {
         return true;
     }
-    if let Some(ref active) = modal_state.active {
-        if active.op == ModalOp::Grab {
+    if let Some(ref active) = modal_state.active
+        && active.op == ModalOp::Grab {
             return true;
         }
-    }
     viewport_drag.active.is_some()
 }
 
@@ -78,27 +77,22 @@ fn dragged_entity_position(
     transforms: &Query<&GlobalTransform>,
 ) -> Option<(Entity, Vec3)> {
     // Gizmo translate
-    if gizmo_drag.active && *gizmo_mode == GizmoMode::Translate {
-        if let Some(e) = gizmo_drag.entity {
-            if let Ok(gt) = transforms.get(e) {
+    if gizmo_drag.active && *gizmo_mode == GizmoMode::Translate
+        && let Some(e) = gizmo_drag.entity
+            && let Ok(gt) = transforms.get(e) {
                 return Some((e, gt.translation()));
             }
-        }
-    }
     // Modal grab
-    if let Some(ref active) = modal_state.active {
-        if active.op == ModalOp::Grab {
-            if let Ok(gt) = transforms.get(active.entity) {
+    if let Some(ref active) = modal_state.active
+        && active.op == ModalOp::Grab
+            && let Ok(gt) = transforms.get(active.entity) {
                 return Some((active.entity, gt.translation()));
             }
-        }
-    }
     // Viewport drag
-    if let Some(ref active) = viewport_drag.active {
-        if let Ok(gt) = transforms.get(active.entity) {
+    if let Some(ref active) = viewport_drag.active
+        && let Ok(gt) = transforms.get(active.entity) {
             return Some((active.entity, gt.translation()));
         }
-    }
     None
 }
 
@@ -301,8 +295,8 @@ fn draw_alignment_guides(
     for axis_idx in 0..3 {
         let ref_coords = &state.reference_coords[axis_idx];
         for &d_val in &dragged_coords[axis_idx] {
-            if let Some((ref_val, abs_delta)) = nearest_in_sorted(ref_coords, d_val) {
-                if abs_delta < threshold {
+            if let Some((ref_val, abs_delta)) = nearest_in_sorted(ref_coords, d_val)
+                && abs_delta < threshold {
                     let is_better = match &best[axis_idx] {
                         Some(prev) => abs_delta < prev.abs_delta,
                         None => true,
@@ -315,7 +309,6 @@ fn draw_alignment_guides(
                         });
                     }
                 }
-            }
         }
     }
 
@@ -346,8 +339,8 @@ fn draw_alignment_guides(
             gizmos.line(start, end, default_style::ALIGNMENT_GUIDE);
 
             // Snap
-            if candidate.abs_delta < snap_threshold {
-                if let Ok(mut transform) = selected_transforms.get_mut(dragged_entity) {
+            if candidate.abs_delta < snap_threshold
+                && let Ok(mut transform) = selected_transforms.get_mut(dragged_entity) {
                     match axis_idx {
                         0 => transform.translation.x += candidate.delta,
                         1 => transform.translation.y += candidate.delta,
@@ -355,7 +348,6 @@ fn draw_alignment_guides(
                         _ => {}
                     }
                 }
-            }
         }
     }
 }

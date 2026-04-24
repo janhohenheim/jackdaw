@@ -176,11 +176,10 @@ fn set_parent(world: &mut World, entity: Entity, parent: Option<Entity>) {
         } else {
             None
         };
-    if let Some(new_tf) = new_transform {
-        if let Some(mut tf) = world.get_mut::<Transform>(entity) {
+    if let Some(new_tf) = new_transform
+        && let Some(mut tf) = world.get_mut::<Transform>(entity) {
             *tf = new_tf;
         }
-    }
 
     // Update AST parent and (if changed) Transform
     let parent_idx = {
@@ -598,15 +597,14 @@ impl EditorCommand for SetJsnField {
             // If the user explicitly edits a derived component, promote it to
             // "authored" so the change persists on save. Remember we did so,
             // so undo can restore the derived state.
-            if let Some(node) = ast.node_for_entity_mut(self.entity) {
-                if node.derived_components.remove(&self.type_path) {
+            if let Some(node) = ast.node_for_entity_mut(self.entity)
+                && node.derived_components.remove(&self.type_path) {
                     self.was_derived = true;
                     info!(
                         "Promoted derived component '{}' to authored (user edited it)",
                         self.type_path
                     );
                 }
-            }
         }
         apply_jsn_field_to_ecs(
             world,
@@ -630,11 +628,10 @@ impl EditorCommand for SetJsnField {
                 &registry,
             );
             // Restore derived state if execute promoted it to authored.
-            if self.was_derived {
-                if let Some(node) = ast.node_for_entity_mut(self.entity) {
+            if self.was_derived
+                && let Some(node) = ast.node_for_entity_mut(self.entity) {
                     node.derived_components.insert(self.type_path.clone());
                 }
-            }
         }
         apply_jsn_field_to_ecs(
             world,

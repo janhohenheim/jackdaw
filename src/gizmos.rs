@@ -296,8 +296,8 @@ fn handle_gizmo_drag(
 
     // Start drag
     if mouse.just_pressed(MouseButton::Left) && !drag_state.active {
-        if let Some(axis) = hover.hovered_axis {
-            if let Ok((_, transform)) = transforms.get(primary) {
+        if let Some(axis) = hover.hovered_axis
+            && let Ok((_, transform)) = transforms.get(primary) {
                 drag_state.active = true;
                 drag_state.axis = Some(axis);
                 drag_state.drag_start_screen = viewport_cursor;
@@ -309,7 +309,6 @@ fn handle_gizmo_drag(
                     cursor_opts.grab_mode = CursorGrabMode::Confined;
                 }
             }
-        }
         return;
     }
 
@@ -410,8 +409,8 @@ fn handle_gizmo_drag(
 
     // End drag: push undo command
     if drag_state.active && mouse.just_released(MouseButton::Left) {
-        if let Some(entity) = drag_state.entity {
-            if let Ok((_, transform)) = transforms.get(entity) {
+        if let Some(entity) = drag_state.entity
+            && let Ok((_, transform)) = transforms.get(entity) {
                 let cmd = SetTransform {
                     entity,
                     old_transform: drag_state.start_transform,
@@ -419,7 +418,6 @@ fn handle_gizmo_drag(
                 };
                 history.push_executed(Box::new(cmd));
             }
-        }
         drag_state.active = false;
         drag_state.axis = None;
         drag_state.entity = None;

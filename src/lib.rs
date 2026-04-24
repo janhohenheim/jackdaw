@@ -2337,11 +2337,10 @@ fn cleanup_editor(world: &mut World) {
         menu_state.open_menu = None;
         menu_state.dropdown_entity.take()
     };
-    if let Some(dropdown) = dropdown_to_despawn {
-        if let Ok(ec) = world.get_entity_mut(dropdown) {
+    if let Some(dropdown) = dropdown_to_despawn
+        && let Ok(ec) = world.get_entity_mut(dropdown) {
             ec.despawn();
         }
-    }
 }
 
 fn open_recent_dialog(world: &mut World) {
@@ -2588,14 +2587,13 @@ fn auto_save_layout_on_change(
     }
 
     // Debounce: wait 0.5s of no changes before writing.
-    if let Some(since) = state.pending_since {
-        if now - since >= 0.5 {
+    if let Some(since) = state.pending_since
+        && now - since >= 0.5 {
             state.pending_since = None;
             commands.queue(|world: &mut World| {
                 scene_io::save_layout_to_project(world);
             });
         }
-    }
 }
 
 /// Build the final `DockTree` (saved or default-split) BEFORE the
@@ -2619,8 +2617,7 @@ fn init_layout(world: &mut World) {
         // Try the per-workspace format first.
         if let Ok(persist) =
             serde_json::from_value::<jackdaw_panels::WorkspacesPersist>(json.clone())
-        {
-            if !persist.workspaces.is_empty() {
+            && !persist.workspaces.is_empty() {
                 let active_tree = {
                     let mut registry = world.resource_mut::<jackdaw_panels::WorkspaceRegistry>();
                     persist.apply_to_registry(&mut registry);
@@ -2631,14 +2628,12 @@ fn init_layout(world: &mut World) {
                     loaded_tree = true;
                 }
             }
-        }
         // Fall back to the older bare-DockTree format.
-        if !loaded_tree {
-            if let Ok(tree) = serde_json::from_value::<jackdaw_panels::tree::DockTree>(json) {
+        if !loaded_tree
+            && let Ok(tree) = serde_json::from_value::<jackdaw_panels::tree::DockTree>(json) {
                 world.insert_resource(tree);
                 loaded_tree = true;
             }
-        }
     }
 
     if !loaded_tree {
@@ -2775,11 +2770,9 @@ fn apply_default_splits(world: &mut World) {
     let mut tree = world.resource_mut::<DockTree>();
     tree.remove_window("jackdaw.project_files");
     if let Some(new_leaf) = tree.split(left_root, Edge::Bottom, "jackdaw.project_files".to_string())
-    {
-        if let Some(split_id) = tree.parent_of(new_leaf) {
+        && let Some(split_id) = tree.parent_of(new_leaf) {
             tree.set_fraction(split_id, 0.75);
         }
-    }
 }
 
 fn sync_icon_font(

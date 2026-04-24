@@ -313,11 +313,10 @@ fn apply_scene_snapshot(world: &mut World, entities: Vec<RemoteEntity>) {
         if let Some(proxy) = proxy_entity {
             // Only mutate if the name actually changed (avoids spurious Mutation events)
             let current_name = world.get::<RemoteEntityName>(proxy).map(|n| n.0.clone());
-            if current_name != Some(new_name.clone()) {
-                if let Some(mut name_comp) = world.get_mut::<RemoteEntityName>(proxy) {
+            if current_name != Some(new_name.clone())
+                && let Some(mut name_comp) = world.get_mut::<RemoteEntityName>(proxy) {
                     name_comp.0 = new_name;
                 }
-            }
         }
     }
 
@@ -661,11 +660,10 @@ pub fn on_remote_tree_node_expanded(
 
     commands.queue(move |world: &mut World| {
         // Guard against duplicate events
-        if let Some(pop) = world.get::<TreeChildrenPopulated>(tree_row_entity) {
-            if pop.0 {
+        if let Some(pop) = world.get::<TreeChildrenPopulated>(tree_row_entity)
+            && pop.0 {
                 return;
             }
-        }
 
         if let Some(mut pop) = world.get_mut::<TreeChildrenPopulated>(tree_row_entity) {
             pop.0 = true;

@@ -182,11 +182,10 @@ impl EditorCommand for CreateConnectionCmd {
     }
 
     fn undo(&mut self, world: &mut World) {
-        if let Some(entity) = self.spawned.take() {
-            if let Ok(ec) = world.get_entity_mut(entity) {
+        if let Some(entity) = self.spawned.take()
+            && let Ok(ec) = world.get_entity_mut(entity) {
                 ec.despawn();
             }
-        }
     }
 
     fn description(&self) -> &str {

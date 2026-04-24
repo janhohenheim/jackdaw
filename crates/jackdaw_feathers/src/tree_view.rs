@@ -87,15 +87,14 @@ pub fn tree_row(
 
                 for child in children.iter() {
                     // Toggle TreeRowChildren display
-                    if children_container.contains(child) {
-                        if let Ok(mut node) = node_query.get_mut(child) {
+                    if children_container.contains(child)
+                        && let Ok(mut node) = node_query.get_mut(child) {
                             node.display = if expanded.0 {
                                 Display::Flex
                             } else {
                                 Display::None
                             };
                         }
-                    }
 
                     // Update chevron: TreeRowContent -> TreeNodeExpandToggle -> Text
                     if let Ok(content_children) = content_query.get(child) {
@@ -541,34 +540,29 @@ pub fn tree_keyboard_navigation(
         focused.0 = prev;
     }
 
-    if keyboard.just_pressed(KeyCode::ArrowLeft) {
-        if let Some(focused_entity) = focused.0 {
-            if let Ok((entity, expanded, _)) = tree_nodes.get(focused_entity) {
-                if expanded.0 {
+    if keyboard.just_pressed(KeyCode::ArrowLeft)
+        && let Some(focused_entity) = focused.0
+            && let Ok((entity, expanded, _)) = tree_nodes.get(focused_entity)
+                && expanded.0 {
                     // Collapse the node
                     commands.entity(entity).insert(TreeNodeExpanded(false));
                 }
                 // If already collapsed, could move to parent, but skipping for now.
-            }
-        }
-    }
 
-    if keyboard.just_pressed(KeyCode::ArrowRight) {
-        if let Some(focused_entity) = focused.0 {
-            if let Ok((entity, expanded, children)) = tree_nodes.get(focused_entity) {
+    if keyboard.just_pressed(KeyCode::ArrowRight)
+        && let Some(focused_entity) = focused.0
+            && let Ok((entity, expanded, children)) = tree_nodes.get(focused_entity) {
                 let has_children = children.iter().any(|c| tree_row_children.contains(c));
                 if has_children && !expanded.0 {
                     // Expand the node
                     commands.entity(entity).insert(TreeNodeExpanded(true));
                 }
             }
-        }
-    }
 
     // Enter/Space: select focused node
-    if keyboard.just_pressed(KeyCode::Enter) || keyboard.just_pressed(KeyCode::Space) {
-        if let Some(focused_entity) = focused.0 {
-            if let Ok(tree_node) = tree_node_query.get(focused_entity) {
+    if (keyboard.just_pressed(KeyCode::Enter) || keyboard.just_pressed(KeyCode::Space))
+        && let Some(focused_entity) = focused.0
+            && let Ok(tree_node) = tree_node_query.get(focused_entity) {
                 // Find the TreeRowContent child to use as event target
                 if let Ok((_, _, children)) = tree_nodes.get(focused_entity) {
                     for child in children.iter() {
@@ -582,20 +576,16 @@ pub fn tree_keyboard_navigation(
                     }
                 }
             }
-        }
-    }
 
     // F2: start inline rename
-    if keyboard.just_pressed(KeyCode::F2) {
-        if let Some(focused_entity) = focused.0 {
-            if let Ok(tree_node) = tree_node_query.get(focused_entity) {
+    if keyboard.just_pressed(KeyCode::F2)
+        && let Some(focused_entity) = focused.0
+            && let Ok(tree_node) = tree_node_query.get(focused_entity) {
                 commands.trigger(TreeRowStartRename {
                     entity: focused_entity,
                     source_entity: tree_node.0,
                 });
             }
-        }
-    }
 }
 
 /// Collect all visible tree row entities in depth-first order
@@ -634,11 +624,10 @@ fn collect_visible_rows_recursive(
     };
 
     // Check if this node is visible (Display::Flex or default)
-    if let Ok(node) = node_query.get(entity) {
-        if node.display == Display::None {
+    if let Ok(node) = node_query.get(entity)
+        && node.display == Display::None {
             return;
         }
-    }
 
     result.push(entity);
 

@@ -155,12 +155,11 @@ pub fn compile_clips(
         // If this clip was compiled before, mutate the existing asset
         // in place so the target entity's `AnimationGraphHandle` stays
         // valid. Otherwise spin up fresh assets.
-        if let Ok(existing) = existing_compiled.get(clip_entity) {
-            if let Some(clip_data) = clip_store.get_mut(&existing.clip) {
+        if let Ok(existing) = existing_compiled.get(clip_entity)
+            && let Some(clip_data) = clip_store.get_mut(&existing.clip) {
                 *clip_data = new_clip_data;
                 continue;
             }
-        }
         let clip_handle = clip_store.add(new_clip_data);
         let (graph, root_node) = AnimationGraph::from_clip(clip_handle.clone());
         let graph_handle = graph_store.add(graph);

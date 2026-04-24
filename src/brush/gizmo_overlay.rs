@@ -21,9 +21,9 @@ pub(super) fn draw_brush_edit_gizmos(
     mut gizmos: Gizmos<BrushOutlineSelectedGizmoGroup>,
 ) {
     // Draw hover face outline (works in both Object and Edit modes)
-    if let (Some(hover_entity), Some(hover_face)) = (hover.entity, hover.face_index) {
-        if let Ok(cache) = brush_caches.get(hover_entity) {
-            if let Ok(brush_global) = brush_transforms.get(hover_entity) {
+    if let (Some(hover_entity), Some(hover_face)) = (hover.entity, hover.face_index)
+        && let Ok(cache) = brush_caches.get(hover_entity)
+            && let Ok(brush_global) = brush_transforms.get(hover_entity) {
                 let polygon = &cache.face_polygons[hover_face];
                 if polygon.len() >= 3 {
                     // Skip if face is already selected (avoid double highlight)
@@ -40,8 +40,6 @@ pub(super) fn draw_brush_edit_gizmos(
                     }
                 }
             }
-        }
-    }
 
     let EditMode::BrushEdit(mode) = *edit_mode else {
         return;
@@ -171,8 +169,8 @@ pub(super) fn draw_brush_edit_gizmos(
     } else {
         None
     };
-    if let Some(constraint) = active_constraint {
-        if constraint != VertexDragConstraint::Free {
+    if let Some(constraint) = active_constraint
+        && constraint != VertexDragConstraint::Free {
             let (axis_dir, color) = match constraint {
                 VertexDragConstraint::AxisX => (Vec3::X, default_style::AXIS_X),
                 VertexDragConstraint::AxisY => (Vec3::Y, default_style::AXIS_Y),
@@ -188,5 +186,4 @@ pub(super) fn draw_brush_edit_gizmos(
                 color,
             );
         }
-    }
 }

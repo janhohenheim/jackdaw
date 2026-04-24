@@ -18,15 +18,12 @@ fn resolve_material_label(
     if let Some(path) = mat_handle.path() {
         return path.to_string();
     }
-    if let Some(mat) = materials.get(mat_handle) {
-        if let Some(ref tex) = mat.base_color_texture {
-            if let Some(path) = tex.path() {
-                if let Some(filename) = path.path().file_name() {
+    if let Some(mat) = materials.get(mat_handle)
+        && let Some(ref tex) = mat.base_color_texture
+            && let Some(path) = tex.path()
+                && let Some(filename) = path.path().file_name() {
                     return filename.to_string_lossy().to_string();
                 }
-            }
-        }
-    }
     format!("Material {:?}", mat_handle.id())
 }
 
@@ -146,9 +143,9 @@ fn spawn_material_summary(
             .id();
 
         // Thumbnail
-        if !is_default {
-            if let Some(mat) = materials.get(mat_handle) {
-                if let Some(ref tex) = mat.base_color_texture {
+        if !is_default
+            && let Some(mat) = materials.get(mat_handle)
+                && let Some(ref tex) = mat.base_color_texture {
                     commands.spawn((
                         ImageNode::new(tex.clone()),
                         Node {
@@ -160,8 +157,6 @@ fn spawn_material_summary(
                         ChildOf(row),
                     ));
                 }
-            }
-        }
 
         // Material name
         let mat_label = if is_default {
@@ -381,8 +376,8 @@ pub(crate) fn update_brush_face_properties(
             .id();
 
         // Show base_color thumbnail if available
-        if let Some(mat) = materials.get(&face.material) {
-            if let Some(ref tex) = mat.base_color_texture {
+        if let Some(mat) = materials.get(&face.material)
+            && let Some(ref tex) = mat.base_color_texture {
                 commands.spawn((
                     ImageNode::new(tex.clone()),
                     Node {
@@ -394,7 +389,6 @@ pub(crate) fn update_brush_face_properties(
                     ChildOf(mat_row),
                 ));
             }
-        }
 
         commands.spawn((
             Text::new(mat_label),

@@ -365,11 +365,10 @@ impl DockTree {
     /// Set which window is active in a leaf. No-op if the window isn't in
     /// the leaf's tab list.
     pub fn set_active(&mut self, leaf: NodeId, window_id: &str) {
-        if let Some(DockNode::Leaf(l)) = self.nodes.get_mut(&leaf) {
-            if l.windows.iter().any(|w| w == window_id) {
+        if let Some(DockNode::Leaf(l)) = self.nodes.get_mut(&leaf)
+            && l.windows.iter().any(|w| w == window_id) {
                 l.active = Some(window_id.to_string());
             }
-        }
     }
 
     /// Move `window` out of its current leaf and into `to` as the active

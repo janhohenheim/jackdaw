@@ -154,13 +154,11 @@ fn viewport_drag_detect(
     // Shift+click on a brush is always face interaction, not viewport drag
     // (follows TrenchBroom pattern: modifier keys define non-overlapping input contexts)
     let shift = keyboard.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
-    if shift {
-        if let Some(primary) = selection.primary() {
-            if brushes.contains(primary) {
+    if shift
+        && let Some(primary) = selection.primary()
+            && brushes.contains(primary) {
                 return;
             }
-        }
-    }
 
     if !mouse.just_pressed(MouseButton::Left) {
         return;

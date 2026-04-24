@@ -163,9 +163,9 @@ pub(crate) fn handle_viewport_click(
         // If we'd select a different entity, but the current selection is also
         // under the cursor (overlapping geometry), keep the current selection.
         // This prevents re-selecting the original after Ctrl+D duplication.
-        if let Some(candidate) = best_entity {
-            if let Some(current_primary) = selection.primary() {
-                if candidate != current_primary {
+        if let Some(candidate) = best_entity
+            && let Some(current_primary) = selection.primary()
+                && candidate != current_primary {
                     for (hit_entity, _) in hits {
                         if find_selectable_ancestor(
                             *hit_entity,
@@ -179,8 +179,6 @@ pub(crate) fn handle_viewport_click(
                         }
                     }
                 }
-            }
-        }
     }
 
     // Fall back to screen-space proximity for non-mesh entities (lights, empties)
@@ -314,17 +312,14 @@ fn handle_box_select(
             let mut selected_entities = Vec::new();
             for (entity, global_tf) in &scene_entities {
                 let pos = global_tf.translation();
-                if let Ok(screen_pos) = camera.world_to_viewport(cam_tf, pos) {
-                    if screen_pos.x >= min.x
+                if let Ok(screen_pos) = camera.world_to_viewport(cam_tf, pos)
+                    && screen_pos.x >= min.x
                         && screen_pos.x <= max.x
                         && screen_pos.y >= min.y
                         && screen_pos.y <= max.y
-                    {
-                        if !selected_entities.contains(&entity) {
+                        && !selected_entities.contains(&entity) {
                             selected_entities.push(entity);
                         }
-                    }
-                }
             }
 
             if !selected_entities.is_empty() {

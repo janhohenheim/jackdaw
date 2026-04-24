@@ -1910,11 +1910,10 @@ pub(crate) fn refresh_inspector_fields(world: &mut World) {
         let Ok(field) = reflected.reflect_path(field_path.as_str()) else {
             continue;
         };
-        if let Some(&val) = field.try_downcast_ref::<bool>() {
-            if val != *current_checked {
+        if let Some(&val) = field.try_downcast_ref::<bool>()
+            && val != *current_checked {
                 bool_updates.push((*ui_entity, val));
             }
-        }
     }
 
     drop(registry);

@@ -806,8 +806,8 @@ pub fn apply_texture(
     let mut modified: Vec<Entity> = Vec::new();
 
     if *edit_mode == EditMode::BrushEdit(BrushEditMode::Face) && !brush_selection.faces.is_empty() {
-        if let Some(entity) = brush_selection.entity {
-            if let Ok(mut brush) = brushes.get_mut(entity) {
+        if let Some(entity) = brush_selection.entity
+            && let Ok(mut brush) = brushes.get_mut(entity) {
                 for &face_idx in &brush_selection.faces {
                     if face_idx < brush.faces.len() {
                         brush.faces[face_idx].material = material.clone();
@@ -815,7 +815,6 @@ pub fn apply_texture(
                 }
                 modified.push(entity);
             }
-        }
     } else {
         // Collect targets, expanding BrushGroups into their child brushes.
         let targets: Vec<Entity> = selection

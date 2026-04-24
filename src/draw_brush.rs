@@ -672,8 +672,8 @@ fn draw_brush_update(
                 let mut best_facing = f32::MIN;
 
                 for (hit_entity, hit_data) in hits {
-                    if let Ok((face_ent, _face_tf)) = brush_faces.get(*hit_entity) {
-                        if let Ok((brush, brush_tf)) = brushes.get(face_ent.brush_entity) {
+                    if let Ok((face_ent, _face_tf)) = brush_faces.get(*hit_entity)
+                        && let Ok((brush, brush_tf)) = brushes.get(face_ent.brush_entity) {
                             let face = &brush.faces[face_ent.face_index];
                             let (_, brush_rot, _) = brush_tf.to_scale_rotation_translation();
                             let world_normal = (brush_rot * face.plane.normal).normalize();
@@ -695,7 +695,6 @@ fn draw_brush_update(
                                 best_distance = best_distance.min(dist);
                             }
                         }
-                    }
                 }
 
                 if let Some((hit_point, world_normal)) = best_hit {
@@ -805,12 +804,11 @@ fn draw_brush_update(
             if let Some(hit) = ray_plane_intersection(ray, active.plane.origin, active.plane.normal)
             {
                 let mut snapped = snap_to_plane_grid(hit, &active.plane, &snap_settings, false);
-                if shift {
-                    if let Some(&last) = active.polygon_vertices.last() {
+                if shift
+                    && let Some(&last) = active.polygon_vertices.last() {
                         snapped = snap_to_diagonal(snapped, last, &active.plane);
                         snapped = snap_to_plane_grid(snapped, &active.plane, &snap_settings, false);
                     }
-                }
                 active.polygon_cursor = Some(snapped);
             }
         }
@@ -1092,8 +1090,8 @@ fn draw_brush_preview(
     };
 
     // Highlight the append target brush so the user knows they're in hull mode
-    if let Some(target) = active.append_target {
-        if let Ok((brush, brush_tf)) = brushes.get(target) {
+    if let Some(target) = active.append_target
+        && let Ok((brush, brush_tf)) = brushes.get(target) {
             let (verts, polys) = compute_brush_geometry(&brush.faces);
             for polygon in &polys {
                 for i in 0..polygon.len() {
@@ -1103,7 +1101,6 @@ fn draw_brush_preview(
                 }
             }
         }
-    }
 
     match active.phase {
         DrawPhase::PlacingFirstCorner => {
@@ -2461,11 +2458,10 @@ impl EditorCommand for SubtractBrushCommand {
         deselect_entities(world, &all_entities);
         for data in &self.fragments {
             let sid = Self::fragment_stable_id(data);
-            if let Some(entity) = entity_by_stable_id(world, sid) {
-                if let Ok(e) = world.get_entity_mut(entity) {
+            if let Some(entity) = entity_by_stable_id(world, sid)
+                && let Ok(e) = world.get_entity_mut(entity) {
                     e.despawn();
                 }
-            }
         }
         // Respawn originals (stable IDs are reassigned from stored data)
         for data in &self.originals {
@@ -3241,11 +3237,10 @@ fn find_hovered_face_on_brush(
     let hits = ray_cast.cast_ray(ray, &settings);
 
     for (hit_entity, _) in hits {
-        if let Ok(face_ent) = brush_faces.get(*hit_entity) {
-            if face_ent.brush_entity == brush_entity {
+        if let Ok(face_ent) = brush_faces.get(*hit_entity)
+            && face_ent.brush_entity == brush_entity {
                 return Some(face_ent.face_index);
             }
-        }
     }
     None
 }

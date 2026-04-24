@@ -362,11 +362,10 @@ pub fn handle_pause(
     let Ok(compiled) = clips.get(clip_entity) else {
         return;
     };
-    if let Ok(mut player) = players.get_mut(target_entity) {
-        if let Some(active) = player.animation_mut(compiled.root_node) {
+    if let Ok(mut player) = players.get_mut(target_entity)
+        && let Some(active) = player.animation_mut(compiled.root_node) {
             active.pause();
         }
-    }
 }
 
 pub fn handle_stop(
@@ -402,11 +401,10 @@ pub fn handle_seek(
     let Ok(compiled) = clips.get(clip_entity) else {
         return;
     };
-    if let Ok(mut player) = players.get_mut(target_entity) {
-        if let Some(active) = player.animation_mut(compiled.root_node) {
+    if let Ok(mut player) = players.get_mut(target_entity)
+        && let Some(active) = player.animation_mut(compiled.root_node) {
             active.seek_to(time);
         }
-    }
 }
 
 /// While playing, mirror the Bevy animation's seek time back into the
@@ -430,9 +428,8 @@ pub fn sync_cursor_from_player(
         return;
     };
     let duration = clip_display_duration(clip_entity, &clips);
-    if let Ok(player) = players.get(target_entity) {
-        if let Some(active) = player.animation(compiled.root_node) {
+    if let Ok(player) = players.get(target_entity)
+        && let Some(active) = player.animation(compiled.root_node) {
             cursor.seek_time = active.seek_time().clamp(0.0, duration);
         }
-    }
 }

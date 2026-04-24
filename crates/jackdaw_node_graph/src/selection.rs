@@ -22,11 +22,10 @@ impl GraphSelection {
     /// Replace the selection with a single entity.
     pub fn select_single(&mut self, commands: &mut Commands, entity: Entity) {
         for &existing in &self.entities {
-            if existing != entity {
-                if let Ok(mut ec) = commands.get_entity(existing) {
+            if existing != entity
+                && let Ok(mut ec) = commands.get_entity(existing) {
                     ec.remove::<GraphNodeSelected>();
                 }
-            }
         }
         self.entities.clear();
         self.entities.push(entity);

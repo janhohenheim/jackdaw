@@ -274,8 +274,8 @@ fn handle_variant_edit_click(
 
     let button_entity = children.last().copied();
 
-    if let Some(popover_entity) = tracker.popover {
-        if existing_popovers.get(popover_entity).is_ok() {
+    if let Some(popover_entity) = tracker.popover
+        && existing_popovers.get(popover_entity).is_ok() {
             commands.entity(popover_entity).try_despawn();
             tracker.popover = None;
             if let Some(btn) = button_entity {
@@ -283,7 +283,6 @@ fn handle_variant_edit_click(
             }
             return;
         }
-    }
 
     let any_popover_open = !all_popovers.is_empty();
     if any_popover_open {
@@ -424,9 +423,9 @@ fn handle_variant_combobox_change(
         return;
     };
 
-    if let Ok(children) = variant_edit_children.get(variant_edit_entity) {
-        if let Some(&button_entity) = children.last() {
-            if let Ok(button_children) = children_query.get(button_entity) {
+    if let Ok(children) = variant_edit_children.get(variant_edit_entity)
+        && let Some(&button_entity) = children.last()
+            && let Ok(button_children) = children_query.get(button_entity) {
                 for child in button_children.iter() {
                     if let Ok(mut text) = texts.get_mut(child) {
                         **text = path_to_label(&selected_variant.name);
@@ -434,6 +433,4 @@ fn handle_variant_combobox_change(
                     }
                 }
             }
-        }
-    }
 }

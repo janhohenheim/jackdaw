@@ -75,11 +75,10 @@ fn on_menu_bar_item_over(
     parents: Query<&ChildOf>,
     mut bg_query: Query<&mut BackgroundColor>,
 ) {
-    if let Some(entity) = find_ancestor(hover.event_target(), &items, &parents) {
-        if let Ok(mut bg) = bg_query.get_mut(entity) {
+    if let Some(entity) = find_ancestor(hover.event_target(), &items, &parents)
+        && let Ok(mut bg) = bg_query.get_mut(entity) {
             bg.0 = tokens::HOVER_BG;
         }
-    }
 }
 
 fn on_menu_bar_item_out(
@@ -88,11 +87,10 @@ fn on_menu_bar_item_out(
     parents: Query<&ChildOf>,
     mut bg_query: Query<&mut BackgroundColor>,
 ) {
-    if let Some(entity) = find_ancestor(out.event_target(), &items, &parents) {
-        if let Ok(mut bg) = bg_query.get_mut(entity) {
+    if let Some(entity) = find_ancestor(out.event_target(), &items, &parents)
+        && let Ok(mut bg) = bg_query.get_mut(entity) {
             bg.0 = Color::NONE;
         }
-    }
 }
 
 /// Walk up from `start` through [`ChildOf`] to find an entity with `MenuBarItem`.

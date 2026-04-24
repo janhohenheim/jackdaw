@@ -1536,18 +1536,17 @@ fn poll_new_project_tasks(
     >,
 ) {
     // Folder picker.
-    if let Some(task) = state.folder_task.as_mut() {
-        if let Some(result) = future::block_on(future::poll_once(task)) {
+    if let Some(task) = state.folder_task.as_mut()
+        && let Some(result) = future::block_on(future::poll_once(task)) {
             state.folder_task = None;
             if let Some(handle) = result {
                 state.location = handle.path().to_path_buf();
             }
         }
-    }
 
     // Scaffold.
-    if let Some(task) = state.scaffold_task.as_mut() {
-        if let Some(result) = future::block_on(future::poll_once(task)) {
+    if let Some(task) = state.scaffold_task.as_mut()
+        && let Some(result) = future::block_on(future::poll_once(task)) {
             state.scaffold_task = None;
             match result {
                 Ok(project_path) => {
@@ -1588,14 +1587,13 @@ fn poll_new_project_tasks(
                 }
             }
         }
-    }
 
     // Build task completed. Dylib: stash the artifact for the
     // install-in-Last step (which also drives the SDK-mismatch
     // auto-recovery). Static: stash the project dir for
     // `apply_pending_static_open`, which calls `enter_project`.
-    if let Some(task) = state.build_task.as_mut() {
-        if let Some(result) = future::block_on(future::poll_once(task)) {
+    if let Some(task) = state.build_task.as_mut()
+        && let Some(result) = future::block_on(future::poll_once(task)) {
             state.build_task = None;
             let linkage = state.linkage;
             match result {
@@ -1626,7 +1624,6 @@ fn poll_new_project_tasks(
                 }
             }
         }
-    }
 
     // Install-outcome poller: reads the Arc<Mutex<...>> we handed
     // to the commands.queue closure. On Ok we're done. On an
@@ -1672,8 +1669,8 @@ fn poll_new_project_tasks(
     }
 
     // Clean-task completed — kick off a fresh build.
-    if let Some(task) = state.clean_task.as_mut() {
-        if let Some(result) = future::block_on(future::poll_once(task)) {
+    if let Some(task) = state.clean_task.as_mut()
+        && let Some(result) = future::block_on(future::poll_once(task)) {
             state.clean_task = None;
             match result {
                 Ok(()) => {
@@ -1714,7 +1711,6 @@ fn poll_new_project_tasks(
                 }
             }
         }
-    }
 
     // Sync UI.
     let desired_location = state.location.to_string_lossy().into_owned();
@@ -1816,11 +1812,10 @@ fn refresh_build_progress_ui(
                 continue;
             };
             for fill_entity in inner.iter() {
-                if let Ok(mut node) = fill_q.get_mut(fill_entity) {
-                    if node.width != desired_width {
+                if let Ok(mut node) = fill_q.get_mut(fill_entity)
+                    && node.width != desired_width {
                         node.width = desired_width;
                     }
-                }
             }
         }
     }
@@ -1863,11 +1858,10 @@ fn apply_pending_install(world: &mut World) {
     let result = crate::extensions_dialog::handle_install_from_path(world, artifact);
     let is_ok = result.is_ok();
 
-    if let Some(arc) = outcome_arc {
-        if let Ok(mut slot) = arc.lock() {
+    if let Some(arc) = outcome_arc
+        && let Ok(mut slot) = arc.lock() {
             *slot = Some(result.map(|_| ()));
         }
-    }
 
     if is_ok {
         let project = world

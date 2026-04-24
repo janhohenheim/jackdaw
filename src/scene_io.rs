@@ -382,9 +382,9 @@ impl<'a> ReflectSerializerProcessor for JsnSerializerProcessor<'a> {
         let type_id = value.reflect_type_info().type_id();
 
         // Non-finite floats: JSON has no infinity/NaN, serialize as descriptive strings
-        if type_id == TypeId::of::<f32>() {
-            if let Some(&v) = value.as_any().downcast_ref::<f32>() {
-                if !v.is_finite() {
+        if type_id == TypeId::of::<f32>()
+            && let Some(&v) = value.as_any().downcast_ref::<f32>()
+                && !v.is_finite() {
                     let s = if v == f32::INFINITY {
                         "inf"
                     } else if v == f32::NEG_INFINITY {
@@ -394,11 +394,9 @@ impl<'a> ReflectSerializerProcessor for JsnSerializerProcessor<'a> {
                     };
                     return Ok(Ok(serializer.serialize_str(s)?));
                 }
-            }
-        }
-        if type_id == TypeId::of::<f64>() {
-            if let Some(&v) = value.as_any().downcast_ref::<f64>() {
-                if !v.is_finite() {
+        if type_id == TypeId::of::<f64>()
+            && let Some(&v) = value.as_any().downcast_ref::<f64>()
+                && !v.is_finite() {
                     let s = if v == f64::INFINITY {
                         "inf"
                     } else if v == f64::NEG_INFINITY {
@@ -408,8 +406,6 @@ impl<'a> ReflectSerializerProcessor for JsnSerializerProcessor<'a> {
                     };
                     return Ok(Ok(serializer.serialize_str(s)?));
                 }
-            }
-        }
 
         // Handle<T> → path string or inline #Name
         if let Some(reflect_handle) = registry.get_type_data::<ReflectHandle>(type_id) {
@@ -440,11 +436,10 @@ impl<'a> ReflectSerializerProcessor for JsnSerializerProcessor<'a> {
 
         // Entity → scene-local index
         if type_id == TypeId::of::<Entity>() {
-            if let Some(entity) = value.as_any().downcast_ref::<Entity>() {
-                if let Some(&idx) = self.entity_to_index.get(entity) {
+            if let Some(entity) = value.as_any().downcast_ref::<Entity>()
+                && let Some(&idx) = self.entity_to_index.get(entity) {
                     return Ok(Ok(serializer.serialize_u64(idx as u64)?));
                 }
-            }
             return Ok(Ok(serializer.serialize_unit()?));
         }
 
@@ -504,11 +499,10 @@ impl<'a> ReflectDeserializerProcessor for JsnDeserializerProcessor<'a> {
             };
 
             // Null sentinel (from old files with "material": null) → default handle
-            if relative_path.is_empty() {
-                if let Some(reflect_default) = registration.data::<ReflectDefault>() {
+            if relative_path.is_empty()
+                && let Some(reflect_default) = registration.data::<ReflectDefault>() {
                     return Ok(Ok(reflect_default.default().into_partial_reflect()));
                 }
-            }
 
             // Check for catalog asset reference (@Name)
             if relative_path.starts_with('@') {
@@ -763,12 +757,11 @@ fn collect_handles_from_reflect(
         // emit @Name and don't inline it into the scene's asset table.
         // Skip #-prefixed entries (internal catalog references like #Image8)
         // because those are only meaningful inside the catalog, not in scenes.
-        if let Some(catalog_name) = catalog_id_to_name.get(&untyped_handle.id()) {
-            if catalog_name.starts_with('@') {
+        if let Some(catalog_name) = catalog_id_to_name.get(&untyped_handle.id())
+            && catalog_name.starts_with('@') {
                 id_to_name.insert(untyped_handle.id(), catalog_name.clone());
                 return;
             }
-        }
 
         // External file-backed resource  -- store as a path string entry
         if let Some(asset_path) = untyped_handle.path() {
@@ -1432,11 +1425,10 @@ pub fn load_scene_from_jsn(
 
     // Second pass: set parents (ChildOf)
     for (i, jsn) in entities.iter().enumerate() {
-        if let Some(parent_idx) = jsn.parent {
-            if let Some(&parent_entity) = spawned.get(parent_idx) {
+        if let Some(parent_idx) = jsn.parent
+            && let Some(&parent_entity) = spawned.get(parent_idx) {
                 world.entity_mut(spawned[i]).insert(ChildOf(parent_entity));
             }
-        }
     }
 
     // Third pass: deserialize extensible components via reflection with processor
@@ -1989,9 +1981,9 @@ impl ReflectSerializerProcessor for AstSerializerProcessor {
         }
 
         // Non-finite floats
-        if type_id == TypeId::of::<f32>() {
-            if let Some(&v) = value.as_any().downcast_ref::<f32>() {
-                if !v.is_finite() {
+        if type_id == TypeId::of::<f32>()
+            && let Some(&v) = value.as_any().downcast_ref::<f32>()
+                && !v.is_finite() {
                     let s = if v == f32::INFINITY {
                         "inf"
                     } else if v == f32::NEG_INFINITY {
@@ -2001,8 +1993,6 @@ impl ReflectSerializerProcessor for AstSerializerProcessor {
                     };
                     return Ok(Ok(serializer.serialize_str(s)?));
                 }
-            }
-        }
 
         Ok(Err(serializer))
     }

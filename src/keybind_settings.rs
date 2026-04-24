@@ -593,8 +593,8 @@ fn apply_rebind(
     texts: &mut Query<(&KeybindDisplayText, &mut Text, &mut TextColor)>,
 ) {
     // Remove the conflicting binding from the other action
-    if let Some(conflicting_action) = conflict {
-        if let Some(bindings) = pending.get_mut(&conflicting_action) {
+    if let Some(conflicting_action) = conflict
+        && let Some(bindings) = pending.get_mut(&conflicting_action) {
             bindings.retain(|b| b != &new_bind);
             let text_str = format_bindings(bindings);
             let text_color = if bindings.is_empty() {
@@ -609,7 +609,6 @@ fn apply_rebind(
                 }
             }
         }
-    }
 
     // Apply the new binding to the target action
     let bindings = pending.entry(action).or_default();

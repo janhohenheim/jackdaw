@@ -258,9 +258,9 @@ pub(crate) fn collect_descendant_mesh_world_vertices(
     meshes: &Assets<Mesh>,
     out: &mut Vec<Vec3>,
 ) {
-    if let Ok((mesh3d, global_tf)) = mesh_query.get(entity) {
-        if let Some(mesh) = meshes.get(&mesh3d.0) {
-            if let Some(positions) = mesh
+    if let Ok((mesh3d, global_tf)) = mesh_query.get(entity)
+        && let Some(mesh) = meshes.get(&mesh3d.0)
+            && let Some(positions) = mesh
                 .attribute(Mesh::ATTRIBUTE_POSITION)
                 .and_then(|attr| attr.as_float3())
             {
@@ -268,8 +268,6 @@ pub(crate) fn collect_descendant_mesh_world_vertices(
                     out.push(global_tf.transform_point(Vec3::from_array(*pos)));
                 }
             }
-        }
-    }
     if let Ok(children) = children_query.get(entity) {
         for child in children.iter() {
             collect_descendant_mesh_world_vertices(child, children_query, mesh_query, meshes, out);

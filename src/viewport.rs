@@ -347,9 +347,9 @@ fn handle_camera_keys(
         return;
     }
 
-    if keybinds.just_pressed(EditorAction::FocusSelected, &keyboard) {
-        if let Some(primary) = selection.primary() {
-            if let Ok(global_tf) = selected_transforms.get(primary) {
+    if keybinds.just_pressed(EditorAction::FocusSelected, &keyboard)
+        && let Some(primary) = selection.primary()
+            && let Ok(global_tf) = selected_transforms.get(primary) {
                 let target = global_tf.translation();
                 let scale = global_tf.compute_transform().scale;
                 let dist = (scale.length() * 3.0).max(5.0);
@@ -360,8 +360,6 @@ fn handle_camera_keys(
                     *transform = transform.looking_at(target, Vec3::Y);
                 }
             }
-        }
-    }
 
     // Camera bookmarks
     let save_actions = [
@@ -398,12 +396,10 @@ fn handle_camera_keys(
     }
     for (action, index) in load_actions {
         if keybinds.just_pressed(action, &keyboard) && *edit_mode == crate::brush::EditMode::Object
-        {
-            if let Some(bookmark) = bookmarks.slots[index] {
+            && let Some(bookmark) = bookmarks.slots[index] {
                 for mut transform in &mut camera_query {
                     *transform = bookmark.transform;
                 }
             }
-        }
     }
 }

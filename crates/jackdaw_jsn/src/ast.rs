@@ -223,13 +223,11 @@ impl SceneJsnAst {
         registry: &TypeRegistry,
     ) {
         let registration = registry.get_with_type_path(type_path);
-        if let Some(node) = self.node_for_entity_mut(entity) {
-            if let Some(component) = node.components.get_mut(type_path) {
-                if let Some(registration) = registration {
+        if let Some(node) = self.node_for_entity_mut(entity)
+            && let Some(component) = node.components.get_mut(type_path)
+                && let Some(registration) = registration {
                     typed_json_path_set(component, field_path, value, registration, registry);
                 }
-            }
-        }
         self.mark_dirty(entity);
     }
 }
@@ -375,11 +373,10 @@ fn typed_json_path_get<'a>(
             current = current.get(idx)?;
             // Advance type info to list element
             let list_info = current_reg.type_info();
-            if let TypeInfo::List(l) = list_info {
-                if let Some(elem_reg) = registry.get(l.item_ty().id()) {
+            if let TypeInfo::List(l) = list_info
+                && let Some(elem_reg) = registry.get(l.item_ty().id()) {
                     current_reg = elem_reg;
                 }
-            }
         } else {
             // Simple field navigation
             current = navigate_json_field(current, segment, type_info)?;
@@ -494,11 +491,10 @@ fn typed_json_path_set(
                 current_reg = key_reg;
             }
             if is_last {
-                if let Some(arr) = arr_val.as_array_mut() {
-                    if idx < arr.len() {
+                if let Some(arr) = arr_val.as_array_mut()
+                    && idx < arr.len() {
                         arr[idx] = value;
                     }
-                }
                 return;
             }
             current = match arr_val.get_mut(idx) {
@@ -506,11 +502,10 @@ fn typed_json_path_set(
                 None => return,
             };
             let list_info = current_reg.type_info();
-            if let TypeInfo::List(l) = list_info {
-                if let Some(elem_reg) = registry.get(l.item_ty().id()) {
+            if let TypeInfo::List(l) = list_info
+                && let Some(elem_reg) = registry.get(l.item_ty().id()) {
                     current_reg = elem_reg;
                 }
-            }
         } else {
             if is_last {
                 set_json_field(current, segment, value, type_info);

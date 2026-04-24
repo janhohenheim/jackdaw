@@ -668,8 +668,8 @@ fn enable_physics(world: &mut World, entity: Entity) {
 
     // Add AvianCollider FIRST so the Collider is built before RigidBody
     // triggers mass computation (avoids "no mass or inertia" warning).
-    if let Some(ac_cid) = ac_component_id {
-        if !world
+    if let Some(ac_cid) = ac_component_id
+        && !world
             .get_entity(entity)
             .is_ok_and(|e| e.contains::<AvianCollider>())
         {
@@ -680,10 +680,9 @@ fn enable_physics(world: &mut World, entity: Entity) {
                 AVIAN_COLLIDER_TYPE_PATH.to_string(),
             )));
         }
-    }
 
-    if let Some(rb_cid) = rb_component_id {
-        if !world
+    if let Some(rb_cid) = rb_component_id
+        && !world
             .get_entity(entity)
             .is_ok_and(|e| e.contains::<RigidBody>())
         {
@@ -694,7 +693,6 @@ fn enable_physics(world: &mut World, entity: Entity) {
                 RIGID_BODY_TYPE_PATH.to_string(),
             )));
         }
-    }
 
     if sub_commands.is_empty() {
         return;

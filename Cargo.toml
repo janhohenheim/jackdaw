@@ -166,9 +166,6 @@ print_stderr = "warn"
 # undocumented_unsafe_blocks = "warn"
 # redundant_closure_for_method_calls = "warn"
 
-# TODO: remove these if you have time!
-collapsible_if = "allow"
-
 [dev-dependencies]
 bevy = { workspace = true, features = ["dynamic_linking"] }
 jackdaw_runtime.workspace = true

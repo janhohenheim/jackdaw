@@ -240,11 +240,10 @@ fn reconcile_split(world: &mut World, entity: Entity, node_id: NodeId, split: &D
 
     let (child_a, _handle, child_b) = children.expect("children exist after rebuild");
 
-    if let Some(mut p) = world.entity_mut(child_a).get_mut::<Panel>() {
-        if (p.ratio - split.fraction).abs() > f32::EPSILON {
+    if let Some(mut p) = world.entity_mut(child_a).get_mut::<Panel>()
+        && (p.ratio - split.fraction).abs() > f32::EPSILON {
             p.ratio = split.fraction;
         }
-    }
     if let Some(mut p) = world.entity_mut(child_b).get_mut::<Panel>() {
         let other = 1.0 - split.fraction;
         if (p.ratio - other).abs() > f32::EPSILON {
@@ -433,14 +432,12 @@ fn set_host_visible(world: &mut World, entity: Entity, visible: bool) {
     // Handle: ONLY toggle Display. Don't touch width/height. A
     // `PanelHandle`'s natural size is a 3px stripe along the flex
     // axis; forcing 100% would make it fill the parent.
-    if let Some(handle) = adjacent_handle {
-        if let Some(mut node) = world.entity_mut(handle).get_mut::<Node>() {
-            if node.display != target {
+    if let Some(handle) = adjacent_handle
+        && let Some(mut node) = world.entity_mut(handle).get_mut::<Node>()
+            && node.display != target {
                 node.display = target;
                 any_changed = true;
             }
-        }
-    }
 
     // Flag the host's Panel component as changed so `recalculate_group`
     // redistributes sibling widths this frame. The host may carry one
@@ -594,11 +591,10 @@ fn sync_leaf_visuals(
             } else {
                 Display::None
             };
-            if let Ok(mut node) = nodes.get_mut(content_entity) {
-                if node.display != target {
+            if let Ok(mut node) = nodes.get_mut(content_entity)
+                && node.display != target {
                     node.display = target;
                 }
-            }
         }
     }
 }
