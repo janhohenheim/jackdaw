@@ -24,9 +24,8 @@ fn main() -> AppExit {
     App::new()
         .add_plugins(DefaultPlugins)
         .add_plugins(
-            EditorPlugin::new()
-                .with_extension("my_game", || Box::new(MyGameExtension))
-                .build(),
+            EditorPlugins::default()
+                .set(ExtensionPlugin::new().with_extension::<MyGameExtension>()),
         )
         .run()
 }
@@ -35,10 +34,11 @@ fn main() -> AppExit {
 /// registers nothing so the example stays minimal; the extension
 /// still shows up under File → Extensions as proof the
 /// registration round-trip works.
+#[derive(Default)]
 struct MyGameExtension;
 
 impl JackdawExtension for MyGameExtension {
-    fn name() -> String {
+    fn id() -> String {
         "my_game".into()
     }
 
