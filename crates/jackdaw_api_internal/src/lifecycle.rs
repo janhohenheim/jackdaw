@@ -217,6 +217,9 @@ struct CatalogEntry {
 /// Jackdaw-shipped feature areas and third-party extensions can be
 /// presented separately. Extensions declare their own kind via
 /// [`crate::JackdawExtension::kind`]; registration captures it.
+///
+/// Defaults to [`ExtensionKind::Regular`]. [`ExtensionKind::Builtin`] is reserved
+/// for extensions shipped inside the editor binary.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ExtensionKind {
     /// Ships with Jackdaw as a core feature area (scene tree, inspector,
