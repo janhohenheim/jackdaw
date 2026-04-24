@@ -145,9 +145,10 @@ pub fn despawn_node_ui_for_removed(
     let removed: Vec<Entity> = removed.read().collect();
     for (ui_entity, view) in views.iter() {
         if removed.contains(&view.0)
-            && let Ok(mut ec) = commands.get_entity(ui_entity) {
-                ec.despawn();
-            }
+            && let Ok(mut ec) = commands.get_entity(ui_entity)
+        {
+            ec.despawn();
+        }
     }
 }
 
@@ -239,8 +240,9 @@ pub fn despawn_connection_ui_for_removed(
     let removed: Vec<Entity> = removed.read().collect();
     for (ui_entity, view) in views.iter() {
         if removed.contains(&view.connection)
-            && let Ok(mut ec) = commands.get_entity(ui_entity) {
-                ec.despawn();
-            }
+            && let Ok(mut ec) = commands.get_entity(ui_entity)
+        {
+            ec.despawn();
+        }
     }
 }

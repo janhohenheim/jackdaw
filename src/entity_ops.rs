@@ -208,11 +208,12 @@ fn apply_last_material(entity: Entity) -> impl FnOnce(&mut World) {
             .material
             .clone();
         if let Some(mat) = last_mat
-            && let Some(mut brush) = world.get_mut::<crate::brush::Brush>(entity) {
-                for face in &mut brush.faces {
-                    face.material = mat.clone();
-                }
+            && let Some(mut brush) = world.get_mut::<crate::brush::Brush>(entity)
+        {
+            for face in &mut brush.faces {
+                face.material = mat.clone();
             }
+        }
     }
 }
 
@@ -372,9 +373,10 @@ pub fn duplicate_selected(world: &mut World) {
                 base.truncate(base.len() - 7);
             }
             if let Some(pos) = base.rfind(' ')
-                && base[pos + 1..].parse::<u32>().is_ok() {
-                    base.truncate(pos);
-                }
+                && base[pos + 1..].parse::<u32>().is_ok()
+            {
+                base.truncate(pos);
+            }
 
             // Find highest existing number for this base name
             let mut max_num = 0u32;
@@ -385,9 +387,10 @@ pub fn duplicate_selected(world: &mut World) {
                     max_num = max_num.max(1);
                 } else if let Some(rest) = s.strip_prefix(base.as_str())
                     && let Some(num_str) = rest.strip_prefix(' ')
-                        && let Ok(n) = num_str.parse::<u32>() {
-                            max_num = max_num.max(n);
-                        }
+                    && let Ok(n) = num_str.parse::<u32>()
+                {
+                    max_num = max_num.max(n);
+                }
             }
 
             let new_name = format!("{} {}", base, max_num + 1);
@@ -1005,9 +1008,10 @@ fn hide_all_entities(world: &mut World, scene_entities: &mut SystemState<SceneEn
 fn to_asset_path(path: &str) -> String {
     let path = Path::new(path);
     if let Some(assets_dir) = get_assets_base_dir()
-        && let Ok(relative) = path.strip_prefix(&assets_dir) {
-            return relative.to_string_lossy().to_string();
-        }
+        && let Ok(relative) = path.strip_prefix(&assets_dir)
+    {
+        return relative.to_string_lossy().to_string();
+    }
     // Fallback: if already a simple relative path, use as-is
     if !path.is_absolute() {
         return path.to_string_lossy().to_string();

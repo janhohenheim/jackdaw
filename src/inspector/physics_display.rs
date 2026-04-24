@@ -672,27 +672,27 @@ fn enable_physics(world: &mut World, entity: Entity) {
         && !world
             .get_entity(entity)
             .is_ok_and(|e| e.contains::<AvianCollider>())
-        {
-            sub_commands.push(Box::new(AddComponent::new(
-                entity,
-                ac_type_id,
-                ac_cid,
-                AVIAN_COLLIDER_TYPE_PATH.to_string(),
-            )));
-        }
+    {
+        sub_commands.push(Box::new(AddComponent::new(
+            entity,
+            ac_type_id,
+            ac_cid,
+            AVIAN_COLLIDER_TYPE_PATH.to_string(),
+        )));
+    }
 
     if let Some(rb_cid) = rb_component_id
         && !world
             .get_entity(entity)
             .is_ok_and(|e| e.contains::<RigidBody>())
-        {
-            sub_commands.push(Box::new(AddComponent::new(
-                entity,
-                rb_type_id,
-                rb_cid,
-                RIGID_BODY_TYPE_PATH.to_string(),
-            )));
-        }
+    {
+        sub_commands.push(Box::new(AddComponent::new(
+            entity,
+            rb_type_id,
+            rb_cid,
+            RIGID_BODY_TYPE_PATH.to_string(),
+        )));
+    }
 
     if sub_commands.is_empty() {
         return;

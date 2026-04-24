@@ -430,8 +430,9 @@ fn despawn_inspector_children(world: &mut World, inspector_entity: Entity) {
 
     for child in children {
         if world.get::<ComponentDisplay>(child).is_some()
-            && let Ok(ec) = world.get_entity_mut(child) {
-                ec.despawn();
-            }
+            && let Ok(ec) = world.get_entity_mut(child)
+        {
+            ec.despawn();
+        }
     }
 }

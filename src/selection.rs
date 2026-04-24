@@ -26,9 +26,10 @@ impl Selection {
         // Remove Selected from all currently selected entities
         for &e in &self.entities {
             if e != entity
-                && let Ok(mut ec) = commands.get_entity(e) {
-                    ec.remove::<Selected>();
-                }
+                && let Ok(mut ec) = commands.get_entity(e)
+            {
+                ec.remove::<Selected>();
+            }
         }
         self.entities.clear();
         self.entities.push(entity);

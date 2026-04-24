@@ -219,9 +219,10 @@ fn spawn_jsn_entities(
     // Second pass: set parents (ChildOf)
     for (i, jsn) in jsn_entities.iter().enumerate() {
         if let Some(parent_idx) = jsn.parent
-            && let Some(&parent_entity) = spawned.get(parent_idx) {
-                world.entity_mut(spawned[i]).insert(ChildOf(parent_entity));
-            }
+            && let Some(&parent_entity) = spawned.get(parent_idx)
+        {
+            world.entity_mut(spawned[i]).insert(ChildOf(parent_entity));
+        }
     }
 
     // Third pass: deserialize extensible components via reflection with processor

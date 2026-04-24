@@ -110,9 +110,10 @@ pub fn regenerate_brush_meshes(
         if let Some(children) = children {
             for child in children.iter() {
                 if mesh3d_query.get(child).is_ok()
-                    && let Ok(mut ec) = commands.get_entity(child) {
-                        ec.despawn();
-                    }
+                    && let Ok(mut ec) = commands.get_entity(child)
+                {
+                    ec.despawn();
+                }
             }
         }
 
@@ -230,9 +231,10 @@ pub(super) fn sync_brush_preview(
     }
 
     if let Some(entity) = preview_entity
-        && existing.get(entity).is_err() {
-            commands.entity(entity).insert(BrushPreview);
-        }
+        && existing.get(entity).is_err()
+    {
+        commands.entity(entity).insert(BrushPreview);
+    }
 }
 
 /// Every frame, ensure each brush face entity has the correct default-palette material

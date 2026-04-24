@@ -157,9 +157,10 @@ pub fn on_diamond_click(
         // Step 4: grow the clip's authored duration if needed so the
         // new keyframe is visible in the timeline view.
         if let Some(mut clip) = world.get_mut::<Clip>(clip_entity)
-            && cursor_time > clip.duration {
-                clip.duration = cursor_time;
-            }
+            && cursor_time > clip.duration
+        {
+            clip.duration = cursor_time;
+        }
 
         // Step 5: make this the active clip and force a timeline
         // rebuild so the new diamond/keyframe row appears.
@@ -215,10 +216,10 @@ fn find_or_create_track(
         for child in children_vec {
             if let Some(track) = world.get::<AnimationTrack>(child)
                 && track.component_type_path == component_type_path
-                    && track.field_path == field_path
-                {
-                    return child;
-                }
+                && track.field_path == field_path
+            {
+                return child;
+            }
         }
     }
 
@@ -429,9 +430,10 @@ fn compute_diamond_state(
             .or_else(|_| f32_keyframes.get(kf).map(|k| k.time))
             .ok();
         if let Some(t) = t
-            && (t - cursor_time).abs() < CURSOR_ON_KEYFRAME_EPS {
-                return DiamondState::OnKeyframe;
-            }
+            && (t - cursor_time).abs() < CURSOR_ON_KEYFRAME_EPS
+        {
+            return DiamondState::OnKeyframe;
+        }
     }
 
     DiamondState::HasTrack

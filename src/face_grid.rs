@@ -180,9 +180,10 @@ fn draw_brush_wireframe(
                 let edge = (a.min(b), a.max(b));
                 if drawn_edges.insert(edge) {
                     if let Some(ref nce) = non_cap_edges
-                        && !nce.contains(&edge) {
-                            continue;
-                        }
+                        && !nce.contains(&edge)
+                    {
+                        continue;
+                    }
                     let wa = global_tf.transform_point(cache.vertices[a]);
                     let wb = global_tf.transform_point(cache.vertices[b]);
                     if is_selected {

@@ -51,18 +51,19 @@ pub(super) fn handle_edit_mode_keys(
     // Exit brush edit mode if the brush entity gets deselected
     if let EditMode::BrushEdit(_) = *edit_mode
         && let Some(brush_entity) = brush_selection.entity
-            && selection.primary() != Some(brush_entity) {
-                // Save last selected face for extend-to-brush fallback
-                if !brush_selection.faces.is_empty() {
-                    brush_selection.last_face_entity = Some(brush_entity);
-                    brush_selection.last_face_index = brush_selection.faces.last().copied();
-                }
-                *edit_mode = EditMode::Object;
-                brush_selection.entity = None;
-                brush_selection.faces.clear();
-                brush_selection.vertices.clear();
-                brush_selection.edges.clear();
-            }
+        && selection.primary() != Some(brush_entity)
+    {
+        // Save last selected face for extend-to-brush fallback
+        if !brush_selection.faces.is_empty() {
+            brush_selection.last_face_entity = Some(brush_entity);
+            brush_selection.last_face_index = brush_selection.faces.last().copied();
+        }
+        *edit_mode = EditMode::Object;
+        brush_selection.entity = None;
+        brush_selection.faces.clear();
+        brush_selection.vertices.clear();
+        brush_selection.edges.clear();
+    }
 
     // Don't switch modes while any drag is active
     if face_drag.active || vertex_drag.active || edge_drag.active {
@@ -117,10 +118,11 @@ pub(super) fn handle_edit_mode_keys(
     // Escape: exit to Object (unless Clip mode with pending points)
     if keybinds.just_pressed(EditorAction::ExitEditMode, keyboard) {
         if let EditMode::BrushEdit(BrushEditMode::Clip) = *edit_mode
-            && !clip_state.points.is_empty() {
-                // Let clip mode's own Escape handler clear the points first
-                return;
-            }
+            && !clip_state.points.is_empty()
+        {
+            // Let clip mode's own Escape handler clear the points first
+            return;
+        }
         if matches!(*edit_mode, EditMode::BrushEdit(_)) {
             *edit_mode = EditMode::Object;
             brush_selection.entity = None;
@@ -158,58 +160,60 @@ pub(super) fn brush_face_interact(
         && !drag_state.active
         && drag_state.pending.is_none()
         && !brush_selection.faces.is_empty()
-        && let Some(brush_entity) = brush_selection.entity {
-            let nudge_dir = if keybinds.key_just_pressed(EditorAction::NudgeUp, keyboard) {
-                Some(1.0)
-            } else if keybinds.key_just_pressed(EditorAction::NudgeDown, keyboard) {
-                Some(-1.0)
-            } else {
-                None
-            };
-            if let Some(dir) = nudge_dir {
-                let grid = snap_settings.grid_size();
-                if let Ok(cache) = brush_caches.get(brush_entity)
-                    && let Ok((mut brush, _)) = brushes.get_mut(brush_entity) {
-                        let old = brush.clone();
-                        let offset = Vec3::new(0.0, dir * grid, 0.0);
-                        let mut new_verts = cache.vertices.clone();
-                        // Collect unique vertex indices from all selected faces
-                        let mut affected: HashSet<usize> = HashSet::new();
-                        for &fi in &brush_selection.faces {
-                            if let Some(poly) = cache.face_polygons.get(fi) {
-                                affected.extend(poly.iter().copied());
-                            }
-                        }
-                        for vi in &affected {
-                            if *vi < new_verts.len() {
-                                new_verts[*vi] += offset;
-                            }
-                        }
-                        if let Some((new_brush, old_to_new)) = rebuild_brush_from_vertices(
-                            &old,
-                            &cache.vertices,
-                            &cache.face_polygons,
-                            &new_verts,
-                        ) {
-                            *brush = new_brush;
-                            // Remap face selection to match new face ordering
-                            brush_selection.faces = brush_selection
-                                .faces
-                                .iter()
-                                .filter_map(|&fi| old_to_new.get(fi).copied())
-                                .collect();
-                            let cmd = SetBrush {
-                                entity: brush_entity,
-                                old,
-                                new: brush.clone(),
-                                label: "Nudge brush face".to_string(),
-                            };
-                            history.push_executed(Box::new(cmd));
-                        }
+        && let Some(brush_entity) = brush_selection.entity
+    {
+        let nudge_dir = if keybinds.key_just_pressed(EditorAction::NudgeUp, keyboard) {
+            Some(1.0)
+        } else if keybinds.key_just_pressed(EditorAction::NudgeDown, keyboard) {
+            Some(-1.0)
+        } else {
+            None
+        };
+        if let Some(dir) = nudge_dir {
+            let grid = snap_settings.grid_size();
+            if let Ok(cache) = brush_caches.get(brush_entity)
+                && let Ok((mut brush, _)) = brushes.get_mut(brush_entity)
+            {
+                let old = brush.clone();
+                let offset = Vec3::new(0.0, dir * grid, 0.0);
+                let mut new_verts = cache.vertices.clone();
+                // Collect unique vertex indices from all selected faces
+                let mut affected: HashSet<usize> = HashSet::new();
+                for &fi in &brush_selection.faces {
+                    if let Some(poly) = cache.face_polygons.get(fi) {
+                        affected.extend(poly.iter().copied());
                     }
-                return;
+                }
+                for vi in &affected {
+                    if *vi < new_verts.len() {
+                        new_verts[*vi] += offset;
+                    }
+                }
+                if let Some((new_brush, old_to_new)) = rebuild_brush_from_vertices(
+                    &old,
+                    &cache.vertices,
+                    &cache.face_polygons,
+                    &new_verts,
+                ) {
+                    *brush = new_brush;
+                    // Remap face selection to match new face ordering
+                    brush_selection.faces = brush_selection
+                        .faces
+                        .iter()
+                        .filter_map(|&fi| old_to_new.get(fi).copied())
+                        .collect();
+                    let cmd = SetBrush {
+                        entity: brush_entity,
+                        old,
+                        new: brush.clone(),
+                        label: "Nudge brush face".to_string(),
+                    };
+                    history.push_executed(Box::new(cmd));
+                }
             }
+            return;
         }
+    }
 
     if !in_face_edit && drag_state.pending.is_none() && !drag_state.active {
         // Not in face mode. Shift+click or Alt+click enters quick face edit
@@ -246,34 +250,35 @@ pub(super) fn brush_face_interact(
     if drag_state.active
         && (keybinds.just_pressed(EditorAction::ExitEditMode, keyboard)
             || mouse.just_pressed(MouseButton::Right))
-        {
-            match drag_state.extrude_mode {
-                FaceExtrudeMode::Merge => {
-                    // Revert brush to start state
-                    if let Some(brush_entity) = brush_selection.entity
-                        && let Some(ref start) = drag_state.start_brush
-                            && let Ok((mut brush, _)) = brushes.get_mut(brush_entity) {
-                                *brush = start.clone();
-                            }
-                }
-                FaceExtrudeMode::Extend => {
-                    // Original brush was never modified, just clear state
+    {
+        match drag_state.extrude_mode {
+            FaceExtrudeMode::Merge => {
+                // Revert brush to start state
+                if let Some(brush_entity) = brush_selection.entity
+                    && let Some(ref start) = drag_state.start_brush
+                    && let Ok((mut brush, _)) = brushes.get_mut(brush_entity)
+                {
+                    *brush = start.clone();
                 }
             }
-            drag_state.active = false;
-            drag_state.pending = None;
-            drag_state.extend_face_polygon.clear();
-            drag_state.extend_depth = 0.0;
-            if drag_state.quick_action {
-                *edit_mode = EditMode::Object;
-                brush_selection.entity = None;
-                brush_selection.faces.clear();
-                brush_selection.vertices.clear();
-                brush_selection.edges.clear();
-                drag_state.quick_action = false;
+            FaceExtrudeMode::Extend => {
+                // Original brush was never modified, just clear state
             }
-            return;
         }
+        drag_state.active = false;
+        drag_state.pending = None;
+        drag_state.extend_face_polygon.clear();
+        drag_state.extend_depth = 0.0;
+        if drag_state.quick_action {
+            *edit_mode = EditMode::Object;
+            brush_selection.entity = None;
+            brush_selection.faces.clear();
+            brush_selection.vertices.clear();
+            brush_selection.edges.clear();
+            drag_state.quick_action = false;
+        }
+        return;
+    }
 
     // Release: commit drag
     if mouse.just_released(MouseButton::Left) {
@@ -282,15 +287,16 @@ pub(super) fn brush_face_interact(
                 FaceExtrudeMode::Merge => {
                     if let Some(brush_entity) = brush_selection.entity
                         && let Some(ref start) = drag_state.start_brush
-                            && let Ok((brush, _)) = brushes.get(brush_entity) {
-                                let cmd = SetBrush {
-                                    entity: brush_entity,
-                                    old: start.clone(),
-                                    new: brush.clone(),
-                                    label: "Move brush face".to_string(),
-                                };
-                                history.push_executed(Box::new(cmd));
-                            }
+                        && let Ok((brush, _)) = brushes.get(brush_entity)
+                    {
+                        let cmd = SetBrush {
+                            entity: brush_entity,
+                            old: start.clone(),
+                            new: brush.clone(),
+                            label: "Move brush face".to_string(),
+                        };
+                        history.push_executed(Box::new(cmd));
+                    }
                 }
                 FaceExtrudeMode::Extend => {
                     if drag_state.extend_depth.abs() > MIN_EXTRUDE_DEPTH {
@@ -322,46 +328,48 @@ pub(super) fn brush_face_interact(
 
     // Pending → active promotion (5px threshold)
     if let Some(ref pending) = drag_state.pending
-        && mouse.pressed(MouseButton::Left) && !drag_state.active {
-            let dist = (cursor_pos - pending.click_pos).length();
-            if dist > 5.0 {
-                // Promote to active drag
-                if let Some(brush_entity) = brush_selection.entity
-                    && let Ok((brush, brush_global)) = brushes.get(brush_entity) {
-                        drag_state.active = true;
-                        drag_state.start_cursor = viewport_cursor;
-                        // Use the first selected face's normal
-                        if let Some(&face_idx) = brush_selection.faces.first()
-                            && face_idx < brush.faces.len() {
-                                drag_state.drag_face_normal = brush.faces[face_idx].plane.normal;
-                            }
+        && mouse.pressed(MouseButton::Left)
+        && !drag_state.active
+    {
+        let dist = (cursor_pos - pending.click_pos).length();
+        if dist > 5.0 {
+            // Promote to active drag
+            if let Some(brush_entity) = brush_selection.entity
+                && let Ok((brush, brush_global)) = brushes.get(brush_entity)
+            {
+                drag_state.active = true;
+                drag_state.start_cursor = viewport_cursor;
+                // Use the first selected face's normal
+                if let Some(&face_idx) = brush_selection.faces.first()
+                    && face_idx < brush.faces.len()
+                {
+                    drag_state.drag_face_normal = brush.faces[face_idx].plane.normal;
+                }
 
-                        match drag_state.extrude_mode {
-                            FaceExtrudeMode::Merge => {
-                                drag_state.start_brush = Some(brush.clone());
-                            }
-                            FaceExtrudeMode::Extend => {
-                                // Capture world-space face polygon vertices for preview
-                                let (_, brush_rot, _) =
-                                    brush_global.to_scale_rotation_translation();
-                                drag_state.extend_face_normal =
-                                    (brush_rot * drag_state.drag_face_normal).normalize();
-                                if let Ok(cache) = brush_caches.get(brush_entity)
-                                    && let Some(&face_idx) = brush_selection.faces.first() {
-                                        let polygon = &cache.face_polygons[face_idx];
-                                        drag_state.extend_face_polygon = polygon
-                                            .iter()
-                                            .map(|&vi| {
-                                                brush_global.transform_point(cache.vertices[vi])
-                                            })
-                                            .collect();
-                                    }
-                                drag_state.extend_depth = 0.0;
-                            }
-                        }
+                match drag_state.extrude_mode {
+                    FaceExtrudeMode::Merge => {
+                        drag_state.start_brush = Some(brush.clone());
                     }
+                    FaceExtrudeMode::Extend => {
+                        // Capture world-space face polygon vertices for preview
+                        let (_, brush_rot, _) = brush_global.to_scale_rotation_translation();
+                        drag_state.extend_face_normal =
+                            (brush_rot * drag_state.drag_face_normal).normalize();
+                        if let Ok(cache) = brush_caches.get(brush_entity)
+                            && let Some(&face_idx) = brush_selection.faces.first()
+                        {
+                            let polygon = &cache.face_polygons[face_idx];
+                            drag_state.extend_face_polygon = polygon
+                                .iter()
+                                .map(|&vi| brush_global.transform_point(cache.vertices[vi]))
+                                .collect();
+                        }
+                        drag_state.extend_depth = 0.0;
+                    }
+                }
             }
         }
+    }
 
     // Continue active drag
     if drag_state.active {
@@ -688,31 +696,32 @@ pub(super) fn brush_vertex_interact(
         if let Some(dir) = nudge_dir {
             let grid = snap_settings.grid_size();
             if let Ok(cache) = brush_caches.get(brush_entity)
-                && let Ok(mut brush) = brushes.get_mut(brush_entity) {
-                    let old = brush.clone();
-                    let offset = Vec3::new(0.0, dir * grid, 0.0);
-                    let mut new_verts = cache.vertices.clone();
-                    for &vi in &brush_selection.vertices {
-                        if vi < new_verts.len() {
-                            new_verts[vi] += offset;
-                        }
-                    }
-                    if let Some((new_brush, _)) = rebuild_brush_from_vertices(
-                        &old,
-                        &cache.vertices,
-                        &cache.face_polygons,
-                        &new_verts,
-                    ) {
-                        *brush = new_brush;
-                        let cmd = SetBrush {
-                            entity: brush_entity,
-                            old,
-                            new: brush.clone(),
-                            label: "Nudge brush vertex".to_string(),
-                        };
-                        history.push_executed(Box::new(cmd));
+                && let Ok(mut brush) = brushes.get_mut(brush_entity)
+            {
+                let old = brush.clone();
+                let offset = Vec3::new(0.0, dir * grid, 0.0);
+                let mut new_verts = cache.vertices.clone();
+                for &vi in &brush_selection.vertices {
+                    if vi < new_verts.len() {
+                        new_verts[vi] += offset;
                     }
                 }
+                if let Some((new_brush, _)) = rebuild_brush_from_vertices(
+                    &old,
+                    &cache.vertices,
+                    &cache.face_polygons,
+                    &new_verts,
+                ) {
+                    *brush = new_brush;
+                    let cmd = SetBrush {
+                        entity: brush_entity,
+                        old,
+                        new: brush.clone(),
+                        label: "Nudge brush vertex".to_string(),
+                    };
+                    history.push_executed(Box::new(cmd));
+                }
+            }
             return;
         }
     }
@@ -758,36 +767,38 @@ pub(super) fn brush_vertex_interact(
     if drag_state.active
         && (keybinds.just_pressed(EditorAction::ExitEditMode, keyboard)
             || mouse.just_pressed(MouseButton::Right))
+    {
+        if let Some(ref start) = drag_state.start_brush
+            && let Ok(mut brush) = brushes.get_mut(brush_entity)
         {
-            if let Some(ref start) = drag_state.start_brush
-                && let Ok(mut brush) = brushes.get_mut(brush_entity) {
-                    *brush = start.clone();
-                }
-            drag_state.active = false;
-            drag_state.pending = None;
-            drag_state.constraint = VertexDragConstraint::Free;
-            drag_state.split_vertex = None;
-            return;
+            *brush = start.clone();
         }
+        drag_state.active = false;
+        drag_state.pending = None;
+        drag_state.constraint = VertexDragConstraint::Free;
+        drag_state.split_vertex = None;
+        return;
+    }
 
     // Release: commit drag
     if mouse.just_released(MouseButton::Left) {
         if drag_state.active {
             if let Some(ref start) = drag_state.start_brush
-                && let Ok(brush) = brushes.get(brush_entity) {
-                    let label = if drag_state.split_vertex.is_some() {
-                        "Split brush vertex"
-                    } else {
-                        "Move brush vertex"
-                    };
-                    let cmd = SetBrush {
-                        entity: brush_entity,
-                        old: start.clone(),
-                        new: brush.clone(),
-                        label: label.to_string(),
-                    };
-                    history.push_executed(Box::new(cmd));
-                }
+                && let Ok(brush) = brushes.get(brush_entity)
+            {
+                let label = if drag_state.split_vertex.is_some() {
+                    "Split brush vertex"
+                } else {
+                    "Move brush vertex"
+                };
+                let cmd = SetBrush {
+                    entity: brush_entity,
+                    old: start.clone(),
+                    new: brush.clone(),
+                    label: label.to_string(),
+                };
+                history.push_executed(Box::new(cmd));
+            }
             drag_state.active = false;
             drag_state.constraint = VertexDragConstraint::Free;
         }
@@ -798,31 +809,34 @@ pub(super) fn brush_vertex_interact(
 
     // Pending → active promotion (5px threshold)
     if let Some(ref pending) = drag_state.pending
-        && mouse.pressed(MouseButton::Left) && !drag_state.active {
-            let dist = (cursor_pos - pending.click_pos).length();
-            if dist > 5.0
-                && let Ok(cache) = brush_caches.get(brush_entity)
-                    && let Ok(brush) = brushes.get(brush_entity) {
-                        drag_state.active = true;
-                        drag_state.constraint = VertexDragConstraint::Free;
-                        drag_state.start_brush = Some(brush.clone());
-                        drag_state.start_cursor = viewport_cursor;
+        && mouse.pressed(MouseButton::Left)
+        && !drag_state.active
+    {
+        let dist = (cursor_pos - pending.click_pos).length();
+        if dist > 5.0
+            && let Ok(cache) = brush_caches.get(brush_entity)
+            && let Ok(brush) = brushes.get(brush_entity)
+        {
+            drag_state.active = true;
+            drag_state.constraint = VertexDragConstraint::Free;
+            drag_state.start_brush = Some(brush.clone());
+            drag_state.start_cursor = viewport_cursor;
 
-                        // Build start vertices, possibly with split vertex appended
-                        let mut all_verts = cache.vertices.clone();
-                        if let Some(split_pos) = drag_state.split_vertex {
-                            all_verts.push(split_pos);
-                        }
+            // Build start vertices, possibly with split vertex appended
+            let mut all_verts = cache.vertices.clone();
+            if let Some(split_pos) = drag_state.split_vertex {
+                all_verts.push(split_pos);
+            }
 
-                        drag_state.start_vertex_positions = brush_selection
-                            .vertices
-                            .iter()
-                            .map(|&vi| all_verts.get(vi).copied().unwrap_or(Vec3::ZERO))
-                            .collect();
-                        drag_state.start_all_vertices = all_verts;
-                        drag_state.start_face_polygons = cache.face_polygons.clone();
-                    }
+            drag_state.start_vertex_positions = brush_selection
+                .vertices
+                .iter()
+                .map(|&vi| all_verts.get(vi).copied().unwrap_or(Vec3::ZERO))
+                .collect();
+            drag_state.start_all_vertices = all_verts;
+            drag_state.start_face_polygons = cache.face_polygons.clone();
         }
+    }
 
     // Continue active drag
     if drag_state.active {
@@ -1030,35 +1044,36 @@ pub(super) fn brush_edge_interact(
         if let Some(dir) = nudge_dir {
             let grid = snap_settings.grid_size();
             if let Ok(cache) = brush_caches.get(brush_entity)
-                && let Ok(mut brush) = brushes.get_mut(brush_entity) {
-                    let old = brush.clone();
-                    let offset = Vec3::new(0.0, dir * grid, 0.0);
-                    let mut new_verts = cache.vertices.clone();
-                    let mut seen = HashSet::new();
-                    for &(a, b) in &brush_selection.edges {
-                        if seen.insert(a) && a < new_verts.len() {
-                            new_verts[a] += offset;
-                        }
-                        if seen.insert(b) && b < new_verts.len() {
-                            new_verts[b] += offset;
-                        }
+                && let Ok(mut brush) = brushes.get_mut(brush_entity)
+            {
+                let old = brush.clone();
+                let offset = Vec3::new(0.0, dir * grid, 0.0);
+                let mut new_verts = cache.vertices.clone();
+                let mut seen = HashSet::new();
+                for &(a, b) in &brush_selection.edges {
+                    if seen.insert(a) && a < new_verts.len() {
+                        new_verts[a] += offset;
                     }
-                    if let Some((new_brush, _)) = rebuild_brush_from_vertices(
-                        &old,
-                        &cache.vertices,
-                        &cache.face_polygons,
-                        &new_verts,
-                    ) {
-                        *brush = new_brush;
-                        let cmd = SetBrush {
-                            entity: brush_entity,
-                            old,
-                            new: brush.clone(),
-                            label: "Nudge brush edge".to_string(),
-                        };
-                        history.push_executed(Box::new(cmd));
+                    if seen.insert(b) && b < new_verts.len() {
+                        new_verts[b] += offset;
                     }
                 }
+                if let Some((new_brush, _)) = rebuild_brush_from_vertices(
+                    &old,
+                    &cache.vertices,
+                    &cache.face_polygons,
+                    &new_verts,
+                ) {
+                    *brush = new_brush;
+                    let cmd = SetBrush {
+                        entity: brush_entity,
+                        old,
+                        new: brush.clone(),
+                        label: "Nudge brush edge".to_string(),
+                    };
+                    history.push_executed(Box::new(cmd));
+                }
+            }
             return;
         }
     }
@@ -1104,30 +1119,32 @@ pub(super) fn brush_edge_interact(
     if drag_state.active
         && (keybinds.just_pressed(EditorAction::ExitEditMode, keyboard)
             || mouse.just_pressed(MouseButton::Right))
+    {
+        if let Some(ref start) = drag_state.start_brush
+            && let Ok(mut brush) = brushes.get_mut(brush_entity)
         {
-            if let Some(ref start) = drag_state.start_brush
-                && let Ok(mut brush) = brushes.get_mut(brush_entity) {
-                    *brush = start.clone();
-                }
-            drag_state.active = false;
-            drag_state.pending = None;
-            drag_state.constraint = VertexDragConstraint::Free;
-            return;
+            *brush = start.clone();
         }
+        drag_state.active = false;
+        drag_state.pending = None;
+        drag_state.constraint = VertexDragConstraint::Free;
+        return;
+    }
 
     // Release: commit drag
     if mouse.just_released(MouseButton::Left) {
         if drag_state.active {
             if let Some(ref start) = drag_state.start_brush
-                && let Ok(brush) = brushes.get(brush_entity) {
-                    let cmd = SetBrush {
-                        entity: brush_entity,
-                        old: start.clone(),
-                        new: brush.clone(),
-                        label: "Move brush edge".to_string(),
-                    };
-                    history.push_executed(Box::new(cmd));
-                }
+                && let Ok(brush) = brushes.get(brush_entity)
+            {
+                let cmd = SetBrush {
+                    entity: brush_entity,
+                    old: start.clone(),
+                    new: brush.clone(),
+                    label: "Move brush edge".to_string(),
+                };
+                history.push_executed(Box::new(cmd));
+            }
             drag_state.active = false;
             drag_state.constraint = VertexDragConstraint::Free;
         }
@@ -1137,33 +1154,36 @@ pub(super) fn brush_edge_interact(
 
     // Pending → active promotion (5px threshold)
     if let Some(ref pending) = drag_state.pending
-        && mouse.pressed(MouseButton::Left) && !drag_state.active {
-            let dist = (cursor_pos - pending.click_pos).length();
-            if dist > 5.0
-                && let Ok(cache) = brush_caches.get(brush_entity)
-                    && let Ok(brush) = brushes.get(brush_entity) {
-                        drag_state.active = true;
-                        drag_state.constraint = VertexDragConstraint::Free;
-                        drag_state.start_brush = Some(brush.clone());
-                        drag_state.start_cursor = viewport_cursor;
-                        drag_state.start_all_vertices = cache.vertices.clone();
-                        drag_state.start_face_polygons = cache.face_polygons.clone();
+        && mouse.pressed(MouseButton::Left)
+        && !drag_state.active
+    {
+        let dist = (cursor_pos - pending.click_pos).length();
+        if dist > 5.0
+            && let Ok(cache) = brush_caches.get(brush_entity)
+            && let Ok(brush) = brushes.get(brush_entity)
+        {
+            drag_state.active = true;
+            drag_state.constraint = VertexDragConstraint::Free;
+            drag_state.start_brush = Some(brush.clone());
+            drag_state.start_cursor = viewport_cursor;
+            drag_state.start_all_vertices = cache.vertices.clone();
+            drag_state.start_face_polygons = cache.face_polygons.clone();
 
-                        let mut seen = HashSet::new();
-                        let mut edge_verts = Vec::new();
-                        for &(a, b) in &brush_selection.edges {
-                            if seen.insert(a) {
-                                let pos = cache.vertices.get(a).copied().unwrap_or(Vec3::ZERO);
-                                edge_verts.push((a, pos));
-                            }
-                            if seen.insert(b) {
-                                let pos = cache.vertices.get(b).copied().unwrap_or(Vec3::ZERO);
-                                edge_verts.push((b, pos));
-                            }
-                        }
-                        drag_state.start_edge_vertices = edge_verts;
-                    }
+            let mut seen = HashSet::new();
+            let mut edge_verts = Vec::new();
+            for &(a, b) in &brush_selection.edges {
+                if seen.insert(a) {
+                    let pos = cache.vertices.get(a).copied().unwrap_or(Vec3::ZERO);
+                    edge_verts.push((a, pos));
+                }
+                if seen.insert(b) {
+                    let pos = cache.vertices.get(b).copied().unwrap_or(Vec3::ZERO);
+                    edge_verts.push((b, pos));
+                }
+            }
+            drag_state.start_edge_vertices = edge_verts;
         }
+    }
 
     // Continue active drag
     if drag_state.active {
@@ -1707,128 +1727,129 @@ pub(super) fn handle_clip_mode(
 
     // Enter: apply clip plane based on mode
     if keybinds.just_pressed(EditorAction::ClipApply, keyboard)
-        && let Some(ref plane) = clip_state.preview_plane {
-            let Ok(mut brush) = brushes.get_mut(brush_entity) else {
-                return;
-            };
-            let (clip_u, clip_v) = compute_face_tangent_axes(plane.normal);
-            let clip_face = BrushFaceData {
-                plane: plane.clone(),
-                uv_offset: Vec2::ZERO,
-                uv_scale: Vec2::ONE,
-                uv_rotation: 0.0,
-                uv_u_axis: clip_u,
-                uv_v_axis: clip_v,
-                ..default()
-            };
-            let (flip_u, flip_v) = compute_face_tangent_axes(-plane.normal);
-            let flipped_face = BrushFaceData {
-                plane: BrushPlane {
-                    normal: -plane.normal,
-                    distance: -plane.distance,
-                },
-                uv_u_axis: flip_u,
-                uv_v_axis: flip_v,
-                ..clip_face.clone()
-            };
+        && let Some(ref plane) = clip_state.preview_plane
+    {
+        let Ok(mut brush) = brushes.get_mut(brush_entity) else {
+            return;
+        };
+        let (clip_u, clip_v) = compute_face_tangent_axes(plane.normal);
+        let clip_face = BrushFaceData {
+            plane: plane.clone(),
+            uv_offset: Vec2::ZERO,
+            uv_scale: Vec2::ONE,
+            uv_rotation: 0.0,
+            uv_u_axis: clip_u,
+            uv_v_axis: clip_v,
+            ..default()
+        };
+        let (flip_u, flip_v) = compute_face_tangent_axes(-plane.normal);
+        let flipped_face = BrushFaceData {
+            plane: BrushPlane {
+                normal: -plane.normal,
+                distance: -plane.distance,
+            },
+            uv_u_axis: flip_u,
+            uv_v_axis: flip_v,
+            ..clip_face.clone()
+        };
 
-            match clip_state.mode {
-                ClipMode::KeepFront => {
-                    let old = brush.clone();
-                    brush.faces.push(clip_face);
-                    let cmd = SetBrush {
-                        entity: brush_entity,
-                        old,
-                        new: brush.clone(),
-                        label: "Clip brush (keep front)".to_string(),
-                    };
-                    history.push_executed(Box::new(cmd));
-                }
-                ClipMode::KeepBack => {
-                    let old = brush.clone();
-                    brush.faces.push(flipped_face);
-                    let cmd = SetBrush {
-                        entity: brush_entity,
-                        old,
-                        new: brush.clone(),
-                        label: "Clip brush (keep back)".to_string(),
-                    };
-                    history.push_executed(Box::new(cmd));
-                }
-                ClipMode::Split => {
-                    let old = brush.clone();
-                    // Front half: apply clip plane to original
-                    let mut front = old.clone();
-                    front.faces.push(clip_face);
-                    // Back half: apply flipped clip plane
-                    let mut back = old.clone();
-                    back.faces.push(flipped_face);
-
-                    // Update original entity to front half
-                    *brush = front.clone();
-                    let set_cmd = SetBrush {
-                        entity: brush_entity,
-                        old,
-                        new: front,
-                        label: "Clip brush (split - front)".to_string(),
-                    };
-
-                    // Spawn back half as new entity
-                    let back_brush = back;
-                    let (_, brush_rot, brush_trans) = brush_global.to_scale_rotation_translation();
-                    let spawn_transform = Transform {
-                        translation: brush_trans,
-                        rotation: brush_rot,
-                        scale: Vec3::ONE,
-                    };
-                    let back_owned = back_brush.clone();
-                    let transform_owned = spawn_transform;
-                    commands.queue(move |world: &mut World| {
-                        let parent_group = world
-                            .get::<ChildOf>(brush_entity)
-                            .map(|c| c.0)
-                            .filter(|&p| world.get::<BrushGroup>(p).is_some());
-
-                        let actual_transform = if parent_group.is_some() {
-                            *world.get::<Transform>(brush_entity).unwrap()
-                        } else {
-                            transform_owned
-                        };
-
-                        let mut spawner = world.spawn((
-                            Name::new("Brush"),
-                            back_owned,
-                            actual_transform,
-                            Visibility::default(),
-                        ));
-                        if let Some(parent) = parent_group {
-                            spawner.insert(ChildOf(parent));
-                        }
-                        let entity = spawner.id();
-                        crate::scene_io::register_entity_in_ast(world, entity);
-
-                        let create_cmd = CreateBrushCommand {
-                            data: brush_data_from_entity(world, entity),
-                        };
-
-                        let group = crate::commands::CommandGroup {
-                            commands: vec![Box::new(set_cmd), Box::new(create_cmd)],
-                            label: "Split brush".to_string(),
-                        };
-                        let mut history = world.resource_mut::<CommandHistory>();
-                        history.push_executed(Box::new(group));
-                    });
-                    clip_state.points.clear();
-                    clip_state.preview_plane = None;
-                    clip_state.mode = ClipMode::KeepFront;
-                    return;
-                }
+        match clip_state.mode {
+            ClipMode::KeepFront => {
+                let old = brush.clone();
+                brush.faces.push(clip_face);
+                let cmd = SetBrush {
+                    entity: brush_entity,
+                    old,
+                    new: brush.clone(),
+                    label: "Clip brush (keep front)".to_string(),
+                };
+                history.push_executed(Box::new(cmd));
             }
+            ClipMode::KeepBack => {
+                let old = brush.clone();
+                brush.faces.push(flipped_face);
+                let cmd = SetBrush {
+                    entity: brush_entity,
+                    old,
+                    new: brush.clone(),
+                    label: "Clip brush (keep back)".to_string(),
+                };
+                history.push_executed(Box::new(cmd));
+            }
+            ClipMode::Split => {
+                let old = brush.clone();
+                // Front half: apply clip plane to original
+                let mut front = old.clone();
+                front.faces.push(clip_face);
+                // Back half: apply flipped clip plane
+                let mut back = old.clone();
+                back.faces.push(flipped_face);
 
-            clip_state.points.clear();
-            clip_state.preview_plane = None;
-            clip_state.mode = ClipMode::KeepFront;
+                // Update original entity to front half
+                *brush = front.clone();
+                let set_cmd = SetBrush {
+                    entity: brush_entity,
+                    old,
+                    new: front,
+                    label: "Clip brush (split - front)".to_string(),
+                };
+
+                // Spawn back half as new entity
+                let back_brush = back;
+                let (_, brush_rot, brush_trans) = brush_global.to_scale_rotation_translation();
+                let spawn_transform = Transform {
+                    translation: brush_trans,
+                    rotation: brush_rot,
+                    scale: Vec3::ONE,
+                };
+                let back_owned = back_brush.clone();
+                let transform_owned = spawn_transform;
+                commands.queue(move |world: &mut World| {
+                    let parent_group = world
+                        .get::<ChildOf>(brush_entity)
+                        .map(|c| c.0)
+                        .filter(|&p| world.get::<BrushGroup>(p).is_some());
+
+                    let actual_transform = if parent_group.is_some() {
+                        *world.get::<Transform>(brush_entity).unwrap()
+                    } else {
+                        transform_owned
+                    };
+
+                    let mut spawner = world.spawn((
+                        Name::new("Brush"),
+                        back_owned,
+                        actual_transform,
+                        Visibility::default(),
+                    ));
+                    if let Some(parent) = parent_group {
+                        spawner.insert(ChildOf(parent));
+                    }
+                    let entity = spawner.id();
+                    crate::scene_io::register_entity_in_ast(world, entity);
+
+                    let create_cmd = CreateBrushCommand {
+                        data: brush_data_from_entity(world, entity),
+                    };
+
+                    let group = crate::commands::CommandGroup {
+                        commands: vec![Box::new(set_cmd), Box::new(create_cmd)],
+                        label: "Split brush".to_string(),
+                    };
+                    let mut history = world.resource_mut::<CommandHistory>();
+                    history.push_executed(Box::new(group));
+                });
+                clip_state.points.clear();
+                clip_state.preview_plane = None;
+                clip_state.mode = ClipMode::KeepFront;
+                return;
+            }
         }
+
+        clip_state.points.clear();
+        clip_state.preview_plane = None;
+        clip_state.mode = ClipMode::KeepFront;
+    }
 
     // Draw clip points and preview
     for (i, point) in clip_state.points.iter().enumerate() {

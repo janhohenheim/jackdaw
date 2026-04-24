@@ -408,13 +408,14 @@ fn spawn_file_tree_row(
                 if let Ok(children) = children_query.get(node_for_click) {
                     for child in children.iter() {
                         if children_containers.get(child).is_ok()
-                            && let Ok(mut node) = node_query.get_mut(child) {
-                                node.display = if is_expanded {
-                                    Display::Flex
-                                } else {
-                                    Display::None
-                                };
-                            }
+                            && let Ok(mut node) = node_query.get_mut(child)
+                        {
+                            node.display = if is_expanded {
+                                Display::Flex
+                            } else {
+                                Display::None
+                            };
+                        }
                     }
                 }
 
@@ -425,13 +426,14 @@ fn spawn_file_tree_row(
                         if let Ok(content_kids) = children_query.get(cc) {
                             for kid in content_kids.iter() {
                                 if toggle_markers.get(kid).is_ok()
-                                    && let Ok(mut text) = text_query.get_mut(kid) {
-                                        text.0 = String::from(if is_expanded {
-                                            Icon::ChevronDown.unicode()
-                                        } else {
-                                            Icon::ChevronRight.unicode()
-                                        });
-                                    }
+                                    && let Ok(mut text) = text_query.get_mut(kid)
+                                {
+                                    text.0 = String::from(if is_expanded {
+                                        Icon::ChevronDown.unicode()
+                                    } else {
+                                        Icon::ChevronRight.unicode()
+                                    });
+                                }
                             }
                         }
                     }

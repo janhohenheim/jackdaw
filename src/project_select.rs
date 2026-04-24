@@ -1537,93 +1537,95 @@ fn poll_new_project_tasks(
 ) {
     // Folder picker.
     if let Some(task) = state.folder_task.as_mut()
-        && let Some(result) = future::block_on(future::poll_once(task)) {
-            state.folder_task = None;
-            if let Some(handle) = result {
-                state.location = handle.path().to_path_buf();
-            }
+        && let Some(result) = future::block_on(future::poll_once(task))
+    {
+        state.folder_task = None;
+        if let Some(handle) = result {
+            state.location = handle.path().to_path_buf();
         }
+    }
 
     // Scaffold.
     if let Some(task) = state.scaffold_task.as_mut()
-        && let Some(result) = future::block_on(future::poll_once(task)) {
-            state.scaffold_task = None;
-            match result {
-                Ok(project_path) => {
-                    info!("Scaffolded project at {}", project_path.display());
-                    let project_name = project_path
-                        .file_name()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("project")
-                        .to_owned();
+        && let Some(result) = future::block_on(future::poll_once(task))
+    {
+        state.scaffold_task = None;
+        match result {
+            Ok(project_path) => {
+                info!("Scaffolded project at {}", project_path.display());
+                let project_name = project_path
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("project")
+                    .to_owned();
 
-                    // Both linkages kick off `cargo build` with the
-                    // same progress stream. Post-build: dylib installs
-                    // the cdylib, static opens the project in place.
-                    state.status = Some(format!("Building `{project_name}`…"));
-                    state.pending_project = Some(project_path.clone());
+                // Both linkages kick off `cargo build` with the
+                // same progress stream. Post-build: dylib installs
+                // the cdylib, static opens the project in place.
+                state.status = Some(format!("Building `{project_name}`…"));
+                state.pending_project = Some(project_path.clone());
 
-                    let progress = std::sync::Arc::new(std::sync::Mutex::new(
-                        crate::ext_build::BuildProgress::default(),
-                    ));
-                    state.build_progress = Some(std::sync::Arc::clone(&progress));
-                    state.build_progress_snapshot =
-                        Some(crate::ext_build::BuildProgress::default());
+                let progress = std::sync::Arc::new(std::sync::Mutex::new(
+                    crate::ext_build::BuildProgress::default(),
+                ));
+                state.build_progress = Some(std::sync::Arc::clone(&progress));
+                state.build_progress_snapshot = Some(crate::ext_build::BuildProgress::default());
 
-                    let project_for_task = project_path;
-                    let progress_for_task = std::sync::Arc::clone(&progress);
-                    let linkage = state.linkage;
-                    state.build_task = Some(AsyncComputeTaskPool::get().spawn(async move {
-                        crate::ext_build::build_extension_project_with_progress(
-                            &project_for_task,
-                            Some(progress_for_task),
-                            linkage,
-                        )
-                    }));
-                }
-                Err(err) => {
-                    warn!("Scaffold failed: {err}");
-                    state.status = Some(format!("Create failed: {err}"));
-                }
+                let project_for_task = project_path;
+                let progress_for_task = std::sync::Arc::clone(&progress);
+                let linkage = state.linkage;
+                state.build_task = Some(AsyncComputeTaskPool::get().spawn(async move {
+                    crate::ext_build::build_extension_project_with_progress(
+                        &project_for_task,
+                        Some(progress_for_task),
+                        linkage,
+                    )
+                }));
+            }
+            Err(err) => {
+                warn!("Scaffold failed: {err}");
+                state.status = Some(format!("Create failed: {err}"));
             }
         }
+    }
 
     // Build task completed. Dylib: stash the artifact for the
     // install-in-Last step (which also drives the SDK-mismatch
     // auto-recovery). Static: stash the project dir for
     // `apply_pending_static_open`, which calls `enter_project`.
     if let Some(task) = state.build_task.as_mut()
-        && let Some(result) = future::block_on(future::poll_once(task)) {
-            state.build_task = None;
-            let linkage = state.linkage;
-            match result {
-                Ok(artifact_or_project) => match linkage {
-                    TemplateLinkage::Dylib => {
-                        info!("Build produced {}", artifact_or_project.display());
-                        let outcome: std::sync::Arc<
-                            std::sync::Mutex<Option<Result<(), jackdaw_loader::LoadError>>>,
-                        > = std::sync::Arc::new(std::sync::Mutex::new(None));
-                        state.metadata_outcome = Some(outcome);
-                        state.pending_install = Some(artifact_or_project);
-                    }
-                    TemplateLinkage::Static => {
-                        info!("Static build succeeded: {}", artifact_or_project.display());
-                        state.pending_static_open = Some(artifact_or_project);
-                        state.pending_project = None;
-                        state.retry_attempted = false;
-                    }
-                },
-                Err(err) => {
-                    warn!("Build failed: {err}");
-                    state.status = Some(format!(
-                        "Build failed: {err}.\n\
-                         Fix the issue and try opening the project again."
-                    ));
+        && let Some(result) = future::block_on(future::poll_once(task))
+    {
+        state.build_task = None;
+        let linkage = state.linkage;
+        match result {
+            Ok(artifact_or_project) => match linkage {
+                TemplateLinkage::Dylib => {
+                    info!("Build produced {}", artifact_or_project.display());
+                    let outcome: std::sync::Arc<
+                        std::sync::Mutex<Option<Result<(), jackdaw_loader::LoadError>>>,
+                    > = std::sync::Arc::new(std::sync::Mutex::new(None));
+                    state.metadata_outcome = Some(outcome);
+                    state.pending_install = Some(artifact_or_project);
+                }
+                TemplateLinkage::Static => {
+                    info!("Static build succeeded: {}", artifact_or_project.display());
+                    state.pending_static_open = Some(artifact_or_project);
                     state.pending_project = None;
                     state.retry_attempted = false;
                 }
+            },
+            Err(err) => {
+                warn!("Build failed: {err}");
+                state.status = Some(format!(
+                    "Build failed: {err}.\n\
+                         Fix the issue and try opening the project again."
+                ));
+                state.pending_project = None;
+                state.retry_attempted = false;
             }
         }
+    }
 
     // Install-outcome poller: reads the Arc<Mutex<...>> we handed
     // to the commands.queue closure. On Ok we're done. On an
@@ -1670,47 +1672,47 @@ fn poll_new_project_tasks(
 
     // Clean-task completed — kick off a fresh build.
     if let Some(task) = state.clean_task.as_mut()
-        && let Some(result) = future::block_on(future::poll_once(task)) {
-            state.clean_task = None;
-            match result {
-                Ok(()) => {
-                    let Some(project) = state.pending_project.clone() else {
-                        return;
-                    };
-                    let project_name = project
-                        .file_name()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("project")
-                        .to_owned();
-                    state.status = Some(format!("Rebuilding `{project_name}` from scratch…"));
-                    // Fresh progress sink — the old one had the prior
-                    // build's log tail, which would mislead the user.
-                    let progress = std::sync::Arc::new(std::sync::Mutex::new(
-                        crate::ext_build::BuildProgress::default(),
-                    ));
-                    state.build_progress = Some(std::sync::Arc::clone(&progress));
-                    state.build_progress_snapshot =
-                        Some(crate::ext_build::BuildProgress::default());
+        && let Some(result) = future::block_on(future::poll_once(task))
+    {
+        state.clean_task = None;
+        match result {
+            Ok(()) => {
+                let Some(project) = state.pending_project.clone() else {
+                    return;
+                };
+                let project_name = project
+                    .file_name()
+                    .and_then(|s| s.to_str())
+                    .unwrap_or("project")
+                    .to_owned();
+                state.status = Some(format!("Rebuilding `{project_name}` from scratch…"));
+                // Fresh progress sink — the old one had the prior
+                // build's log tail, which would mislead the user.
+                let progress = std::sync::Arc::new(std::sync::Mutex::new(
+                    crate::ext_build::BuildProgress::default(),
+                ));
+                state.build_progress = Some(std::sync::Arc::clone(&progress));
+                state.build_progress_snapshot = Some(crate::ext_build::BuildProgress::default());
 
-                    let project_for_task = project;
-                    let progress_for_task = std::sync::Arc::clone(&progress);
-                    // SDK symbol mismatch is a dylib-only failure mode.
-                    state.build_task = Some(AsyncComputeTaskPool::get().spawn(async move {
-                        crate::ext_build::build_extension_project_with_progress(
-                            &project_for_task,
-                            Some(progress_for_task),
-                            TemplateLinkage::Dylib,
-                        )
-                    }));
-                }
-                Err(err) => {
-                    warn!("Cargo clean failed: {err}");
-                    state.status = Some(format!("Auto-recovery failed during cargo clean: {err}"));
-                    state.pending_project = None;
-                    state.retry_attempted = false;
-                }
+                let project_for_task = project;
+                let progress_for_task = std::sync::Arc::clone(&progress);
+                // SDK symbol mismatch is a dylib-only failure mode.
+                state.build_task = Some(AsyncComputeTaskPool::get().spawn(async move {
+                    crate::ext_build::build_extension_project_with_progress(
+                        &project_for_task,
+                        Some(progress_for_task),
+                        TemplateLinkage::Dylib,
+                    )
+                }));
+            }
+            Err(err) => {
+                warn!("Cargo clean failed: {err}");
+                state.status = Some(format!("Auto-recovery failed during cargo clean: {err}"));
+                state.pending_project = None;
+                state.retry_attempted = false;
             }
         }
+    }
 
     // Sync UI.
     let desired_location = state.location.to_string_lossy().into_owned();
@@ -1813,9 +1815,10 @@ fn refresh_build_progress_ui(
             };
             for fill_entity in inner.iter() {
                 if let Ok(mut node) = fill_q.get_mut(fill_entity)
-                    && node.width != desired_width {
-                        node.width = desired_width;
-                    }
+                    && node.width != desired_width
+                {
+                    node.width = desired_width;
+                }
             }
         }
     }
@@ -1859,9 +1862,10 @@ fn apply_pending_install(world: &mut World) {
     let is_ok = result.is_ok();
 
     if let Some(arc) = outcome_arc
-        && let Ok(mut slot) = arc.lock() {
-            *slot = Some(result.map(|_| ()));
-        }
+        && let Ok(mut slot) = arc.lock()
+    {
+        *slot = Some(result.map(|_| ()));
+    }
 
     if is_ok {
         let project = world

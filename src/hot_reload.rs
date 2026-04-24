@@ -95,13 +95,14 @@ fn start_watcher(
     // notify's `watch()` errors on a nonexistent path. A user who
     // clones a project but hasn't built it yet lacks target/debug.
     if !target_debug.is_dir()
-        && let Err(e) = std::fs::create_dir_all(&target_debug) {
-            warn!(
-                "HotReload: could not create {} for watching: {e}",
-                target_debug.display()
-            );
-            return;
-        }
+        && let Err(e) = std::fs::create_dir_all(&target_debug)
+    {
+        warn!(
+            "HotReload: could not create {} for watching: {e}",
+            target_debug.display()
+        );
+        return;
+    }
 
     let pending = Arc::clone(&state.pending);
     let pending_for_cb = Arc::clone(&pending);
@@ -254,9 +255,10 @@ fn apply_pending_install(world: &mut World) {
         Err(_) => {}
     }
     if let Some(arc) = outcome_arc
-        && let Ok(mut slot) = arc.lock() {
-            *slot = Some(result.map(|_| ()));
-        }
+        && let Ok(mut slot) = arc.lock()
+    {
+        *slot = Some(result.map(|_| ()));
+    }
 }
 
 fn poll_install_outcome(

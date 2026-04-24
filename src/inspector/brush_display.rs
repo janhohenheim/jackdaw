@@ -20,10 +20,11 @@ fn resolve_material_label(
     }
     if let Some(mat) = materials.get(mat_handle)
         && let Some(ref tex) = mat.base_color_texture
-            && let Some(path) = tex.path()
-                && let Some(filename) = path.path().file_name() {
-                    return filename.to_string_lossy().to_string();
-                }
+        && let Some(path) = tex.path()
+        && let Some(filename) = path.path().file_name()
+    {
+        return filename.to_string_lossy().to_string();
+    }
     format!("Material {:?}", mat_handle.id())
 }
 
@@ -145,18 +146,19 @@ fn spawn_material_summary(
         // Thumbnail
         if !is_default
             && let Some(mat) = materials.get(mat_handle)
-                && let Some(ref tex) = mat.base_color_texture {
-                    commands.spawn((
-                        ImageNode::new(tex.clone()),
-                        Node {
-                            width: Val::Px(32.0),
-                            height: Val::Px(32.0),
-                            flex_shrink: 0.0,
-                            ..Default::default()
-                        },
-                        ChildOf(row),
-                    ));
-                }
+            && let Some(ref tex) = mat.base_color_texture
+        {
+            commands.spawn((
+                ImageNode::new(tex.clone()),
+                Node {
+                    width: Val::Px(32.0),
+                    height: Val::Px(32.0),
+                    flex_shrink: 0.0,
+                    ..Default::default()
+                },
+                ChildOf(row),
+            ));
+        }
 
         // Material name
         let mat_label = if is_default {
@@ -377,18 +379,19 @@ pub(crate) fn update_brush_face_properties(
 
         // Show base_color thumbnail if available
         if let Some(mat) = materials.get(&face.material)
-            && let Some(ref tex) = mat.base_color_texture {
-                commands.spawn((
-                    ImageNode::new(tex.clone()),
-                    Node {
-                        width: Val::Px(32.0),
-                        height: Val::Px(32.0),
-                        flex_shrink: 0.0,
-                        ..Default::default()
-                    },
-                    ChildOf(mat_row),
-                ));
-            }
+            && let Some(ref tex) = mat.base_color_texture
+        {
+            commands.spawn((
+                ImageNode::new(tex.clone()),
+                Node {
+                    width: Val::Px(32.0),
+                    height: Val::Px(32.0),
+                    flex_shrink: 0.0,
+                    ..Default::default()
+                },
+                ChildOf(mat_row),
+            ));
+        }
 
         commands.spawn((
             Text::new(mat_label),

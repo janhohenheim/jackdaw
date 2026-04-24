@@ -43,9 +43,10 @@ pub(super) fn update_color_picker_visuals(
     }
     for (rect, _) in &hsv_rects {
         if !needs_update.iter().any(|(e, _)| *e == rect.0)
-            && let Ok(state) = all_pickers.get(rect.0) {
-                needs_update.push((rect.0, state));
-            }
+            && let Ok(state) = all_pickers.get(rect.0)
+        {
+            needs_update.push((rect.0, state));
+        }
     }
 
     for (picker_entity, state) in needs_update {
@@ -75,10 +76,12 @@ pub(super) fn update_color_picker_visuals(
                 continue;
             }
             if let Some(size) = hsv_size
-                && size.x > 0.0 && size.y > 0.0 {
-                    node.left = px(state.saturation * size.x - HANDLE_SIZE / 2.0);
-                    node.top = px((1.0 - state.brightness.min(1.0)) * size.y - HANDLE_SIZE / 2.0);
-                }
+                && size.x > 0.0
+                && size.y > 0.0
+            {
+                node.left = px(state.saturation * size.x - HANDLE_SIZE / 2.0);
+                node.top = px((1.0 - state.brightness.min(1.0)) * size.y - HANDLE_SIZE / 2.0);
+            }
             bg.0 = current_color.with_alpha(1.0).into();
         }
 
@@ -87,9 +90,10 @@ pub(super) fn update_color_picker_visuals(
                 continue;
             }
             if let Some(size) = hue_size
-                && size.x > 0.0 {
-                    node.left = px((state.hue / 360.0) * size.x - HANDLE_SIZE / 2.0);
-                }
+                && size.x > 0.0
+            {
+                node.left = px((state.hue / 360.0) * size.x - HANDLE_SIZE / 2.0);
+            }
             let hue_color = hsv_to_rgb(state.hue, 1.0, 1.0);
             bg.0 = Srgba::new(hue_color.0, hue_color.1, hue_color.2, 1.0).into();
         }
@@ -99,9 +103,10 @@ pub(super) fn update_color_picker_visuals(
                 continue;
             }
             if let Some(size) = alpha_size
-                && size.x > 0.0 {
-                    node.left = px(state.alpha * size.x - HANDLE_SIZE / 2.0);
-                }
+                && size.x > 0.0
+            {
+                node.left = px(state.alpha * size.x - HANDLE_SIZE / 2.0);
+            }
         }
 
         for (alpha_handle_mat, material_node) in &alpha_handle_material_nodes {

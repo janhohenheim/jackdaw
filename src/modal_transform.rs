@@ -156,9 +156,10 @@ fn viewport_drag_detect(
     let shift = keyboard.any_pressed([KeyCode::ShiftLeft, KeyCode::ShiftRight]);
     if shift
         && let Some(primary) = selection.primary()
-            && brushes.contains(primary) {
-                return;
-            }
+        && brushes.contains(primary)
+    {
+        return;
+    }
 
     if !mouse.just_pressed(MouseButton::Left) {
         return;

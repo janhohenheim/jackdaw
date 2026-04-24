@@ -835,19 +835,21 @@ fn handle_drag_value(
         };
         let input_entity = wrapper.0;
 
-        if mouse.just_pressed(MouseButton::Left) && *interaction == Interaction::Pressed
-            && let Some(pos) = cursor_pos {
-                let Ok((_, buffer, _, suffix, _)) = text_edits.get(input_entity) else {
-                    continue;
-                };
-                hitbox.dragging = true;
-                hitbox.start_x = pos.x;
-                hitbox.start_value = parse_numeric_value(&buffer.get_text(), suffix);
-                commands
-                    .entity(entity)
-                    .insert(ActiveCursor(bevy::window::SystemCursorIcon::ColResize));
-                commands.entity(child_of.parent()).insert(TextEditDragging);
-            }
+        if mouse.just_pressed(MouseButton::Left)
+            && *interaction == Interaction::Pressed
+            && let Some(pos) = cursor_pos
+        {
+            let Ok((_, buffer, _, suffix, _)) = text_edits.get(input_entity) else {
+                continue;
+            };
+            hitbox.dragging = true;
+            hitbox.start_x = pos.x;
+            hitbox.start_value = parse_numeric_value(&buffer.get_text(), suffix);
+            commands
+                .entity(entity)
+                .insert(ActiveCursor(bevy::window::SystemCursorIcon::ColResize));
+            commands.entity(child_of.parent()).insert(TextEditDragging);
+        }
 
         if mouse.just_released(MouseButton::Left) {
             if hitbox.dragging {
@@ -874,29 +876,30 @@ fn handle_drag_value(
         }
 
         if hitbox.dragging
-            && let Some(pos) = cursor_pos {
-                let Ok((variant, _, mut queue, _, range)) = text_edits.get_mut(input_entity) else {
-                    continue;
-                };
+            && let Some(pos) = cursor_pos
+        {
+            let Ok((variant, _, mut queue, _, range)) = text_edits.get_mut(input_entity) else {
+                continue;
+            };
 
-                let alt_mode = keyboard.pressed(KeyCode::SuperLeft)
-                    || keyboard.pressed(KeyCode::SuperRight)
-                    || keyboard.pressed(KeyCode::AltLeft)
-                    || keyboard.pressed(KeyCode::AltRight);
+            let alt_mode = keyboard.pressed(KeyCode::SuperLeft)
+                || keyboard.pressed(KeyCode::SuperRight)
+                || keyboard.pressed(KeyCode::AltLeft)
+                || keyboard.pressed(KeyCode::AltRight);
 
-                let (amount, sensitivity) = match (*variant, alt_mode) {
-                    (TextEditVariant::NumericI32, false) => (1.0, 5.0),
-                    (TextEditVariant::NumericI32, true) => (10.0, 10.0),
-                    (_, false) => (0.1, 5.0),
-                    (_, true) => (1.0, 10.0),
-                };
+            let (amount, sensitivity) = match (*variant, alt_mode) {
+                (TextEditVariant::NumericI32, false) => (1.0, 5.0),
+                (TextEditVariant::NumericI32, true) => (10.0, 10.0),
+                (_, false) => (0.1, 5.0),
+                (_, true) => (1.0, 10.0),
+            };
 
-                let steps = ((pos.x - hitbox.start_x) / sensitivity).floor() as f64;
-                let new_value = hitbox.start_value + (steps * amount);
-                let rounded = (new_value * 100.0).round() / 100.0;
+            let steps = ((pos.x - hitbox.start_x) / sensitivity).floor() as f64;
+            let new_value = hitbox.start_value + (steps * amount);
+            let rounded = (new_value * 100.0).round() / 100.0;
 
-                update_input_value(&mut queue, rounded, *variant, range);
-            }
+            update_input_value(&mut queue, rounded, *variant, range);
+        }
     }
 }
 

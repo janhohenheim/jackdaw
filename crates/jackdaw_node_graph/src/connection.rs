@@ -384,16 +384,18 @@ pub fn update_pending_remove_markers(
     // Remove markers from connections that no longer qualify.
     for entity in marked.iter() {
         if !target_connections.contains(&entity)
-            && let Ok(mut ec) = commands.get_entity(entity) {
-                ec.remove::<PendingRemove>();
-            }
+            && let Ok(mut ec) = commands.get_entity(entity)
+        {
+            ec.remove::<PendingRemove>();
+        }
     }
     // Add markers to new targets.
     for entity in target_connections {
         if marked.get(entity).is_err()
-            && let Ok(mut ec) = commands.get_entity(entity) {
-                ec.insert(PendingRemove);
-            }
+            && let Ok(mut ec) = commands.get_entity(entity)
+        {
+            ec.insert(PendingRemove);
+        }
     }
 }
 

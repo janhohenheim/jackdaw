@@ -455,9 +455,10 @@ fn sync_navmesh_viz_visibility(
             asset.clear();
             if viz_config.show_obstacles
                 && let Some(mesh) = meshes.get(&mesh3d.0)
-                    && let Some(trimesh) = TriMesh::from_mesh(mesh) {
-                        populate_obstacle_wireframe(asset, &trimesh);
-                    }
+                && let Some(trimesh) = TriMesh::from_mesh(mesh)
+            {
+                populate_obstacle_wireframe(asset, &trimesh);
+            }
         }
     }
 
@@ -486,10 +487,11 @@ fn sync_navmesh_viz_visibility(
         if let Some(asset) = gizmo_assets.get_mut(&gizmo.handle) {
             asset.clear();
             if viz_config.show_detail_mesh
-                && let Some(navmesh) = navmesh_handle.as_ref().and_then(|h| navmeshes.get(h.id())) {
-                    let color: Color = default_style::NAVMESH_DETAIL_WIREFRAME;
-                    populate_wireframe(asset, &navmesh.detail, color);
-                }
+                && let Some(navmesh) = navmesh_handle.as_ref().and_then(|h| navmeshes.get(h.id()))
+            {
+                let color: Color = default_style::NAVMESH_DETAIL_WIREFRAME;
+                populate_wireframe(asset, &navmesh.detail, color);
+            }
         }
     }
 
@@ -498,10 +500,11 @@ fn sync_navmesh_viz_visibility(
         if let Some(asset) = gizmo_assets.get_mut(&gizmo.handle) {
             asset.clear();
             if viz_config.show_polygon_mesh
-                && let Some(navmesh) = navmesh_handle.as_ref().and_then(|h| navmeshes.get(h.id())) {
-                    let color: Color = default_style::NAVMESH_POLYGON_WIREFRAME;
-                    populate_polygon_wireframe(asset, &navmesh.polygon, color);
-                }
+                && let Some(navmesh) = navmesh_handle.as_ref().and_then(|h| navmeshes.get(h.id()))
+            {
+                let color: Color = default_style::NAVMESH_POLYGON_WIREFRAME;
+                populate_polygon_wireframe(asset, &navmesh.polygon, color);
+            }
         }
     }
 }

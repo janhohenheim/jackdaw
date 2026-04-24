@@ -594,21 +594,22 @@ fn apply_rebind(
 ) {
     // Remove the conflicting binding from the other action
     if let Some(conflicting_action) = conflict
-        && let Some(bindings) = pending.get_mut(&conflicting_action) {
-            bindings.retain(|b| b != &new_bind);
-            let text_str = format_bindings(bindings);
-            let text_color = if bindings.is_empty() {
-                tokens::TEXT_SECONDARY
-            } else {
-                tokens::TEXT_PRIMARY
-            };
-            for (display, mut text, mut color) in texts.iter_mut() {
-                if display.0 == conflicting_action {
-                    text.0 = text_str.clone();
-                    color.0 = text_color;
-                }
+        && let Some(bindings) = pending.get_mut(&conflicting_action)
+    {
+        bindings.retain(|b| b != &new_bind);
+        let text_str = format_bindings(bindings);
+        let text_color = if bindings.is_empty() {
+            tokens::TEXT_SECONDARY
+        } else {
+            tokens::TEXT_PRIMARY
+        };
+        for (display, mut text, mut color) in texts.iter_mut() {
+            if display.0 == conflicting_action {
+                text.0 = text_str.clone();
+                color.0 = text_color;
             }
         }
+    }
 
     // Apply the new binding to the target action
     let bindings = pending.entry(action).or_default();

@@ -62,9 +62,10 @@ fn is_translate_drag_active(
         return true;
     }
     if let Some(ref active) = modal_state.active
-        && active.op == ModalOp::Grab {
-            return true;
-        }
+        && active.op == ModalOp::Grab
+    {
+        return true;
+    }
     viewport_drag.active.is_some()
 }
 
@@ -77,22 +78,26 @@ fn dragged_entity_position(
     transforms: &Query<&GlobalTransform>,
 ) -> Option<(Entity, Vec3)> {
     // Gizmo translate
-    if gizmo_drag.active && *gizmo_mode == GizmoMode::Translate
+    if gizmo_drag.active
+        && *gizmo_mode == GizmoMode::Translate
         && let Some(e) = gizmo_drag.entity
-            && let Ok(gt) = transforms.get(e) {
-                return Some((e, gt.translation()));
-            }
+        && let Ok(gt) = transforms.get(e)
+    {
+        return Some((e, gt.translation()));
+    }
     // Modal grab
     if let Some(ref active) = modal_state.active
         && active.op == ModalOp::Grab
-            && let Ok(gt) = transforms.get(active.entity) {
-                return Some((active.entity, gt.translation()));
-            }
+        && let Ok(gt) = transforms.get(active.entity)
+    {
+        return Some((active.entity, gt.translation()));
+    }
     // Viewport drag
     if let Some(ref active) = viewport_drag.active
-        && let Ok(gt) = transforms.get(active.entity) {
-            return Some((active.entity, gt.translation()));
-        }
+        && let Ok(gt) = transforms.get(active.entity)
+    {
+        return Some((active.entity, gt.translation()));
+    }
     None
 }
 
@@ -296,19 +301,20 @@ fn draw_alignment_guides(
         let ref_coords = &state.reference_coords[axis_idx];
         for &d_val in &dragged_coords[axis_idx] {
             if let Some((ref_val, abs_delta)) = nearest_in_sorted(ref_coords, d_val)
-                && abs_delta < threshold {
-                    let is_better = match &best[axis_idx] {
-                        Some(prev) => abs_delta < prev.abs_delta,
-                        None => true,
-                    };
-                    if is_better {
-                        best[axis_idx] = Some(AlignCandidate {
-                            abs_delta,
-                            delta: ref_val - d_val,
-                            aligned_val: ref_val,
-                        });
-                    }
+                && abs_delta < threshold
+            {
+                let is_better = match &best[axis_idx] {
+                    Some(prev) => abs_delta < prev.abs_delta,
+                    None => true,
+                };
+                if is_better {
+                    best[axis_idx] = Some(AlignCandidate {
+                        abs_delta,
+                        delta: ref_val - d_val,
+                        aligned_val: ref_val,
+                    });
                 }
+            }
         }
     }
 
@@ -340,14 +346,15 @@ fn draw_alignment_guides(
 
             // Snap
             if candidate.abs_delta < snap_threshold
-                && let Ok(mut transform) = selected_transforms.get_mut(dragged_entity) {
-                    match axis_idx {
-                        0 => transform.translation.x += candidate.delta,
-                        1 => transform.translation.y += candidate.delta,
-                        2 => transform.translation.z += candidate.delta,
-                        _ => {}
-                    }
+                && let Ok(mut transform) = selected_transforms.get_mut(dragged_entity)
+            {
+                match axis_idx {
+                    0 => transform.translation.x += candidate.delta,
+                    1 => transform.translation.y += candidate.delta,
+                    2 => transform.translation.z += candidate.delta,
+                    _ => {}
                 }
+            }
         }
     }
 }

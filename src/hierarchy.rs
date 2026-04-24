@@ -491,9 +491,10 @@ fn on_entity_removed(
     let entity = trigger.event_target();
 
     if let Some(tree_entity) = tree_index.get(entity)
-        && let Ok(mut ec) = commands.get_entity(tree_entity) {
-            ec.despawn();
-        }
+        && let Ok(mut ec) = commands.get_entity(tree_entity)
+    {
+        ec.despawn();
+    }
 }
 
 /// When `EditorHidden` is added, remove the tree row if one exists (handles race with observers).
@@ -505,9 +506,10 @@ fn on_entity_hidden(
     let entity = trigger.event_target();
 
     if let Some(tree_entity) = tree_index.get(entity)
-        && let Ok(mut ec) = commands.get_entity(tree_entity) {
-            ec.despawn();
-        }
+        && let Ok(mut ec) = commands.get_entity(tree_entity)
+    {
+        ec.despawn();
+    }
 }
 
 /// When a tree node is expanded for the first time, spawn tree rows for its children.
@@ -551,9 +553,10 @@ fn on_tree_node_expanded(
     commands.queue(move |world: &mut World| {
         // Double-check populated flag (guard against duplicate events)
         if let Some(pop) = world.get::<TreeChildrenPopulated>(tree_row_entity)
-            && pop.0 {
-                return;
-            }
+            && pop.0
+        {
+            return;
+        }
 
         // Mark as populated
         if let Some(mut pop) = world.get_mut::<TreeChildrenPopulated>(tree_row_entity) {
@@ -627,9 +630,10 @@ fn on_tree_row_clicked(
     // Set keyboard focus to the tree row containing this content
     let content_entity = event.entity;
     if let Ok(&ChildOf(tree_row)) = parent_query.get(content_entity)
-        && tree_nodes.contains(tree_row) {
-            focused.0 = Some(tree_row);
-        }
+        && tree_nodes.contains(tree_row)
+    {
+        focused.0 = Some(tree_row);
+    }
 }
 
 /// When Selected is added, highlight the corresponding tree row.
@@ -807,9 +811,10 @@ fn handle_hierarchy_right_click(
 
     // Close any existing context menu
     if let Some(menu) = state.menu_entity.take()
-        && let Ok(mut ec) = commands.get_entity(menu) {
-            ec.despawn();
-        }
+        && let Ok(mut ec) = commands.get_entity(menu)
+    {
+        ec.despawn();
+    }
 
     // Find which tree row content the cursor is over by hit testing
     let mut target_source = None;
@@ -823,10 +828,11 @@ fn handle_hierarchy_right_click(
         let half = size / 2.0;
         let rect = Rect::from_center_half_size(pos, half);
         if rect.contains(cursor_pos)
-            && let Ok(tree_node) = tree_nodes.get(child_of.0) {
-                target_source = Some(tree_node.0);
-                break;
-            }
+            && let Ok(tree_node) = tree_nodes.get(child_of.0)
+        {
+            target_source = Some(tree_node.0);
+            break;
+        }
     }
 
     let Some(target) = target_source else {
@@ -843,9 +849,10 @@ fn handle_hierarchy_right_click(
 
             for &e in &old_entities {
                 if e != target
-                    && let Ok(mut ec) = world.get_entity_mut(e) {
-                        ec.remove::<Selected>();
-                    }
+                    && let Ok(mut ec) = world.get_entity_mut(e)
+                {
+                    ec.remove::<Selected>();
+                }
             }
             if let Ok(mut ec) = world.get_entity_mut(target) {
                 ec.insert(Selected);
@@ -915,17 +922,18 @@ fn on_context_menu_action(
     match event.action.as_str() {
         "hierarchy.focus" => {
             if let Some(target) = target_entity
-                && let Ok(global_tf) = global_transforms.get(target) {
-                    let target_pos = global_tf.translation();
-                    let scale = global_tf.compute_transform().scale;
-                    let dist = (scale.length() * 3.0).max(5.0);
+                && let Ok(global_tf) = global_transforms.get(target)
+            {
+                let target_pos = global_tf.translation();
+                let scale = global_tf.compute_transform().scale;
+                let dist = (scale.length() * 3.0).max(5.0);
 
-                    for mut transform in &mut camera_query {
-                        let forward = transform.forward().as_vec3();
-                        transform.translation = target_pos - forward * dist;
-                        *transform = transform.looking_at(target_pos, Vec3::Y);
-                    }
+                for mut transform in &mut camera_query {
+                    let forward = transform.forward().as_vec3();
+                    transform.translation = target_pos - forward * dist;
+                    *transform = transform.looking_at(target_pos, Vec3::Y);
                 }
+            }
         }
         "hierarchy.rename" => {
             if let Some(target) = target_entity {
@@ -1424,9 +1432,10 @@ fn style_game_spawned_rows(
                     continue;
                 }
                 if let Ok(mut tf) = text_fonts.get_mut(maybe_label)
-                    && tf.font != italic_font.0 {
-                        tf.font = italic_font.0.clone();
-                    }
+                    && tf.font != italic_font.0
+                {
+                    tf.font = italic_font.0.clone();
+                }
             }
         }
     }

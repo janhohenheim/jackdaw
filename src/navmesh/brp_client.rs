@@ -225,22 +225,23 @@ fn poll_navmesh_input(
     ));
     // Compute AABB from obstacle vertices and update region entity bounds
     if let Some(region_entity) = regions.iter().next()
-        && !response.obstacles.vertices.is_empty() {
-            let mut min = Vec3::splat(f32::MAX);
-            let mut max = Vec3::splat(f32::MIN);
-            for v in &response.obstacles.vertices {
-                let v = Vec3::from(*v);
-                min = min.min(v);
-                max = max.max(v);
-            }
-            let center = (min + max) / 2.0;
-            let size = max - min;
-            commands.entity(region_entity).insert(Transform {
-                translation: center,
-                scale: size,
-                ..default()
-            });
+        && !response.obstacles.vertices.is_empty()
+    {
+        let mut min = Vec3::splat(f32::MAX);
+        let mut max = Vec3::splat(f32::MIN);
+        for v in &response.obstacles.vertices {
+            let v = Vec3::from(*v);
+            min = min.min(v);
+            max = max.max(v);
         }
+        let center = (min + max) / 2.0;
+        let size = max - min;
+        commands.entity(region_entity).insert(Transform {
+            translation: center,
+            scale: size,
+            ..default()
+        });
+    }
 
     commands.insert_resource(NavmeshObstacles(response.obstacles));
 
