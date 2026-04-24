@@ -48,7 +48,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     ));
 }
 
-#[derive(Resource)]
+#[derive(Resource, Deref, DerefMut)]
 struct NavmeshHandle(Handle<Navmesh>);
 
 fn generate_navmesh(mut generator: NavmeshGenerator, mut commands: Commands) {
