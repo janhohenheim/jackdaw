@@ -19,6 +19,8 @@ pub mod inspector;
 pub mod keybind_settings;
 pub mod keybinds;
 
+use std::marker::PhantomData;
+
 pub use inspector::{EditorMeta, ReflectEditorMeta};
 pub mod core_extension;
 pub mod ext_build;
@@ -57,7 +59,7 @@ pub mod viewport_select;
 pub mod viewport_util;
 
 use bevy::{
-    app::plugin_group,
+    app::PluginGroupBuilder,
     ecs::system::SystemState,
     feathers::{FeathersPlugins, dark_theme::create_dark_theme, theme::UiTheme},
     input::mouse::{MouseScrollUnit, MouseWheel},
@@ -121,49 +123,61 @@ pub struct EditorHidden;
 #[derive(Component, Default)]
 pub struct NonSerializable;
 
-plugin_group! {
-    /// The editor plugin group. Construct with [`EditorPlugins::default`] for the
-    /// builder, or add the default instance directly with
-    /// `app.add_plugins(EditorPlugin::default())`.
-    ///
-    /// The builder lets callers opt out of the built-in extensions and
-    /// register their own:
-    ///
-    /// ```ignore
-    /// App::new()
-    ///     .add_plugins(jackdaw::EditorPlugins::default()
-    ///         .with_extension("my_tool", || Box::new(MyTool))
-    ///         .build())
-    ///     .run();
-    /// ```
-    ///
-    /// To drop the built-in feature-area extensions (Scene Tree, Asset
-    /// Browser, etc.):
-    ///
-    /// ```ignore
-    /// App::new()
-    ///     .add_plugins(jackdaw::EditorPlugins::default()
-    ///         .with_builtin_extensions(false)
-    ///         .with_extension("my_tool", || Box::new(MyTool))
-    ///         .build())
-    ///     .run();
-    /// ```
-    ///
-    /// To additionally load extensions from disk at startup (dynamic
-    /// library extensions dropped into the user's config directory):
-    ///
-    /// ```ignore
-    /// App::new()
-    ///     .add_plugins(jackdaw::EditorPlugins::default()
-    ///         .with_dylib_loader()
-    ///         .build())
-    ///     .run();
-    /// ```
-    #[derive(Default)]
-    pub struct EditorPlugins {
-        :EditorCorePlugin,
-        :ExtensionPlugin,
-        :DylibLoaderPlugin,
+/// The editor plugin group. Construct with [`EditorPlugins::default`] for the
+/// builder, or add the default instance directly with
+/// `app.add_plugins(EditorPlugin::default())`.
+///
+/// The builder lets callers opt out of the built-in extensions and
+/// register their own:
+///
+/// ```ignore
+/// App::new()
+///     .add_plugins(jackdaw::EditorPlugins::default()
+///         .with_extension("my_tool", || Box::new(MyTool))
+///         .build())
+///     .run();
+/// ```
+///
+/// To drop the built-in feature-area extensions (Scene Tree, Asset
+/// Browser, etc.):
+///
+/// ```ignore
+/// App::new()
+///     .add_plugins(jackdaw::EditorPlugins::default()
+///         .with_builtin_extensions(false)
+///         .with_extension("my_tool", || Box::new(MyTool))
+///         .build())
+///     .run();
+/// ```
+///
+/// To additionally load extensions from disk at startup (dynamic
+/// library extensions dropped into the user's config directory):
+///
+/// ```ignore
+/// App::new()
+///     .add_plugins(jackdaw::EditorPlugins::default()
+///         .with_dylib_loader()
+///         .build())
+///     .run();
+/// ```
+pub struct EditorPlugins {
+    /// We're reserving a private field so users need to use [`EditorPlugins::default`],
+    /// ensuring forward compatibility in case we add fields in the future.
+    _pd: PhantomData<()>,
+}
+
+impl Default for EditorPlugins {
+    fn default() -> Self {
+        Self { _pd: PhantomData }
+    }
+}
+
+impl PluginGroup for EditorPlugins {
+    fn build(self) -> PluginGroupBuilder {
+        PluginGroupBuilder::start::<Self>()
+            .add(EditorCorePlugin::default())
+            .add(ExtensionPlugin::default())
+            .add(DylibLoaderPlugin::default())
     }
 }
 

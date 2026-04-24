@@ -20,9 +20,7 @@ use std::{mem::ManuallyDrop, path::PathBuf};
 
 use bevy::prelude::*;
 use jackdaw_api_internal::lifecycle::ExtensionCatalog;
-use jackdaw_loader::{
-    DylibLoaderPlugin, LoadError, LoadedDylibs, LoadedKind, load_from_path, peek_kind,
-};
+use jackdaw_loader::{LoadError, LoadedDylibs, LoadedKind, load_from_path, peek_kind};
 
 mod util;
 
