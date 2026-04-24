@@ -175,7 +175,7 @@ impl Default for EditorPlugins {
 impl PluginGroup for EditorPlugins {
     fn build(self) -> PluginGroupBuilder {
         PluginGroupBuilder::start::<Self>()
-            .add(EditorCorePlugin::default())
+            .add(EditorCorePlugin)
             .add(ExtensionPlugin::default())
             .add(DylibLoaderPlugin::default())
     }
