@@ -238,7 +238,7 @@ impl ExtensionCatalog {
         self.entries.insert(id.into(), entry);
     }
 
-    /// Convenience method for calling [`register`] on a known type.
+    /// Convenience method for calling [`ExtensionCatalog::register`] on a known type.
     fn register_generic<T: crate::JackdawExtension>(
         &mut self,
         ctor: impl Fn() -> Box<dyn crate::JackdawExtension> + Send + Sync + 'static,

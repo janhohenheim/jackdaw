@@ -177,7 +177,7 @@ pub trait JackdawExtension: Send + Sync + 'static + DynJackdawExtension {
 /// Allows access to the extension's static methods via a dynamic dispatch.
 /// This is needed for when you're holding a `Box<dyn JackdawExtension>` and need to call methods that wouldn't require `self`.
 pub trait DynJackdawExtension {
-    /// Returns [`JackdawExtension::name`] via dynamic dispatch.
+    /// Returns [`JackdawExtension::id`] via dynamic dispatch.
     fn dyn_id(&self) -> String;
     /// Returns [`JackdawExtension::label`] via dynamic dispatch.
     fn dyn_label(&self) -> String;
