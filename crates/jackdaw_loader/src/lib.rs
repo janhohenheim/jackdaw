@@ -291,6 +291,7 @@ pub enum LoadError {
     /// is surfaced through the same Result so call sites have a
     /// single error type to match on.
     InstallIo(String),
+    Other(BevyError),
 }
 
 impl LoadError {
@@ -331,6 +332,7 @@ impl std::fmt::Display for LoadError {
                 write!(f, "extension name is not valid UTF-8 or contains NUL")
             }
             Self::InstallIo(msg) => write!(f, "install io: {msg}"),
+            Self::Other(e) => write!(f, "other: {e}"),
         }
     }
 }
@@ -346,6 +348,12 @@ impl From<libloading::Error> for LoadError {
 impl From<CompatError> for LoadError {
     fn from(value: CompatError) -> Self {
         Self::Compat(value)
+    }
+}
+
+impl From<BevyError> for LoadError {
+    fn from(value: BevyError) -> Self {
+        Self::Other(value)
     }
 }
 
@@ -374,7 +382,7 @@ fn is_dylib(path: &Path) -> bool {
 /// Result of a successfully-verified dylib open. The loader keeps
 /// each variant's `Library` handle alive for the duration of the
 /// `App`; dropping it while the entry code is still reachable is UB.
-#[allow(improper_ctypes_definitions)]
+#[expect(improper_ctypes_definitions)]
 enum OpenedDylib {
     Extension {
         lib: libloading::Library,
@@ -392,7 +400,7 @@ enum OpenedDylib {
 /// Try to open `path`, dispatching on which entry symbol it
 /// exposes. Game symbol wins if both somehow exist (a cdylib
 /// should only `export_game!` or `export_extension!`, not both).
-#[allow(improper_ctypes_definitions)]
+#[expect(improper_ctypes_definitions)]
 fn open_and_verify(path: &Path) -> Result<OpenedDylib, LoadError> {
     // SAFETY: libloading's standard contract. Caller trusts `path`
     // is a well-formed dynamic library; if not, the call returns
@@ -697,7 +705,7 @@ pub fn load_from_path(world: &mut World, path: &Path) -> Result<LoadedKind, Load
 /// with the handle at the call site so the caller can both move the
 /// library into `LoadedDylibs` at the right moment and look up symbols
 /// on it in the meantime.
-#[allow(improper_ctypes_definitions)]
+#[expect(improper_ctypes_definitions)]
 enum OpenedKind {
     Extension {
         name: String,
