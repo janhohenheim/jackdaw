@@ -6,7 +6,7 @@ pub struct MyExtension;
 
 impl JackdawExtension for MyExtension {
     fn id(&self) -> String {
-        "my_extensionzz".to_string()
+        "my_extension".to_string()
     }
 
     fn register(&self, _ctx: &mut ExtensionContext) {

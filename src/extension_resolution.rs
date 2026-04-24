@@ -2,11 +2,9 @@
 //! `~/.config/jackdaw/extensions.json`. Read on startup, rewritten
 //! whenever the user toggles an extension.
 
-use std::collections::HashSet;
-
 use bevy::{platform::collections::HashMap, prelude::*};
 use jackdaw_api::prelude::ExtensionKind;
-use jackdaw_api_internal::{extensions_config::read_enabled_list, lifecycle::ExtensionCatalog};
+use jackdaw_api_internal::{extensions_config::read_extension_config, lifecycle::ExtensionCatalog};
 
 /// Extensions that must always be loaded — the editor panics without
 /// the resources they install. Anything listed here is force-enabled
@@ -38,16 +36,15 @@ pub fn resolve_enabled_list(world: &World) -> Vec<String> {
         .map(|(id, label, ..)| (id.to_string(), label.to_string()))
         .collect();
 
-    let mut resolved = match read_enabled_list() {
-        Some(list) => {
-            let on_disk: HashSet<String> = list.into_iter().collect();
-            let has_any_builtin = builtins.keys().any(|id| on_disk.contains(id));
+    let mut resolved = match read_extension_config() {
+        Some(config) => {
+            let has_any_builtin = builtins.keys().any(|id| config.contains_key(id));
             if !has_any_builtin {
                 available.clone()
             } else {
                 available
                     .iter()
-                    .filter(|n| on_disk.contains(*n))
+                    .filter(|n| config.contains_key(*n))
                     .cloned()
                     .collect()
             }
