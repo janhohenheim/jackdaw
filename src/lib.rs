@@ -1009,7 +1009,7 @@ impl DespawnKeyframeCmd {
     /// component types, so the caller can fall through to a
     /// generic despawn.
     fn try_from_entity(world: &World, entity: Entity) -> Option<Self> {
-        let track = world.get::<ChildOf>(entity).map(bevy::bevy_ecs::hierarchy::ChildOf::parent)?;
+        let track = world.get::<ChildOf>(entity).map(ChildOf::parent)?;
         if let Some(kf) = world.get::<jackdaw_animation::Vec3Keyframe>(entity) {
             return Some(Self::Vec3 {
                 keyframe: entity,
@@ -1371,7 +1371,7 @@ fn handle_keyframe_copy(world: &mut World) {
 
     let mut entries: Vec<(f32, jackdaw_animation::KeyframeClipboardEntry)> = Vec::new();
     for &entity in &selected {
-        let Some(track_entity) = world.get::<ChildOf>(entity).map(bevy::bevy_ecs::hierarchy::ChildOf::parent) else {
+        let Some(track_entity) = world.get::<ChildOf>(entity).map(ChildOf::parent) else {
             continue;
         };
         let Some(track) = world.get::<jackdaw_animation::AnimationTrack>(track_entity) else {

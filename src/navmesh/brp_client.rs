@@ -203,7 +203,7 @@ fn poll_navmesh_input(
                 .obstacles
                 .indices
                 .iter()
-                .flat_map(bevy::bevy_math::UVec3::to_array)
+                .flat_map(UVec3::to_array)
                 .collect(),
         ))
         .with_computed_normals();

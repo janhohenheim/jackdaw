@@ -2016,7 +2016,7 @@ pub fn register_entity_in_ast(world: &mut World, entity: Entity) {
     if ast.contains_entity(entity) {
         return;
     }
-    let parent = world.get::<ChildOf>(entity).map(bevy::bevy_ecs::hierarchy::ChildOf::parent);
+    let parent = world.get::<ChildOf>(entity).map(ChildOf::parent);
     let idx = world
         .resource_mut::<jackdaw_jsn::SceneJsnAst>()
         .create_node(entity, parent);

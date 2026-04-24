@@ -1,6 +1,7 @@
 use crate::commands::{CommandGroup, CommandHistory, EditorCommand, SetJsnField};
 use crate::selection::Selection;
 
+use bevy::reflect::{NamedField, UnnamedField};
 use bevy::{
     ecs::reflect::{AppTypeRegistry, ReflectComponent},
     feathers::theme::ThemedText,
@@ -2430,10 +2431,10 @@ fn resolve_enum_info<'a>(
 
     for segment in field_path.split('.').filter(|s| !s.is_empty()) {
         let field_type_id = match current_info {
-            TypeInfo::Struct(s) => s.field(segment).map(bevy::bevy_reflect::NamedField::type_id)?,
+            TypeInfo::Struct(s) => s.field(segment).map(NamedField::type_id)?,
             TypeInfo::TupleStruct(ts) => {
                 let idx: usize = segment.parse().ok()?;
-                ts.field_at(idx).map(bevy::bevy_reflect::UnnamedField::type_id)?
+                ts.field_at(idx).map(UnnamedField::type_id)?
             }
             _ => return None,
         };

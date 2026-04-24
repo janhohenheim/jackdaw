@@ -565,7 +565,7 @@ fn draw_coordinate_indicator(
     if let Some(label_entities) = label_entities {
         let vp_node_size = viewport_node
             .single()
-            .map(bevy::bevy_ui::ComputedNode::size)
+            .map(ComputedNode::size)
             .unwrap_or(Vec2::ONE);
         let render_target_size = camera.logical_viewport_size().unwrap_or(vp_node_size);
 

@@ -1837,7 +1837,7 @@ fn manage_draw_preview_mesh(
     }
 
     // Build triangle mesh from face polygons
-    let positions: Vec<[f32; 3]> = verts.iter().map(bevy::bevy_math::Vec3::to_array).collect();
+    let positions: Vec<[f32; 3]> = verts.iter().map(Vec3::to_array).collect();
     let mut all_indices: Vec<u32> = Vec::new();
     for polygon in &face_polys {
         if polygon.len() < 3 {
@@ -3028,7 +3028,10 @@ pub(crate) fn csg_intersect_selected_impl(world: &mut World) {
         })
         .collect();
 
-    let face_refs: Vec<&[BrushFaceData]> = world_face_sets.iter().map(std::vec::Vec::as_slice).collect();
+    let face_refs: Vec<&[BrushFaceData]> = world_face_sets
+        .iter()
+        .map(std::vec::Vec::as_slice)
+        .collect();
     let Some(intersection_faces) = intersect_brushes(&face_refs) else {
         return;
     };
