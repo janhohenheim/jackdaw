@@ -25,8 +25,7 @@ fn extract_module_group(module_path: Option<&str>) -> String {
     let name = first.strip_prefix("bevy_").unwrap_or(first);
     // Map common module names to cleaner labels
     match name {
-        "pbr" | "core_pipeline" => "Render".to_string(),
-        "render" => "Render".to_string(),
+        "pbr" | "core_pipeline" | "render" => "Render".to_string(),
         "transform" => "Transform".to_string(),
         "ecs" => "ECS".to_string(),
         "hierarchy" => "Hierarchy".to_string(),

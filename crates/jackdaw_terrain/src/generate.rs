@@ -36,6 +36,7 @@ impl NoiseType {
     }
 
     pub fn from_index(i: usize) -> Self {
+        #[expect(clippy::match_same_arms, reason = "Cleaner this way")]
         match i {
             0 => NoiseType::Perlin,
             1 => NoiseType::Simplex,

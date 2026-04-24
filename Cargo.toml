@@ -158,12 +158,12 @@ too_long_first_doc_paragraph = "allow"
 
 allow_attributes = "warn"
 allow_attributes_without_reason = "warn"
+match_same_arms = "warn"
 
 # TODO: enable these if you have time!
 # undocumented_unsafe_blocks = "warn"
 # print_stderr = "warn"
 # redundant_closure_for_method_calls = "warn"
-# match_same_arms = "warn"
 # manual_let_else = "warn"
 
 # TODO: remove these if you have time!

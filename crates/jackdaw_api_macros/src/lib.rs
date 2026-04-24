@@ -221,9 +221,8 @@ fn as_str_expr(expr: &Expr) -> Option<Expr> {
     match expr {
         Expr::Lit(ExprLit {
             lit: Lit::Str(_), ..
-        }) => Some(expr.clone()),
-
-        Expr::Path(_) => Some(expr.clone()),
+        })
+        | Expr::Path(_) => Some(expr.clone()),
 
         _ => None,
     }

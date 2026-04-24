@@ -592,8 +592,7 @@ fn on_drag_end(
                 }
             }
         }
-        DockDragState::PendingDrag { .. } => {}
-        DockDragState::Idle => {}
+        DockDragState::PendingDrag { .. } | DockDragState::Idle => {}
     }
 
     *drag_state = DockDragState::Idle;
