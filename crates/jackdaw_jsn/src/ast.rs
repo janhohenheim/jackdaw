@@ -225,9 +225,10 @@ impl SceneJsnAst {
         let registration = registry.get_with_type_path(type_path);
         if let Some(node) = self.node_for_entity_mut(entity)
             && let Some(component) = node.components.get_mut(type_path)
-                && let Some(registration) = registration {
-                    typed_json_path_set(component, field_path, value, registration, registry);
-                }
+            && let Some(registration) = registration
+        {
+            typed_json_path_set(component, field_path, value, registration, registry);
+        }
         self.mark_dirty(entity);
     }
 }
@@ -294,7 +295,7 @@ fn variant_field_type_registration<'a>(
         VariantInfo::Struct(s) => s.field(field_name).map(NamedField::type_id)?,
         VariantInfo::Tuple(t) => {
             let idx: usize = field_name.parse().ok()?;
-            t.field_at(idx).map(|f| f.type_id())?
+            t.field_at(idx).map(UnnamedField::type_id)?
         }
         VariantInfo::Unit(_) => return None,
     };
@@ -374,9 +375,10 @@ fn typed_json_path_get<'a>(
             // Advance type info to list element
             let list_info = current_reg.type_info();
             if let TypeInfo::List(l) = list_info
-                && let Some(elem_reg) = registry.get(l.item_ty().id()) {
-                    current_reg = elem_reg;
-                }
+                && let Some(elem_reg) = registry.get(l.item_ty().id())
+            {
+                current_reg = elem_reg;
+            }
         } else {
             // Simple field navigation
             current = navigate_json_field(current, segment, type_info)?;
@@ -492,9 +494,10 @@ fn typed_json_path_set(
             }
             if is_last {
                 if let Some(arr) = arr_val.as_array_mut()
-                    && idx < arr.len() {
-                        arr[idx] = value;
-                    }
+                    && idx < arr.len()
+                {
+                    arr[idx] = value;
+                }
                 return;
             }
             current = match arr_val.get_mut(idx) {
@@ -503,9 +506,10 @@ fn typed_json_path_set(
             };
             let list_info = current_reg.type_info();
             if let TypeInfo::List(l) = list_info
-                && let Some(elem_reg) = registry.get(l.item_ty().id()) {
-                    current_reg = elem_reg;
-                }
+                && let Some(elem_reg) = registry.get(l.item_ty().id())
+            {
+                current_reg = elem_reg;
+            }
         } else {
             if is_last {
                 set_json_field(current, segment, value, type_info);

@@ -241,9 +241,10 @@ fn reconcile_split(world: &mut World, entity: Entity, node_id: NodeId, split: &D
     let (child_a, _handle, child_b) = children.expect("children exist after rebuild");
 
     if let Some(mut p) = world.entity_mut(child_a).get_mut::<Panel>()
-        && (p.ratio - split.fraction).abs() > f32::EPSILON {
-            p.ratio = split.fraction;
-        }
+        && (p.ratio - split.fraction).abs() > f32::EPSILON
+    {
+        p.ratio = split.fraction;
+    }
     if let Some(mut p) = world.entity_mut(child_b).get_mut::<Panel>() {
         let other = 1.0 - split.fraction;
         if (p.ratio - other).abs() > f32::EPSILON {
@@ -379,7 +380,7 @@ fn set_host_visible(world: &mut World, entity: Entity, visible: bool) {
     // Find the adjacent PanelHandle sibling (index ±1 in the parent's
     // children) so we can hide/show it alongside the host.
     let adjacent_handle = {
-        let parent = world.entity(entity).get::<ChildOf>().map(|co| co.parent());
+        let parent = world.entity(entity).get::<ChildOf>().map(ChildOf::parent);
         parent.and_then(|parent| {
             let siblings: Vec<Entity> = world
                 .entity(parent)
@@ -434,10 +435,11 @@ fn set_host_visible(world: &mut World, entity: Entity, visible: bool) {
     // axis; forcing 100% would make it fill the parent.
     if let Some(handle) = adjacent_handle
         && let Some(mut node) = world.entity_mut(handle).get_mut::<Node>()
-            && node.display != target {
-                node.display = target;
-                any_changed = true;
-            }
+        && node.display != target
+    {
+        node.display = target;
+        any_changed = true;
+    }
 
     // Flag the host's Panel component as changed so `recalculate_group`
     // redistributes sibling widths this frame. The host may carry one
@@ -592,9 +594,10 @@ fn sync_leaf_visuals(
                 Display::None
             };
             if let Ok(mut node) = nodes.get_mut(content_entity)
-                && node.display != target {
-                    node.display = target;
-                }
+                && node.display != target
+            {
+                node.display = target;
+            }
         }
     }
 }

@@ -456,9 +456,9 @@ fn dispatch_operator(
             if op.allows_undo
                 && let Err(err) =
                     world.run_system_cached_with(save_history, (op.label, before_snapshot))
-                {
-                    error!("Failed to finalize modal operator {}: {err:?}", op.label);
-                }
+            {
+                error!("Failed to finalize modal operator {}: {err:?}", op.label);
+            }
         }
         OperatorResult::Cancelled => {
             let res: Result = world
@@ -573,16 +573,18 @@ pub(crate) fn cancel_operator(
 
     let mut cancel_err = None;
     if let Some(cancel) = op.cancel
-        && let Err(err) = world.run_system(cancel) {
-            error!("Failed to cancel modal operator {}: {err:?}", op.label);
-            cancel_err = Some(err);
-        }
+        && let Err(err) = world.run_system(cancel)
+    {
+        error!("Failed to cancel modal operator {}: {err:?}", op.label);
+        cancel_err = Some(err);
+    }
     let mut finalize_err = None;
     if active.get(world).is_operator(id)
-        && let Err(err) = world.run_system_cached_with(finalize_modal, false) {
-            error!("Failed to finalize modal operator: {err:?}");
-            finalize_err = Some(err);
-        }
+        && let Err(err) = world.run_system_cached_with(finalize_modal, false)
+    {
+        error!("Failed to finalize modal operator: {err:?}");
+        finalize_err = Some(err);
+    }
     match (cancel_err, finalize_err) {
         (Some(cancel_err), Some(_finalize_err)) => {
             // BevyError cannot accumulate errors, so we gotta pick one :/
@@ -603,7 +605,7 @@ fn finalize_modal(
 ) {
     let Some((entity, op)) = active
         .get(world)
-        .map(|t| t.into_inner())
+        .map(Single::into_inner)
         .map(|(e, o)| (e, o.clone()))
     else {
         return;

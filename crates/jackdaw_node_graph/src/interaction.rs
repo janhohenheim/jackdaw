@@ -377,7 +377,7 @@ pub fn on_terminal_right_click(
     let targets: Vec<(Entity, Entity)> = connections
         .iter()
         .filter_map(|(entity, conn, parent)| {
-            let graph = parent.map(|p| p.get())?;
+            let graph = parent.map(Relationship::get)?;
             let matches = match direction {
                 TerminalDirection::Input => conn.target_node == node && conn.target_terminal == idx,
                 TerminalDirection::Output => {
@@ -428,7 +428,7 @@ pub fn handle_delete_key(
     let graph = selection
         .entities
         .iter()
-        .find_map(|&e| nodes.get(e).ok().and_then(|p| p.map(|c| c.get())));
+        .find_map(|&e| nodes.get(e).ok().and_then(|p| p.map(ChildOf::get)));
     let Some(graph) = graph else {
         return;
     };

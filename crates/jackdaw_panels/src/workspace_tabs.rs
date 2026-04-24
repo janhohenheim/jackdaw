@@ -78,7 +78,7 @@ pub fn populate_workspace_tabs(
             let is_empty = world
                 .entity(entity)
                 .get::<Children>()
-                .is_none_or(|c| c.is_empty());
+                .is_none_or(RelationshipTarget::is_empty);
             if is_empty || ids_changed {
                 strips.push(entity);
             }
@@ -344,9 +344,10 @@ pub fn handle_add_workspace_clicks(
 
         let current_active = registry.active.clone();
         if let Some(active_id) = current_active.as_ref()
-            && let Some(ws) = registry.get_mut(active_id) {
-                ws.tree = tree.clone();
-            }
+            && let Some(ws) = registry.get_mut(active_id)
+        {
+            ws.tree = tree.clone();
+        }
 
         registry.workspaces.push(WorkspaceDescriptor {
             id: new_id.clone(),
@@ -393,10 +394,9 @@ pub fn on_workspace_close_click(
     let target = close_btn.workspace_id.clone();
     let was_active = registry.active.as_deref() == Some(&target);
 
-    if was_active
-        && let Some(ws) = registry.get_mut(&target) {
-            ws.tree = tree.clone();
-        }
+    if was_active && let Some(ws) = registry.get_mut(&target) {
+        ws.tree = tree.clone();
+    }
 
     registry.workspaces.retain(|w| w.id != target);
 
@@ -588,9 +588,10 @@ pub fn on_workspace_changed_swap_tree(
     let event = trigger.event();
 
     if let Some(old_id) = &event.old
-        && let Some(ws) = registry.get_mut(old_id) {
-            ws.tree = tree.clone();
-        }
+        && let Some(ws) = registry.get_mut(old_id)
+    {
+        ws.tree = tree.clone();
+    }
 
     let target_tree = match registry.get(&event.new) {
         Some(ws) if !ws.tree.anchors.is_empty() => ws.tree.clone(),

@@ -247,7 +247,7 @@ impl ExtensionCatalog {
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &str> {
-        self.entries.keys().map(|s| s.as_str())
+        self.entries.keys().map(String::as_str)
     }
 
     /// Iterate names with their declared [`ExtensionKind`]. Useful for

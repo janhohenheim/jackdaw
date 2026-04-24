@@ -233,7 +233,9 @@ pub fn rebuild_timeline(
         // or the panel is empty (just spawned). The empty check is
         // load-bearing because `SelectedClip` initializes during plugin
         // build long before the panel exists.
-        let panel_is_empty = panel_children.map(|c| c.is_empty()).unwrap_or(true);
+        let panel_is_empty = panel_children
+            .map(RelationshipTarget::is_empty)
+            .unwrap_or(true);
         let needs_rebuild = selection_changed || dirty.0 || panel_is_empty;
         if !needs_rebuild {
             continue;
@@ -983,11 +985,11 @@ pub fn handle_add_keyframe_click(
         // to its parent — the parent entity is the animation target.
         // The target is always the clip's parent in the new parenting
         // model; no name lookup needed.
-        let Some(clip_entity) = world.get::<ChildOf>(track_entity).map(|c| c.parent()) else {
+        let Some(clip_entity) = world.get::<ChildOf>(track_entity).map(ChildOf::parent) else {
             warn!("Add keyframe: track has no parent clip");
             return;
         };
-        let Some(target_entity) = world.get::<ChildOf>(clip_entity).map(|c| c.parent()) else {
+        let Some(target_entity) = world.get::<ChildOf>(clip_entity).map(ChildOf::parent) else {
             warn!("Add keyframe: clip has no parent target entity");
             return;
         };
@@ -1042,9 +1044,10 @@ pub fn handle_add_keyframe_click(
         // keyframe at t=5 on a clip with duration=2 would spawn the
         // keyframe correctly but leave it outside the visual range.
         if let Some(mut clip) = world.get_mut::<Clip>(clip_entity)
-            && cursor_time > clip.duration {
-                clip.duration = cursor_time;
-            }
+            && cursor_time > clip.duration
+        {
+            clip.duration = cursor_time;
+        }
 
         // Ensure the timeline repaints to show the new diamond.
         if let Some(mut dirty) = world.get_resource_mut::<TimelineDirty>() {

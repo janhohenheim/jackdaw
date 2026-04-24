@@ -366,9 +366,10 @@ impl DockTree {
     /// the leaf's tab list.
     pub fn set_active(&mut self, leaf: NodeId, window_id: &str) {
         if let Some(DockNode::Leaf(l)) = self.nodes.get_mut(&leaf)
-            && l.windows.iter().any(|w| w == window_id) {
-                l.active = Some(window_id.to_string());
-            }
+            && l.windows.iter().any(|w| w == window_id)
+        {
+            l.active = Some(window_id.to_string());
+        }
     }
 
     /// Move `window` out of its current leaf and into `to` as the active
@@ -517,7 +518,7 @@ mod tests {
 
     fn leaf(area_id: &str, windows: &[&str]) -> DockLeaf {
         DockLeaf::new(area_id, DockAreaStyle::TabBar)
-            .with_windows(windows.iter().map(|s| s.to_string()).collect())
+            .with_windows(windows.iter().map(ToString::to_string).collect())
     }
 
     #[test]
