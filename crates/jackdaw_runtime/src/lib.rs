@@ -403,11 +403,8 @@ impl ReflectDeserializerProcessor for RuntimeDeserializerProcessor<'_> {
         }
 
         if registration.type_id() == TypeId::of::<Entity>() {
-            let idx_str = match deserializer.deserialize_any(StringOrNullVisitor) {
-                Ok(s) => s,
-                Err(_) => {
-                    return Ok(Ok(Box::new(Entity::PLACEHOLDER).into_partial_reflect()));
-                }
+            let Ok(idx_str) = deserializer.deserialize_any(StringOrNullVisitor) else {
+                return Ok(Ok(Box::new(Entity::PLACEHOLDER).into_partial_reflect()));
             };
             let idx: usize = idx_str.parse().unwrap_or(usize::MAX);
             let entity = self

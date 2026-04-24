@@ -2027,9 +2027,8 @@ fn handle_menu_action(event: On<MenuAction>, mut commands: Commands) {
                         _ => return,
                     }
                 } else {
-                    let primary = match selection.primary() {
-                        Some(e) => e,
-                        None => return,
+                    let Some(primary) = selection.primary() else {
+                        return;
                     };
                     let face_index = if brush_selection.last_face_entity == Some(primary) {
                         brush_selection.last_face_index
@@ -2753,9 +2752,8 @@ fn sync_active_workspace_from_live_tree(world: &mut World) {
 fn apply_default_splits(world: &mut World) {
     use jackdaw_panels::tree::{DockNode, DockTree, Edge};
 
-    let left_root = match world.resource::<DockTree>().anchor("left") {
-        Some(id) => id,
-        None => return,
+    let Some(left_root) = world.resource::<DockTree>().anchor("left") else {
+        return;
     };
     let already_split = !matches!(
         world.resource::<DockTree>().get(left_root),

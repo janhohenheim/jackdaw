@@ -440,9 +440,8 @@ fn typed_json_path_set(
         // like `"radius"` address the field on the current variant rather
         // than inserting a sibling of the variant tag.
         if let TypeInfo::Enum(enum_info) = type_info {
-            let (variant_name, inner) = match enum_variant_from_json_mut(current) {
-                Some(v) => v,
-                None => return,
+            let Some((variant_name, inner)) = enum_variant_from_json_mut(current) else {
+                return;
             };
             let Some(next_reg) =
                 variant_field_type_registration(enum_info, &variant_name, segment, registry)

@@ -541,12 +541,9 @@ impl<'a> ReflectDeserializerProcessor for JsnDeserializerProcessor<'a> {
 
         // Entity  -- deserialize from scene-local index
         if registration.type_id() == TypeId::of::<Entity>() {
-            let idx_str = match deserializer.deserialize_u64(&*self) {
-                Ok(s) => s,
-                Err(_) => {
-                    // Not a valid index, return placeholder
-                    return Ok(Ok(Box::new(Entity::PLACEHOLDER).into_partial_reflect()));
-                }
+            let Ok(idx_str) = deserializer.deserialize_u64(&*self) else {
+                // Not a valid index, return placeholder
+                return Ok(Ok(Box::new(Entity::PLACEHOLDER).into_partial_reflect()));
             };
             let idx: usize = idx_str.parse().unwrap_or(usize::MAX);
             let entity = self

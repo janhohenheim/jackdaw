@@ -247,9 +247,8 @@ fn draw_alignment_guides(
         return;
     };
 
-    let cam_tf = match camera_query.single() {
-        Ok(ct) => ct,
-        Err(_) => return,
+    let Ok(cam_tf) = camera_query.single() else {
+        return;
     };
     let cam_distance = cam_tf.translation().distance(drag_pos);
     let cam_forward = cam_tf.forward().as_vec3();

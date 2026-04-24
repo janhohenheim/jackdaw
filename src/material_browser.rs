@@ -284,9 +284,8 @@ fn detect_and_create_materials(
     asset_server: &AssetServer,
     materials: &mut Assets<StandardMaterial>,
 ) -> Vec<(String, Handle<StandardMaterial>)> {
-    let re = match pbr_filename_regex() {
-        Some(r) => r,
-        None => return Vec::new(),
+    let Some(re) = pbr_filename_regex() else {
+        return Vec::new();
     };
 
     let mut groups: HashMap<String, Vec<(String, String)>> = HashMap::new();

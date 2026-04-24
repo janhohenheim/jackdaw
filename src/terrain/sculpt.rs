@@ -88,15 +88,12 @@ fn terrain_sculpt_interaction(
     mut history: ResMut<CommandHistory>,
     time: Res<Time>,
 ) {
-    let tool = match *edit_mode {
-        TerrainEditMode::Sculpt(tool) => tool,
-        _ => {
-            if sculpt_state.active {
-                sculpt_state.active = false;
-                sculpt_state.brush_position = None;
-            }
-            return;
+    let TerrainEditMode::Sculpt(tool) = *edit_mode else {
+        if sculpt_state.active {
+            sculpt_state.active = false;
+            sculpt_state.brush_position = None;
         }
+        return;
     };
 
     // Must have a terrain selected
