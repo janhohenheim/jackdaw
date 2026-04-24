@@ -353,10 +353,8 @@ impl ExtensionPlugin {
         self
     }
 
-    /// Like [`EditorPlugin::with_extension`], but takes a constructor function
-    /// instead of a type implementing `JackdawExtension`.
-    ///
-    /// See also [`EditorPlugin::with_extension_ctor`].
+    /// Like [`ExtensionPlugin::with_extension`], but takes a constructor function
+    /// instead of a type implementing [`JackdawExtension`].
     pub fn with_extension_ctor<F>(mut self, ctor: F) -> Self
     where
         F: Fn() -> Box<dyn JackdawExtension> + Send + Sync + 'static,
