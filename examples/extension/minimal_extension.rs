@@ -10,7 +10,7 @@ impl JackdawExtension for MyExtension {
     }
 
     fn register(&self, _ctx: &mut ExtensionContext) {
-        info!("The custom extension has been registered! How cool is that!")
+        info!("The custom extension has been registered! How cool is that!");
     }
 }
 
