@@ -1,9 +1,10 @@
 use bevy::{
     asset::{AssetPlugin, UnapprovedPathMode},
+    ecs::error::ErrorContext,
     image::{ImageAddressMode, ImagePlugin, ImageSamplerDescriptor},
     prelude::*,
 };
-use jackdaw::EditorPlugin;
+use jackdaw::prelude::*;
 
 fn main() -> AppExit {
     // Install a SIGINT/SIGTERM handler before anything else gets a
@@ -45,7 +46,7 @@ fn main() -> AppExit {
     app
         // The default error handler panics, which we never *ever*
         // want to happen to the editor. Log an error instead.
-        .set_error_handler(bevy::ecs::error::error)
+        .set_error_handler(error_handler)
         .add_plugins(
             DefaultPlugins
                 .set(AssetPlugin {
@@ -62,7 +63,7 @@ fn main() -> AppExit {
                     },
                 }),
         )
-        .add_plugins(editor_plugin().build())
+        .add_plugins(editor_plugins)
         .add_systems(OnEnter(jackdaw::AppState::Editor), spawn_scene);
 
     if let Some(pending) = auto_open {
@@ -81,12 +82,24 @@ fn main() -> AppExit {
 /// point the loader at their build output if you want to exercise
 /// them, rather than bundling them statically into the editor
 /// binary.
-fn editor_plugin() -> EditorPlugin {
-    EditorPlugin::new().with_dylib_loader()
+fn editor_plugins(app: &mut App) {
+    app.add_plugins(EditorPlugins::default());
 }
 
 fn spawn_scene(mut commands: Commands) {
     commands.queue(|world: &mut World| {
         jackdaw::scene_io::spawn_default_lighting(world);
     });
+}
+
+#[track_caller]
+#[inline]
+fn error_handler(error: BevyError, ctx: ErrorContext) {
+    let msg = format!("{error}");
+    if msg.contains("Note that interacting with a despawned entity is the most common cause of this error but there are others") {
+        // TODO: Ideally these should not happen. But as-is, we get a lot of them and they are benign, so let's not flood the logs
+        bevy::ecs::error::debug(error, ctx);
+        return;
+    }
+    bevy::ecs::error::error(error, ctx)
 }
