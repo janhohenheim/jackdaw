@@ -343,7 +343,7 @@ impl<'a> ExtensionContext<'a> {
     pub fn extend_window(
         &mut self,
         id: impl Into<Cow<'static, str>>,
-        build: impl FnOnce(&mut ChildSpawner) + Send + Sync + 'static,
+        build: impl Fn(&mut ChildSpawner) + Send + Sync + 'static,
     ) -> &mut Self {
         let ext = self.extension_entity;
         let id = id.into();
@@ -413,7 +413,7 @@ pub struct WindowDescriptor {
     pub icon: Option<String>,
     pub default_area: Option<String>,
     pub priority: Option<i32>,
-    pub build: Arc<dyn Fn(&mut World, Entity) + Send + Sync>,
+    pub build: Arc<dyn Fn(&mut ChildSpawner) + Send + Sync + 'static>,
 }
 
 impl WindowDescriptor {
@@ -458,10 +458,7 @@ impl WindowDescriptor {
 
     /// Sets the build function for the window, which is used for building the window's UI.
     #[must_use]
-    pub fn with_build(
-        mut self,
-        build: impl Fn(&mut World, Entity) + Send + Sync + 'static,
-    ) -> Self {
+    pub fn with_build(mut self, build: impl Fn(&mut ChildSpawner) + Send + Sync + 'static) -> Self {
         self.build = Arc::new(build);
         self
     }
@@ -475,7 +472,7 @@ impl Default for WindowDescriptor {
             icon: None,
             default_area: None,
             priority: None,
-            build: Arc::new(|_, _| {}),
+            build: Arc::new(|_| {}),
         }
     }
 }

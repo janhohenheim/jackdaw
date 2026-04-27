@@ -13,14 +13,14 @@ pub(super) fn plugin(app: &mut App) {
 
 #[derive(Resource, Default)]
 pub(crate) struct PanelExtensionRegistry {
-    extensions: HashMap<Cow<'static, str>, Vec<Box<dyn FnOnce(&mut ChildSpawner) + Send + Sync>>>,
+    extensions: HashMap<Cow<'static, str>, Vec<Box<dyn Fn(&mut ChildSpawner) + Send + Sync>>>,
 }
 
 impl PanelExtensionRegistry {
     pub(crate) fn add(
         &mut self,
         panel_id: impl Into<Cow<'static, str>>,
-        section: impl FnOnce(&mut ChildSpawner) + Send + Sync + 'static,
+        section: impl Fn(&mut ChildSpawner) + Send + Sync + 'static,
     ) {
         self.extensions
             .entry(panel_id.into())
@@ -42,7 +42,7 @@ impl PanelExtensionRegistry {
     pub(crate) fn get(
         &self,
         panel_id: &str,
-    ) -> impl Iterator<Item = &(dyn FnOnce(&mut ChildSpawner) + Send + Sync)> + '_ {
+    ) -> impl Iterator<Item = &(dyn Fn(&mut ChildSpawner) + Send + Sync)> + '_ {
         self.extensions
             .get(panel_id)
             .into_iter()

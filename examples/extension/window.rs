@@ -38,18 +38,16 @@ impl JackdawExtension for WindowExampleExtension {
             WindowDescriptor::new("window_example.window")
                 .with_name("Example Window")
                 .with_default_area("left")
-                .with_build(|world, parent| {
-                    world.entity_mut(parent).with_children(|spawner| {
-                        spawner.spawn((
-                            Text::new("Here's your very own window!"),
-                            TextFont::from_font_size(FONT_LG),
-                        ));
-                        spawner.spawn((
-                            Text::new("Click the button below to log the elapsed seconds"),
-                            TextFont::from_font_size(FONT_MD),
-                        ));
-                        spawner.spawn(button(ButtonProps::from_operator::<ElapsedSecondsOp>()));
-                    });
+                .with_build(|window| {
+                    window.spawn((
+                        Text::new("Here's your very own window!"),
+                        TextFont::from_font_size(FONT_LG),
+                    ));
+                    window.spawn((
+                        Text::new("Click the button below to log the elapsed seconds"),
+                        TextFont::from_font_size(FONT_MD),
+                    ));
+                    window.spawn(button(ButtonProps::from_operator::<ElapsedSecondsOp>()));
                 }),
         );
     }
