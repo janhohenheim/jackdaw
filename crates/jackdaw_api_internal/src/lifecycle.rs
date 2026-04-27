@@ -9,6 +9,7 @@
 //! unregistering stored `SystemId`s, removing entries from the dock
 //! `WindowRegistry`, and so on.
 
+use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -181,7 +182,7 @@ pub(crate) struct RegisteredWorkspace {
 /// injected into an existing panel via `ExtensionContext::extend_window`).
 #[derive(Component, Clone, Debug)]
 pub(crate) struct RegisteredPanelExtension {
-    pub(crate) panel_id: String,
+    pub(crate) panel_id: Cow<'static, str>,
     pub(crate) section_index: usize,
 }
 

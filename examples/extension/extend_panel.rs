@@ -1,7 +1,5 @@
 //! Extends the `minimal_operator` example by adding new content to a panel.
 
-use std::sync::Arc;
-
 use bevy::prelude::*;
 use jackdaw::prelude::*;
 use jackdaw_feathers::button::{ButtonProps, button};
@@ -34,12 +32,16 @@ impl JackdawExtension for PanelExampleExtension {
 
     fn register(&self, ctx: &mut ExtensionContext) {
         ctx.register_operator::<ElapsedSecondsOp>()
-            // TODO: clean up this API
-            .extend_window::<InspectorWindow>(Arc::new(|world, panel| {
-                world
-                    .entity_mut(panel.panel_entity)
-                    .with_child(button(ButtonProps::from_operator::<ElapsedSecondsOp>()));
-            }));
+            // We extend the inspector window, which you can find by default on the right side of the screen.
+            .extend_window(InspectorWindow::ID, |window| {
+                // This method here is used exactly like `Commands::with_children`.
+                // using `.spawn` will spawn a new entity as a child of the window.
+                // While you can style your UI however you want, jackdaw comes with a set of pre-built themed widgets
+                // that you can use to have a consistent look and feel. Here, we use the built-in `button` widget,
+                // which is directly linked to an operator. Things like the label, tooltip, etc. are automatically
+                // set up for us based on the operator definition.
+                window.spawn(button(ButtonProps::from_operator::<ElapsedSecondsOp>()));
+            });
     }
 }
 

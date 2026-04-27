@@ -208,8 +208,8 @@ lto = "thin"
 codegen-units = 1
 
 [[example]]
-name = "minimal"
-path = "examples/extension/minimal.rs"
+name = "extension"
+path = "examples/extension/extension.rs"
 doc-scrape-examples = true
 
 [[example]]

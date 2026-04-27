@@ -54,6 +54,7 @@ mod registries;
 pub mod runtime;
 pub mod snapshot;
 
+use std::borrow::Cow;
 use std::sync::Arc;
 
 use bevy::ecs::{system::IntoObserverSystem, world::EntityWorldMut};
@@ -88,7 +89,7 @@ pub use snapshot::SceneSnapshotter;
 pub mod prelude {
     pub use crate::{
         ExtensionContext, ExtensionPoint, JackdawExtension, MenuEntryDescriptor, PanelContext,
-        SectionBuildFn, WindowDescriptor,
+        WindowDescriptor,
         lifecycle::{
             ActiveModalQuery, Extension, ExtensionAppExt as _, ExtensionCatalog, ExtensionKind,
             RegisteredMenuEntry, RegisteredWindow,
@@ -339,15 +340,19 @@ impl<'a> ExtensionContext<'a> {
     /// Inject a section into an existing panel (e.g. add a sub-section to
     /// the Inspector window). Section runs with `In<PanelContext>` each time
     /// the panel re-renders.
-    pub fn extend_window<W: ExtensionPoint>(&mut self, section: SectionBuildFn) -> &mut Self {
+    pub fn extend_window(
+        &mut self,
+        id: impl Into<Cow<'static, str>>,
+        build: impl FnOnce(&mut ChildSpawner) + Send + Sync + 'static,
+    ) -> &mut Self {
         let ext = self.extension_entity;
-        let panel_id = W::ID.to_string();
+        let id = id.into();
         let mut registry = self.world.resource_mut::<PanelExtensionRegistry>();
-        let section_index = registry.get(&panel_id).len();
-        registry.add(panel_id.clone(), section);
+        let section_index = registry.get(&id).count();
+        registry.add(id.clone(), build);
         self.world.spawn((
             RegisteredPanelExtension {
-                panel_id,
+                panel_id: id,
                 section_index,
             },
             ChildOf(ext),
@@ -495,8 +500,6 @@ pub struct PanelContext {
     pub window_id: String,
     pub panel_entity: Entity,
 }
-
-pub type SectionBuildFn = Arc<dyn Fn(&mut World, PanelContext) + Send + Sync>;
 
 /// Plugin that wires up the extension framework into the editor.
 ///

@@ -3,11 +3,9 @@
 //! this file is much smaller than in v1 — only the panel-extension mapping
 //! remains.
 
-use std::collections::HashMap;
+use std::{borrow::Cow, collections::HashMap};
 
 use bevy::prelude::*;
-
-use crate::SectionBuildFn;
 
 pub(super) fn plugin(app: &mut App) {
     app.init_resource::<PanelExtensionRegistry>();
@@ -15,18 +13,25 @@ pub(super) fn plugin(app: &mut App) {
 
 #[derive(Resource, Default)]
 pub(crate) struct PanelExtensionRegistry {
-    extensions: HashMap<String, Vec<SectionBuildFn>>,
+    extensions: HashMap<Cow<'static, str>, Vec<Box<dyn FnOnce(&mut ChildSpawner) + Send + Sync>>>,
 }
 
 impl PanelExtensionRegistry {
-    pub(crate) fn add(&mut self, panel_id: String, section: SectionBuildFn) {
-        self.extensions.entry(panel_id).or_default().push(section);
+    pub(crate) fn add(
+        &mut self,
+        panel_id: impl Into<Cow<'static, str>>,
+        section: impl FnOnce(&mut ChildSpawner) + Send + Sync + 'static,
+    ) {
+        self.extensions
+            .entry(panel_id.into())
+            .or_default()
+            .push(Box::new(section));
     }
 
     pub(crate) fn remove(&mut self, panel_id: &str, section_index: usize) {
         if let Some(sections) = self.extensions.get_mut(panel_id) {
             if section_index < sections.len() {
-                sections.remove(section_index);
+                let _old_build = sections.remove(section_index);
             }
             if sections.is_empty() {
                 self.extensions.remove(panel_id);
@@ -34,10 +39,14 @@ impl PanelExtensionRegistry {
         }
     }
 
-    pub(crate) fn get(&self, panel_id: &str) -> &[SectionBuildFn] {
+    pub(crate) fn get(
+        &self,
+        panel_id: &str,
+    ) -> impl Iterator<Item = &(dyn FnOnce(&mut ChildSpawner) + Send + Sync)> + '_ {
         self.extensions
             .get(panel_id)
-            .map(|v| v.as_slice())
-            .unwrap_or(&[])
+            .into_iter()
+            .flatten()
+            .map(|v| v.as_ref())
     }
 }

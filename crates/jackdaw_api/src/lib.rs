@@ -35,7 +35,7 @@ use jackdaw_dylib as _;
 
 pub use jackdaw_api_internal::{
     ExtensionContext, ExtensionPoint, HierarchyWindow, InspectorWindow, JackdawExtension,
-    MenuEntryDescriptor, PanelContext, SectionBuildFn, WindowDescriptor,
+    MenuEntryDescriptor, PanelContext, WindowDescriptor,
 };
 
 pub use jackdaw_api_internal::lifecycle::ExtensionKind;
@@ -95,8 +95,7 @@ pub mod prelude {
     pub use crate::runtime::{GameApp, GamePlugin, GameRegistered, GameRegistry, GameSystems};
     pub use crate::{
         ExtensionContext, ExtensionKind, ExtensionPoint, HierarchyWindow, InspectorWindow,
-        JackdawExtension, MenuEntryDescriptor, PanelContext, SectionBuildFn, WindowDescriptor,
-        operator,
+        JackdawExtension, MenuEntryDescriptor, PanelContext, WindowDescriptor, operator,
     };
 
     /// Helper [`SystemParam`](bevy::ecs::system::SystemParam) for
