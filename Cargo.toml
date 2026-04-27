@@ -226,3 +226,8 @@ doc-scrape-examples = true
 name = "extend_panel"
 path = "examples/extension/extend_panel.rs"
 doc-scrape-examples = true
+
+[[example]]
+name = "window"
+path = "examples/extension/window.rs"
+doc-scrape-examples = true

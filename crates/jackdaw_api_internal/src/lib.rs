@@ -411,6 +411,57 @@ pub struct WindowDescriptor {
     pub build: Arc<dyn Fn(&mut World, Entity) + Send + Sync>,
 }
 
+impl WindowDescriptor {
+    /// Creates a new `WindowDescriptor` with the given unique `id`.
+    #[must_use]
+    pub fn new(id: impl Into<String>) -> Self {
+        let id = id.into();
+        Self {
+            id: id.clone(),
+            name: id,
+            ..default()
+        }
+    }
+
+    /// Sets the name of the window shown in the UI.
+    #[must_use]
+    pub fn with_name(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
+    /// Sets the icon of the window.
+    #[must_use]
+    pub fn with_icon(mut self, icon: impl Into<String>) -> Self {
+        self.icon = Some(icon.into());
+        self
+    }
+
+    /// Sets the default area of the window used when adding the window.
+    #[must_use]
+    pub fn with_default_area(mut self, area: impl Into<String>) -> Self {
+        self.default_area = Some(area.into());
+        self
+    }
+
+    /// Sets the priority of the window.
+    #[must_use]
+    pub fn with_priority(mut self, priority: i32) -> Self {
+        self.priority = Some(priority);
+        self
+    }
+
+    /// Sets the build function for the window, which is used for building the window's UI.
+    #[must_use]
+    pub fn with_build(
+        mut self,
+        build: impl Fn(&mut World, Entity) + Send + Sync + 'static,
+    ) -> Self {
+        self.build = Arc::new(build);
+        self
+    }
+}
+
 impl Default for WindowDescriptor {
     fn default() -> Self {
         Self {
