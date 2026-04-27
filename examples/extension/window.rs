@@ -35,10 +35,18 @@ impl JackdawExtension for WindowExampleExtension {
 
     fn register(&self, ctx: &mut ExtensionContext) {
         ctx.register_operator::<ElapsedSecondsOp>().register_window(
+            // New windows need to have a unique ID. Usually, this follows the pattern `{extension_id}.window` if it's a single window,
+            // otherwise `{extension_id}.{some_name}`.
             WindowDescriptor::new("window_example.window")
                 .with_name("Example Window")
                 .with_default_area(DefaultArea::Left)
                 .with_build(|window| {
+                    // This method here is used exactly like `Commands::with_children`.
+                    // using `.spawn` will spawn a new entity as a child of the window.
+                    // While you can style your UI however you want, jackdaw comes with a set of pre-built themed widgets
+                    // that you can use to have a consistent look and feel. Here, we use the built-in `button` widget,
+                    // which is directly linked to an operator. Things like the label, tooltip, etc. are automatically
+                    // set up for us based on the operator definition.
                     window.spawn((
                         Text::new("Here's your very own window!"),
                         TextFont::from_font_size(FONT_LG),
