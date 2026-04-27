@@ -364,7 +364,7 @@ impl<'a> ExtensionContext<'a> {
     /// Contribute an entry to one of the editor's top-level menus
     /// (`"Add"`, `"Tools"`, etc.). Clicking the entry dispatches the
     /// referenced operator.
-    pub fn register_menu_entry(&mut self, descriptor: MenuEntryDescriptor) -> &mut Self {
+    pub fn register_menu_entry_manual(&mut self, descriptor: MenuEntryDescriptor) -> &mut Self {
         let ext = self.extension_entity;
         self.world.spawn((
             RegisteredMenuEntry {
@@ -380,37 +380,42 @@ impl<'a> ExtensionContext<'a> {
     /// Convenience that registers a menu entry using `O::LABEL` and
     /// `O::ID` from the operator type, so callers only need to supply the
     /// menu name. Equivalent to calling
-    /// [`Self::register_menu_entry`] with a full [`MenuEntryDescriptor`].
-    pub fn menu_entry_for<O: Operator>(&mut self, menu: impl Into<String>) -> &mut Self {
-        self.register_menu_entry(MenuEntryDescriptor {
-            menu: menu.into(),
+    /// [`Self::register_menu_entry_manual`] with a full [`MenuEntryDescriptor`].
+    pub fn register_menu_entry<O: Operator>(&mut self, menu: TopLevelMenu) -> &mut Self {
+        self.register_menu_entry_manual(MenuEntryDescriptor {
+            menu,
             label: O::LABEL.to_string(),
             operator_id: O::ID,
         })
     }
 }
 
+/// Top level menus available for menu bar entries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum TopLevelMenu {
+    Add,
+}
+
+impl TopLevelMenu {
+    /// Returns the unique ID of the menu, used internally by the UI.
+    pub fn id(self) -> &'static str {
+        match self {
+            TopLevelMenu::Add => "Add",
+        }
+    }
+}
+
 /// Extension-facing descriptor for a menu bar entry. See
-/// [`ExtensionContext::register_menu_entry`].
+/// [`ExtensionContext::register_menu_entry_manual`].
 pub struct MenuEntryDescriptor {
-    /// Top-level menu name (`"Add"`, `"Tools"`, etc.).
-    pub menu: String,
+    /// Top-level menu.
+    pub menu: TopLevelMenu,
     /// Text shown on the menu item.
     pub label: String,
     /// ID of an operator registered on the same extension, or any other
     /// loaded extension. Operator IDs are global. Clicking the menu
     /// entry dispatches this operator.
     pub operator_id: &'static str,
-}
-
-impl MenuEntryDescriptor {
-    pub fn new<T: Operator>(menu: impl Into<String>) -> Self {
-        Self {
-            menu: menu.into(),
-            label: T::LABEL.to_string(),
-            operator_id: T::ID,
-        }
-    }
 }
 
 /// Extension-facing descriptor for a dock window. Mirrors

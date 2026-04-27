@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use crate::extensions_config::init_extension;
 use crate::operator::cancel_active_modal;
-use crate::prelude::*;
+use crate::{TopLevelMenu, prelude::*};
 use bevy::ecs::component::ComponentId;
 use bevy::ecs::system::{SystemId, SystemParam};
 use bevy::prelude::*;
@@ -198,7 +198,7 @@ pub(crate) struct RegisteredPanelExtension {
 /// for nested menus later without breaking callers.
 #[derive(Component, Clone, Debug)]
 pub struct RegisteredMenuEntry {
-    pub menu: String,
+    pub menu: TopLevelMenu,
     pub label: String,
     pub operator_id: &'static str,
 }

@@ -1811,11 +1811,11 @@ fn populate_menu(
     {
         let mut q = world.query::<&RegisteredMenuEntry>();
         for entry in q.iter(world) {
-            if entry.menu == "Add" {
+            if entry.menu == TopLevelMenu::Add {
                 continue;
             }
             ext_menu_entries
-                .entry(entry.menu.clone())
+                .entry(entry.menu.id().to_string())
                 .or_default()
                 .push((
                     format!("{OP_PREFIX}{}", entry.operator_id),

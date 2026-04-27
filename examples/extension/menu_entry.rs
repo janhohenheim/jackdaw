@@ -32,7 +32,7 @@ impl JackdawExtension for MenuEntryExampleExtension {
     fn register(&self, ctx: &mut ExtensionContext) {
         ctx.register_operator::<SpawnConeOp>()
             // Add a new entry to the "Add" menu (on the top left of the screen by default) that spawns a cone.
-            .register_menu_entry(MenuEntryDescriptor::new::<SpawnConeOp>("Add"));
+            .register_menu_entry::<SpawnConeOp>(TopLevelMenu::Add);
     }
 }
 
