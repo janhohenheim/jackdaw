@@ -391,16 +391,38 @@ impl<'a> ExtensionContext<'a> {
 }
 
 /// Top level menus available for menu bar entries.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum TopLevelMenu {
+    File,
+    Edit,
+    View,
     Add,
+    Window,
+    Custom(String),
 }
 
 impl TopLevelMenu {
     /// Returns the unique ID of the menu, used internally by the UI.
-    pub fn id(self) -> &'static str {
+    pub fn id(&self) -> String {
         match self {
-            TopLevelMenu::Add => "Add",
+            TopLevelMenu::File => "File".to_string(),
+            TopLevelMenu::Edit => "Edit".to_string(),
+            TopLevelMenu::Add => "Add".to_string(),
+            TopLevelMenu::View => "View".to_string(),
+            TopLevelMenu::Window => "Window".to_string(),
+            TopLevelMenu::Custom(id) => id.clone(),
+        }
+    }
+
+    /// Returns the order of the menu, used to sort menu items in the UI.
+    pub fn order(&self) -> u8 {
+        match self {
+            TopLevelMenu::File => 0,
+            TopLevelMenu::Edit => 1,
+            TopLevelMenu::Add => 2,
+            TopLevelMenu::View => 3,
+            TopLevelMenu::Window => 4,
+            TopLevelMenu::Custom(_) => 5,
         }
     }
 }
