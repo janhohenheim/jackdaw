@@ -89,7 +89,9 @@ use selection::Selection;
 
 /// Everything needed to start using Jackdaw.
 pub mod prelude {
-    pub use crate::{DylibLoaderPlugin, EditorPlugins, ExtensionPlugin};
+    pub use crate::{
+        DylibLoaderPlugin, EditorPlugins, ExtensionPlugin, core_extension::ButtonPropsOpExt as _,
+    };
     pub use jackdaw_api::prelude::*;
 }
 
