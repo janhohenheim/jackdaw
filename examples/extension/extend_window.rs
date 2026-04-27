@@ -9,25 +9,25 @@ fn main() -> AppExit {
         .add_plugins((
             DefaultPlugins,
             EditorPlugins::default()
-                .set(ExtensionPlugin::default().with_extension::<PanelExampleExtension>()),
+                .set(ExtensionPlugin::default().with_extension::<ExtendWindowExampleExtension>()),
         ))
         .run()
 }
 
 #[derive(Default)]
-pub struct PanelExampleExtension;
+pub struct ExtendWindowExampleExtension;
 
-impl JackdawExtension for PanelExampleExtension {
+impl JackdawExtension for ExtendWindowExampleExtension {
     fn id(&self) -> String {
-        "panel_example".to_string()
+        "extend_window_example".to_string()
     }
 
     fn label(&self) -> String {
-        "Panel Example".to_string()
+        "Extend Window Example".to_string()
     }
 
     fn description(&self) -> String {
-        "Adds a panel to the component inspector".to_string()
+        "Extends the inspector window with a new button".to_string()
     }
 
     fn register(&self, ctx: &mut ExtensionContext) {
@@ -46,7 +46,7 @@ impl JackdawExtension for PanelExampleExtension {
 }
 
 #[operator(
-    id = "panel_example.elapsed_seconds",
+    id = "extend_window_example.elapsed_seconds",
     label = "Log Elapsed Seconds",
     description = "Logs the elapsed seconds since Jackdaw started."
 )]

@@ -403,6 +403,16 @@ pub struct MenuEntryDescriptor {
     pub operator_id: &'static str,
 }
 
+impl MenuEntryDescriptor {
+    pub fn new<T: Operator>(menu: impl Into<String>) -> Self {
+        Self {
+            menu: menu.into(),
+            label: T::LABEL.to_string(),
+            operator_id: T::ID,
+        }
+    }
+}
+
 /// Extension-facing descriptor for a dock window. Mirrors
 /// [`jackdaw_panels::DockWindowDescriptor`] but with `default_area`
 /// optional: third-party extensions leave it `None` so their windows are
