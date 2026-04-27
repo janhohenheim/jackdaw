@@ -80,6 +80,7 @@ use crate::{
     operator::ExecutionContext,
 };
 
+pub use jackdaw_panels::area::{DefaultArea, ToAnchorId};
 pub use lifecycle::{ActiveModalOperator, Extension, ExtensionCatalog};
 pub use operator::{CallOperatorError, OperatorResult, OperatorWorldExt as _};
 pub use pie::PlayState;
@@ -233,7 +234,7 @@ impl<'a> ExtensionContext<'a> {
             id: descriptor.id.clone(),
             name: descriptor.name,
             icon: descriptor.icon,
-            default_area: descriptor.default_area.unwrap_or_default(),
+            default_area: descriptor.default_area.anchor_id().to_string(),
             priority: descriptor.priority.unwrap_or(100),
             build: descriptor.build,
         };
@@ -411,7 +412,7 @@ pub struct WindowDescriptor {
     pub id: String,
     pub name: String,
     pub icon: Option<String>,
-    pub default_area: Option<String>,
+    pub default_area: Option<DefaultArea>,
     pub priority: Option<i32>,
     pub build: Arc<dyn Fn(&mut ChildSpawner) + Send + Sync + 'static>,
 }
@@ -444,8 +445,8 @@ impl WindowDescriptor {
 
     /// Sets the default area of the window used when adding the window.
     #[must_use]
-    pub fn with_default_area(mut self, area: impl Into<String>) -> Self {
-        self.default_area = Some(area.into());
+    pub fn with_default_area(mut self, area: impl Into<Option<DefaultArea>>) -> Self {
+        self.default_area = area.into();
         self
     }
 

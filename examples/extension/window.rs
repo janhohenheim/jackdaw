@@ -37,7 +37,7 @@ impl JackdawExtension for WindowExampleExtension {
         ctx.register_operator::<ElapsedSecondsOp>().register_window(
             WindowDescriptor::new("window_example.window")
                 .with_name("Example Window")
-                .with_default_area("left")
+                .with_default_area(DefaultArea::Left)
                 .with_build(|window| {
                     window.spawn((
                         Text::new("Here's your very own window!"),

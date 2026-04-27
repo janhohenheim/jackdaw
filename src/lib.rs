@@ -80,7 +80,10 @@ use bevy::{
     prelude::*,
 };
 use jackdaw_api::prelude::*;
-use jackdaw_api_internal::lifecycle::{RegisteredMenuEntry, RegisteredWindow};
+use jackdaw_api_internal::{
+    ToAnchorId as _,
+    lifecycle::{RegisteredMenuEntry, RegisteredWindow},
+};
 use jackdaw_feathers::dialog::EditorDialog;
 use jackdaw_feathers::{EditorFeathersPlugin, tooltip::Tooltip};
 pub use jackdaw_loader::DylibLoaderPlugin;
@@ -1843,10 +1846,15 @@ fn populate_menu(
     // Build the Window menu with separators between area groups, followed
     // by Reset Layout at the bottom.
     let mut window_entries: Vec<(String, String)> = Vec::new();
-    let area_order = ["left", "bottom_dock", "right_sidebar", "zz_extensions"];
+    let area_order = [
+        DefaultArea::Left.anchor_id(),
+        DefaultArea::BottomDock.anchor_id(),
+        DefaultArea::RightSidebar.anchor_id(),
+        "zz_extensions".to_string(),
+    ];
     let mut first = true;
     for area in area_order {
-        let Some(entries) = by_area.get(area) else {
+        let Some(entries) = by_area.get(&area) else {
             continue;
         };
         if !first {
@@ -2489,7 +2497,10 @@ fn sync_active_workspace_from_live_tree(world: &mut World) {
 fn apply_default_splits(world: &mut World) {
     use jackdaw_panels::tree::{DockNode, DockTree, Edge};
 
-    let Some(left_root) = world.resource::<DockTree>().anchor("left") else {
+    let Some(left_root) = world
+        .resource::<DockTree>()
+        .anchor(&DefaultArea::Left.anchor_id())
+    else {
         return;
     };
     let already_split = !matches!(

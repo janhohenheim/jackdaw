@@ -5,7 +5,7 @@
 
 use bevy::prelude::*;
 use jackdaw_api::{
-    ExtensionPoint, HierarchyWindow, InspectorWindow,
+    DefaultArea, ExtensionPoint, HierarchyWindow, InspectorWindow,
     prelude::{ExtensionContext, ExtensionKind, JackdawExtension, WindowDescriptor},
 };
 use jackdaw_feathers::icons::Icon;
@@ -31,7 +31,7 @@ impl JackdawExtension for CoreWindowsExtension {
         ctx.register_window(
             WindowDescriptor::new(HierarchyWindow::ID)
                 .with_name("Outliner")
-                .with_default_area("left")
+                .with_default_area(DefaultArea::Left)
                 .with_priority(0)
                 .with_build(|window| {
                     let icon_font = window
@@ -46,7 +46,7 @@ impl JackdawExtension for CoreWindowsExtension {
         ctx.register_window(
             WindowDescriptor::new("jackdaw.import")
                 .with_name("Import")
-                .with_default_area("left")
+                .with_default_area(DefaultArea::Left)
                 .with_priority(1)
                 .with_build(|window| {
                     window.spawn((
@@ -70,7 +70,7 @@ impl JackdawExtension for CoreWindowsExtension {
         ctx.register_window(
             WindowDescriptor::new("jackdaw.project_files")
                 .with_name("Project Files")
-                .with_default_area("left")
+                .with_default_area(DefaultArea::Left)
                 .with_priority(10)
                 .with_build(|window| {
                     window.spawn(crate::layout::project_files_panel_content());
@@ -105,7 +105,7 @@ impl JackdawExtension for AssetBrowserExtension {
             WindowDescriptor::new("jackdaw.assets")
                 .with_name("Assets")
                 .with_icon(Icon::FolderOpen.unicode())
-                .with_default_area("bottom_dock")
+                .with_default_area(DefaultArea::BottomDock)
                 .with_priority(0)
                 .with_build(|window| {
                     let icon_font = window
@@ -145,7 +145,7 @@ impl JackdawExtension for TimelineExtension {
             WindowDescriptor::new("jackdaw.timeline")
                 .with_name("Timeline")
                 .with_icon(Icon::Ruler.unicode())
-                .with_default_area("bottom_dock")
+                .with_default_area(DefaultArea::BottomDock)
                 .with_priority(1)
                 .with_build(|window| {
                     window.spawn(jackdaw_animation::timeline_panel());
@@ -176,7 +176,7 @@ impl JackdawExtension for TerminalExtension {
             WindowDescriptor::new("jackdaw.terminal")
                 .with_name("Terminal")
                 .with_icon(Icon::Terminal.unicode())
-                .with_default_area("bottom_dock")
+                .with_default_area(DefaultArea::BottomDock)
                 .with_priority(2)
                 .with_build(|window| {
                     window.spawn((
@@ -222,7 +222,7 @@ impl JackdawExtension for InspectorExtension {
         ctx.register_window(
             WindowDescriptor::new(InspectorWindow::ID)
                 .with_name("Components")
-                .with_default_area("right_sidebar")
+                .with_default_area(DefaultArea::RightSidebar)
                 .with_priority(0)
                 .with_build(|window| {
                     let icon_font = window
@@ -237,7 +237,7 @@ impl JackdawExtension for InspectorExtension {
         ctx.register_window(
             WindowDescriptor::new("jackdaw.inspector.materials")
                 .with_name("Materials")
-                .with_default_area("right_sidebar")
+                .with_default_area(DefaultArea::RightSidebar)
                 .with_priority(1)
                 .with_build(|window| {
                     let icon_font = window
@@ -256,7 +256,7 @@ impl JackdawExtension for InspectorExtension {
         ctx.register_window(
             WindowDescriptor::new("jackdaw.inspector.resources")
                 .with_name("Resources")
-                .with_default_area("right_sidebar")
+                .with_default_area(DefaultArea::RightSidebar)
                 .with_priority(2)
                 .with_build(|window| {
                     window.spawn((
@@ -281,7 +281,7 @@ impl JackdawExtension for InspectorExtension {
         ctx.register_window(
             WindowDescriptor::new("jackdaw.inspector.systems")
                 .with_name("Systems")
-                .with_default_area("right_sidebar")
+                .with_default_area(DefaultArea::RightSidebar)
                 .with_priority(3)
                 .with_build(|window| {
                     window.spawn((
