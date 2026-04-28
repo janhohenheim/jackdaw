@@ -44,7 +44,7 @@ pub enum DropTarget {
         edge: DropEdge,
     },
     /// Dropped on the editor viewport's edge. Routes to the anchor
-    /// associated with that edge (see [`DefaultArea`](crate::area::DefaultArea)).
+    /// associated with that edge (see [`DefaultArea`].
     ViewportEdge {
         anchor_id: String,
         edge: DropEdge,
@@ -67,7 +67,7 @@ pub struct DropOverlay;
 
 /// Marks the editor viewport entity as a drop target. The viewport is
 /// not an `AnchorHost`; dropping on its edge re-populates one of the
-/// side anchors (see [`DefaultArea`](crate::area::DefaultArea)) instead.
+/// side anchors (see [`DefaultArea`]) instead.
 #[derive(Component)]
 pub struct ViewportDropTarget;
 
