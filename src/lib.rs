@@ -31,6 +31,7 @@ use std::{collections::BTreeMap, marker::PhantomData};
 
 pub use inspector::{EditorMeta, ReflectEditorMeta};
 pub mod core_extension;
+pub mod document_ops;
 pub mod ext_build;
 mod extension_lifecycle;
 pub mod extension_resolution;

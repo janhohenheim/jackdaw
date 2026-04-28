@@ -109,6 +109,18 @@ impl OperatorEntity {
     pub fn description(&self) -> &'static str {
         self.description
     }
+
+    /// Returns `true` if the operator is modal.
+    pub fn is_modal(&self) -> bool {
+        self.modal
+    }
+
+    /// Returns `true` if the operator allows automatic undos. Note that the
+    /// operator may implement its own undo behavior manually,
+    /// so even if this returns `false`, the operator may still support undo.
+    pub fn allows_undo(&self) -> bool {
+        self.allows_undo
+    }
 }
 
 /// Tracks the currently-active modal operator. Exactly zero or one is
