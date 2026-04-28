@@ -40,7 +40,7 @@ impl JackdawExtension for CallOperatorExampleExtension {
     label = "Spawn a cube",
     description = "Spawn a cube at the origin of the scene by using the builtin cube spawning operator."
 )]
-fn spawn_cube(_: In<OperatorParameters>, commands: Commands) -> OperatorResult {
+fn spawn_cube(_: In<OperatorParameters>, mut commands: Commands) -> OperatorResult {
     // Call the builtin cube spawning operator by its ID.
     // See <https://github.com/jbuehler23/jackdaw/tree/main/docs/operators.md>
     // for a list of builtin operators and their IDs.

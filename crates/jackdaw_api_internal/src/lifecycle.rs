@@ -27,7 +27,7 @@ pub(super) fn plugin(app: &mut App) {
         .add_observer(deindex_and_cleanup_operator_on_remove)
         .add_observer(cleanup_window_on_remove)
         .add_observer(cleanup_workspace_on_remove)
-        .add_observer(cleanup_panel_extension_on_remove)
+        .add_observer(cleanup_window_extension_on_remove)
         .add_observer(cleanup_resource_on_remove);
     app.world_mut().register_component::<ActiveModalOperator>();
 }
@@ -190,11 +190,11 @@ pub(crate) struct RegisteredWorkspace {
     pub(crate) id: String,
 }
 
-/// Marks an entity as tracking a panel-extension registration (a section
-/// injected into an existing panel via `ExtensionContext::extend_window`).
+/// Marks an entity as tracking a window-extension registration (a section
+/// injected into an existing window via `ExtensionContext::extend_window`).
 #[derive(Component, Clone, Debug)]
-pub(crate) struct RegisteredPanelExtension {
-    pub(crate) panel_id: Cow<'static, str>,
+pub(crate) struct RegisteredWindowExtension {
+    pub(crate) window_id: Cow<'static, str>,
     pub(crate) section_index: usize,
 }
 
@@ -517,13 +517,13 @@ pub(crate) fn cleanup_workspace_on_remove(
 
 /// Remove a panel extension section from the registry when its marker
 /// entity despawns.
-pub(crate) fn cleanup_panel_extension_on_remove(
-    trigger: On<Remove, RegisteredPanelExtension>,
-    registrations: Query<&RegisteredPanelExtension>,
-    mut registry: ResMut<crate::PanelExtensionRegistry>,
+pub(crate) fn cleanup_window_extension_on_remove(
+    trigger: On<Remove, RegisteredWindowExtension>,
+    registrations: Query<&RegisteredWindowExtension>,
+    mut registry: ResMut<crate::WindowExtensionRegistry>,
 ) {
     if let Ok(r) = registrations.get(trigger.event_target()) {
-        registry.remove(&r.panel_id, r.section_index);
+        registry.remove(&r.window_id, r.section_index);
     }
 }
 

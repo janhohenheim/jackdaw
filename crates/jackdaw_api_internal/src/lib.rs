@@ -64,7 +64,7 @@ use jackdaw_panels::{
 };
 
 use operator::{CallOperatorSettings, Operator, OperatorWorldExt};
-use registries::PanelExtensionRegistry;
+use registries::WindowExtensionRegistry;
 use snapshot::{ActiveSnapshotter, SceneSnapshot};
 
 pub use jackdaw_api_macros as macros;
@@ -74,8 +74,8 @@ pub use jackdaw_jsn as jsn;
 use crate::lifecycle::{ExtensionResourceOf, ResourceId};
 use crate::{
     lifecycle::{
-        ExtensionKind, OperatorEntity, RegisteredMenuEntry, RegisteredPanelExtension,
-        RegisteredWindow, RegisteredWorkspace,
+        ExtensionKind, OperatorEntity, RegisteredMenuEntry, RegisteredWindow,
+        RegisteredWindowExtension, RegisteredWorkspace,
     },
     operator::ExecutionContext,
 };
@@ -338,9 +338,9 @@ impl<'a> ExtensionContext<'a> {
         self
     }
 
-    /// Inject a section into an existing panel (e.g. add a sub-section to
+    /// Inject a section into an existing window (e.g. add a sub-section to
     /// the Inspector window). Section runs with `In<PanelContext>` each time
-    /// the panel re-renders.
+    /// the window re-renders.
     pub fn extend_window(
         &mut self,
         id: impl Into<Cow<'static, str>>,
@@ -348,12 +348,12 @@ impl<'a> ExtensionContext<'a> {
     ) -> &mut Self {
         let ext = self.extension_entity;
         let id = id.into();
-        let mut registry = self.world.resource_mut::<PanelExtensionRegistry>();
+        let mut registry = self.world.resource_mut::<WindowExtensionRegistry>();
         let section_index = registry.get(&id).count();
         registry.add(id.clone(), build);
         self.world.spawn((
-            RegisteredPanelExtension {
-                panel_id: id,
+            RegisteredWindowExtension {
+                window_id: id,
                 section_index,
             },
             ChildOf(ext),

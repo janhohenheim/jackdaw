@@ -8,15 +8,15 @@ use std::{borrow::Cow, collections::HashMap};
 use bevy::prelude::*;
 
 pub(super) fn plugin(app: &mut App) {
-    app.init_resource::<PanelExtensionRegistry>();
+    app.init_resource::<WindowExtensionRegistry>();
 }
 
 #[derive(Resource, Default)]
-pub(crate) struct PanelExtensionRegistry {
+pub(crate) struct WindowExtensionRegistry {
     extensions: HashMap<Cow<'static, str>, Vec<Box<dyn Fn(&mut ChildSpawner) + Send + Sync>>>,
 }
 
-impl PanelExtensionRegistry {
+impl WindowExtensionRegistry {
     pub(crate) fn add(
         &mut self,
         panel_id: impl Into<Cow<'static, str>>,
