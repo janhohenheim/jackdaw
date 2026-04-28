@@ -1,5 +1,5 @@
 //! Extends the `minimal_operator` example to add a keybinding for the operator.
-//! Keybindings in Jackdaw use bevy_enhanced_input (BEI), so before reading this example,
+//! Keybindings in Jackdaw use `bevy_enhanced_input` (BEI), so before reading this example,
 //! you should take a look at its documentation at <https://docs.rs/bevy_enhanced_input/latest/bevy_enhanced_input/>.
 
 use bevy::prelude::*;

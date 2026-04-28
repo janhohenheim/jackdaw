@@ -1965,10 +1965,7 @@ fn populate_menu(
             .or_default()
             .extend(actions);
     }
-    let menu_items = menu_items
-        .into_iter()
-        .map(|(_order, items)| items.into_iter())
-        .flatten();
+    let menu_items = menu_items.into_values().flatten();
 
     jackdaw_feathers::menu_bar::populate_menu_bar(world, menu_bar_entity, menu_items);
 }

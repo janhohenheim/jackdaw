@@ -29,7 +29,7 @@ fn document_operators(
             op.is_modal().then_some("modal"),
         ]
         .into_iter()
-        .filter_map(|t| t)
+        .flatten()
         .map(|t| format!("*{t}*"))
         .collect::<Vec<_>>()
         .join(", ");
