@@ -23,7 +23,7 @@ fn document_operators(
 ) -> OperatorResult {
     let mut md = "## Available Operators\n\n".to_string();
     for op in ops.iter() {
-        md.push_str(&format!("### {} ({})\n\n", op.label(), op.id()));
+        md.push_str(&format!("### {} (`{}`)\n\n", op.label(), op.id()));
         let flags = [
             op.allows_undo().then_some("undo"),
             op.is_modal().then_some("modal"),
