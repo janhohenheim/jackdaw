@@ -6,7 +6,7 @@ use jackdaw_api_internal::lifecycle::OperatorEntity;
 
 pub(crate) fn add_to_extension(ctx: &mut ExtensionContext) {
     ctx.register_operator::<DocumentOperatorsOp>();
-    ctx.register_menu_entry::<DocumentOperatorsOp>(TopLevelMenu::File);
+    ctx.register_menu_entry::<DocumentOperatorsOp>(TopLevelMenu::Tools);
 }
 
 #[operator(

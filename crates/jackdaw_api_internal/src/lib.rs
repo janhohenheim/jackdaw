@@ -397,6 +397,7 @@ pub enum TopLevelMenu {
     Edit,
     View,
     Add,
+    Tools,
     Window,
     Custom(String),
 }
@@ -409,6 +410,7 @@ impl TopLevelMenu {
             TopLevelMenu::Edit => "Edit".to_string(),
             TopLevelMenu::Add => "Add".to_string(),
             TopLevelMenu::View => "View".to_string(),
+            TopLevelMenu::Tools => "Tools".to_string(),
             TopLevelMenu::Window => "Window".to_string(),
             TopLevelMenu::Custom(id) => id.clone(),
         }
@@ -421,8 +423,9 @@ impl TopLevelMenu {
             TopLevelMenu::Edit => 1,
             TopLevelMenu::Add => 2,
             TopLevelMenu::View => 3,
-            TopLevelMenu::Window => 4,
-            TopLevelMenu::Custom(_) => 5,
+            TopLevelMenu::Tools => 4,
+            TopLevelMenu::Window => 5,
+            TopLevelMenu::Custom(_) => 6,
         }
     }
 }
