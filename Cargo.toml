@@ -218,6 +218,11 @@ path = "examples/extension/add_operator.rs"
 doc-scrape-examples = true
 
 [[example]]
+name = "call_operator"
+path = "examples/extension/call_operator.rs"
+doc-scrape-examples = true
+
+[[example]]
 name = "keybinding"
 path = "examples/extension/keybinding.rs"
 doc-scrape-examples = true
