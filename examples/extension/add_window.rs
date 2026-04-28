@@ -9,6 +9,8 @@ use jackdaw_feathers::{
 
 fn main() -> AppExit {
     App::new()
+        // log errors instead of panicking
+        .set_error_handler(bevy::ecs::error::error)
         .add_plugins((
             DefaultPlugins,
             EditorPlugins::default()
@@ -40,9 +42,10 @@ impl JackdawExtension for WindowExampleExtension {
                 // otherwise `{extension_id}.{some_name}`.
                 WindowDescriptor::new("window_example.window")
                     // To see out new UI, the user first needs to open the window by clicking on Window -> Example Window
+                    // Do that after starting the editor to see our UI in action.
                     .with_name("Example Window")
-                    // After adding the window, it will be docked on the left side of the editor by default.
-                    .with_default_area(DefaultArea::Left)
+                    // After adding the window, it will be docked on the right side of the editor by default.
+                    .with_default_area(DefaultArea::RightSidebar)
                     .with_build(|window| {
                         // This method here is used exactly like `Commands::with_children`.
                         // using `.spawn` will spawn a new entity as a child of the window.

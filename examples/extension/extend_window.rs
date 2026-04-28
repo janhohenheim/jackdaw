@@ -9,6 +9,8 @@ use jackdaw_feathers::{
 
 fn main() -> AppExit {
     App::new()
+        // log errors instead of panicking
+        .set_error_handler(bevy::ecs::error::error)
         .add_plugins((
             DefaultPlugins,
             EditorPlugins::default()

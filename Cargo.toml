@@ -241,3 +241,13 @@ doc-scrape-examples = true
 name = "menu_entry"
 path = "examples/extension/menu_entry.rs"
 doc-scrape-examples = true
+
+[[example]]
+name = "widgets"
+path = "examples/extension/widgets.rs"
+doc-scrape-examples = true
+
+[[example]]
+name = "modal"
+path = "examples/extension/modal.rs"
+doc-scrape-examples = true
