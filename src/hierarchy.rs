@@ -16,7 +16,7 @@ use jackdaw_feathers::{
 };
 use jackdaw_widgets::context_menu::{ContextMenuAction, ContextMenuState};
 use jackdaw_widgets::tree_view::{
-    EntityCategory, TreeChildrenPopulated, TreeFocused, TreeIndex, TreeNode, TreeNodeExpanded,
+    EntityCategory, TreeChildrenPopulated, TreeFocused, TreeNode, TreeNodeExpanded,
     TreeRowChildren, TreeRowClicked, TreeRowContent, TreeRowDropped, TreeRowDroppedOnRoot,
     TreeRowInlineRename, TreeRowLabel, TreeRowRenamed, TreeRowSelected, TreeRowStartRename,
     TreeRowVisibilityToggled,
@@ -82,11 +82,7 @@ impl Plugin for HierarchyPlugin {
                 )
                     .run_if(in_state(crate::AppState::Editor)),
             )
-            .add_systems(
-                PostUpdate,
-                rebuild_hierarchy_on_container_added
-                    .after(jackdaw_widgets::tree_view::maintain_tree_index),
-            )
+            .add_systems(PostUpdate, rebuild_hierarchy_on_container_added)
             .add_observer(handle_inline_rename_commit)
             .add_observer(on_root_entity_added)
             .add_observer(on_entity_reparented)
@@ -94,7 +90,7 @@ impl Plugin for HierarchyPlugin {
             .add_observer(on_tree_node_expanded)
             .add_observer(on_tree_row_clicked)
             .add_observer(on_entity_removed)
-            .add_observer(on_name_changed)
+            .add_observer(update_tree_row_label_on_name_add)
             .add_observer(on_entity_selected)
             .add_observer(on_entity_deselected)
             .add_observer(on_tree_row_dropped)
@@ -160,9 +156,7 @@ fn spawn_single_tree_row(world: &mut World, source: Entity, parent_container: En
         ))
         .id();
 
-    world
-        .resource_mut::<TreeIndex>()
-        .insert(source, tree_row_entity);
+    world.entity_mut(source).insert(TreeNode(tree_row_entity));
     tree_row_entity
 }
 
@@ -183,6 +177,7 @@ fn rebuild_hierarchy(world: &mut World) -> Result {
         roots: &mut QueryState<
             Entity,
             (
+                With<TreeNode>,
                 With<Transform>,
                 Without<EditorEntity>,
                 Without<EditorHidden>,
@@ -201,13 +196,9 @@ fn rebuild_hierarchy(world: &mut World) -> Result {
         // Collect all root scene entities (Transform, no ChildOf, no editor markers)
         let roots: Vec<Entity> = roots.iter(world).collect();
 
-        let show_all = world.resource::<HierarchyShowAll>().0;
-
         // Sort by (category, name) for consistent ordering
         let mut root_data: Vec<(Entity, EntityCategory, String)> = roots
             .into_iter()
-            .filter(|&e| !world.resource::<TreeIndex>().contains(e))
-            .filter(|&e| show_all || world.get::<Name>(e).is_some())
             .map(|e| {
                 let category = classify_entity(world, e);
                 let name = world
@@ -235,29 +226,22 @@ fn rebuild_hierarchy(world: &mut World) -> Result {
 fn on_root_entity_added(
     trigger: On<Add, Transform>,
     mut commands: Commands,
-    tree_index: Res<TreeIndex>,
     container: Option<Single<Entity, With<HierarchyTreeContainer>>>,
-    editor_check: Query<(), Or<(With<EditorEntity>, With<EditorHidden>)>>,
-    child_of_check: Query<(), With<ChildOf>>,
 ) {
     let entity = trigger.event_target();
     let Some(container) = container else {
         return;
     };
 
-    if editor_check.contains(entity)
-        || child_of_check.contains(entity)
-        || tree_index.contains(entity)
-    {
-        return;
-    }
-
     let container = *container;
-    commands.queue(move |world: &mut World| {
-        if world.resource::<TreeIndex>().contains(entity) {
+    commands.queue(try_spawn_single_tree_row(entity, container));
+}
+
+fn try_spawn_single_tree_row(entity: Entity, container: Entity) -> impl Fn(&mut World) {
+    move |world: &mut World| {
+        if world.get::<TreeNode>(entity).is_some() {
             return;
         }
-        // Re-check: ChildOf may have been added between observer and command flush
         if world.get::<ChildOf>(entity).is_some() {
             return;
         }
@@ -271,42 +255,33 @@ fn on_root_entity_added(
             return;
         }
         spawn_single_tree_row(world, entity, container);
-    });
+    }
 }
 
 /// When an entity's Name is added/changed, update its tree row label.
 /// Also creates a tree row if the entity is a root without one.
-fn on_name_changed(
-    trigger: On<Add, Name>,
+fn update_tree_row_label_on_name_add(
+    add: On<Add, Name>,
     mut commands: Commands,
     name_query: Query<&Name>,
-    tree_index: Res<TreeIndex>,
-    tree_nodes: Query<&Children, With<TreeNode>>,
-    content_query: Query<&Children, With<TreeRowContent>>,
+    tree_nodes: Query<&TreeNode>,
+    children: Query<&Children>,
     mut label_query: Query<&mut Text, With<TreeRowLabel>>,
     container: Option<Single<Entity, With<HierarchyTreeContainer>>>,
     editor_check: Query<(), Or<(With<EditorEntity>, With<EditorHidden>)>>,
     child_of_check: Query<(), With<ChildOf>>,
 ) {
-    let entity = trigger.event_target();
+    let entity = add.event_target();
     let Ok(name) = name_query.get(entity) else {
         return;
     };
 
-    if let Some(tree_entity) = tree_index.get(entity) {
-        // Update existing label: TreeNode → Children → TreeRowContent → Children → TreeRowLabel
-        let Ok(children) = tree_nodes.get(tree_entity) else {
+    if let Ok(tree_node) = tree_nodes.get(entity) {
+        let mut labels = label_query.iter_many_mut(children.iter_descendants(tree_node.0));
+
+        while let Some(mut label) = labels.fetch_next() {
+            label.0 = name.as_str().to_string();
             return;
-        };
-        for child in children.iter() {
-            if let Ok(content_children) = content_query.get(child) {
-                for grandchild in content_children.iter() {
-                    if let Ok(mut text) = label_query.get_mut(grandchild) {
-                        text.0 = name.as_str().to_string();
-                        return;
-                    }
-                }
-            }
         }
     } else {
         // Entity has no tree row. Create one if it's a visible root
@@ -318,21 +293,7 @@ fn on_name_changed(
         }
 
         let container = *container;
-        commands.queue(move |world: &mut World| {
-            if world.resource::<TreeIndex>().contains(entity) {
-                return;
-            }
-            // Re-check: ChildOf may have been added between observer and command flush
-            if world.get::<ChildOf>(entity).is_some() {
-                return;
-            }
-            if world.get::<EditorEntity>(entity).is_some()
-                || world.get::<EditorHidden>(entity).is_some()
-            {
-                return;
-            }
-            spawn_single_tree_row(world, entity, container);
-        });
+        commands.queue(try_spawn_single_tree_row(entity, container));
     }
 }
 
@@ -340,7 +301,7 @@ fn on_name_changed(
 fn setup_name_watcher(mut commands: Commands) {
     commands
         .spawn((EditorEntity, NotifyChanged::<Name>::default()))
-        .observe(on_name_mutated);
+        .observe(update_tree_row_label_on_mutation);
 }
 
 /// Pre-register the `NotifyChanged<TreeNodeExpanded>` hook during
@@ -357,34 +318,25 @@ fn setup_tree_node_expanded_watcher(mut commands: Commands) {
 }
 
 /// When an entity's Name is mutated in-place (e.g. via inspector), update the tree row label.
-fn on_name_mutated(
-    trigger: On<Mutation<Name>>,
-    name_query: Query<&Name>,
-    tree_index: Res<TreeIndex>,
-    tree_nodes: Query<&Children, With<TreeNode>>,
-    content_query: Query<&Children, With<TreeRowContent>>,
+fn update_tree_row_label_on_mutation(
+    mutation: On<Mutation<Name>>,
+    names: Query<&Name>,
+    tree_nodes: Query<&TreeNode>,
+    children: Query<&Children>,
     mut label_query: Query<&mut Text, With<TreeRowLabel>>,
 ) {
-    let entity = trigger.mutated;
-    let Ok(name) = name_query.get(entity) else {
+    let entity = mutation.entity;
+    let Ok(name) = names.get(entity) else {
         return;
     };
-    let Some(tree_entity) = tree_index.get(entity) else {
+    let Ok(tree_node) = tree_nodes.get(entity) else {
         return;
     };
-    let Ok(children) = tree_nodes.get(tree_entity) else {
+    let mut labels = label_query.iter_many_mut(children.iter_descendants(tree_node.0));
+
+    while let Some(mut label) = labels.fetch_next() {
+        label.0 = name.as_str().to_string();
         return;
-    };
-    for child in children.iter() {
-        let Ok(content_children) = content_query.get(child) else {
-            continue;
-        };
-        for grandchild in content_children.iter() {
-            if let Ok(mut text) = label_query.get_mut(grandchild) {
-                text.0 = name.as_str().to_string();
-                return;
-            }
-        }
     }
 }
 
@@ -392,13 +344,13 @@ fn on_name_mutated(
 fn on_entity_reparented(
     trigger: On<Add, ChildOf>,
     mut commands: Commands,
-    tree_index: Res<TreeIndex>,
     editor_check: Query<(), Or<(With<EditorEntity>, With<EditorHidden>)>>,
     tree_node_check: Query<(), With<TreeNode>>,
-    child_of_query: Query<&ChildOf>,
-    children_query: Query<&Children>,
+    ancestors: Query<&ChildOf>,
+    children: Query<&Children>,
     tree_row_children: Query<Entity, With<TreeRowChildren>>,
     populated_query: Query<&TreeChildrenPopulated>,
+    tree_nodes: Query<&TreeNode>,
 ) {
     let entity = trigger.event_target();
 
@@ -407,33 +359,33 @@ fn on_entity_reparented(
         return;
     }
 
-    let Ok(&ChildOf(new_parent)) = child_of_query.get(entity) else {
+    let Ok(&ChildOf(new_parent)) = ancestors.get(entity) else {
         return;
     };
 
     // Find the new parent's TreeRowChildren container via TreeIndex + child walk
-    let parent_container = tree_index.get(new_parent).and_then(|parent_tree| {
-        children_query
-            .get(parent_tree)
-            .ok()
-            .and_then(|children| children.iter().find(|c| tree_row_children.contains(*c)))
+    let parent_container = tree_nodes.get(new_parent).ok().and_then(|parent_tree| {
+        children
+            .iter_descendants(parent_tree.0)
+            .find(|child| tree_row_children.contains(*child))
     });
 
     // If tree row already exists for this entity → reparent it
-    if let Some(tree_entity) = tree_index.get(entity) {
+    if let Ok(tree_entity) = tree_nodes.get(entity).copied() {
         if let Some(container) = parent_container {
-            commands.entity(tree_entity).insert(ChildOf(container));
+            commands.entity(tree_entity.0).insert(ChildOf(container));
         } else {
             // Parent has no tree row yet. Remove this incorrectly-rooted tree row.
             // Lazy loading will re-create it when the parent is expanded.
             let source = entity;
             commands.queue(move |world: &mut World| {
-                world.resource_mut::<TreeIndex>().remove(source);
-                if let Ok(ec) = world.get_entity_mut(tree_entity) {
+                world.entity_mut(source).remove::<TreeNode>();
+                if let Ok(ec) = world.get_entity_mut(tree_entity.0) {
                     ec.despawn();
                 }
             });
         }
+
         return;
     }
 
@@ -441,9 +393,11 @@ fn on_entity_reparented(
     let Some(parent_container) = parent_container else {
         return;
     };
-    let parent_tree = tree_index.get(new_parent).unwrap(); // safe: we found parent_container from it
+    let Ok(parent_tree) = tree_nodes.get(new_parent) else {
+        return;
+    };
     let populated = populated_query
-        .get(parent_tree)
+        .get(parent_tree.0)
         .map(|p| p.0)
         .unwrap_or(false);
     if !populated {
@@ -451,16 +405,7 @@ fn on_entity_reparented(
     }
 
     let container = parent_container;
-    commands.queue(move |world: &mut World| {
-        if world.resource::<TreeIndex>().contains(entity) {
-            return;
-        }
-        // In named-only mode, skip entities without a Name
-        if !world.resource::<HierarchyShowAll>().0 && world.get::<Name>(entity).is_none() {
-            return;
-        }
-        spawn_single_tree_row(world, entity, container);
-    });
+    commands.queue(try_spawn_single_tree_row(entity, container));
 }
 
 /// When `ChildOf` is removed (entity deparented back to root, e.g. via undo of
@@ -469,36 +414,36 @@ fn on_entity_reparented(
 fn on_entity_deparented(
     trigger: On<Remove, ChildOf>,
     mut commands: Commands,
-    tree_index: Res<TreeIndex>,
     container: Option<Single<Entity, With<HierarchyTreeContainer>>>,
     editor_check: Query<(), Or<(With<EditorEntity>, With<EditorHidden>)>>,
-    tree_node_check: Query<(), With<TreeNode>>,
+    tree_nodes: Query<&TreeNode>,
 ) {
     let entity = trigger.event_target();
-    if editor_check.contains(entity) || tree_node_check.contains(entity) {
+    if editor_check.contains(entity) {
         return;
     }
+    let Ok(tree_node) = tree_nodes.get(entity) else {
+        return;
+    };
     let Some(container) = container else {
         return;
     };
     let root_container = *container;
-    if let Some(tree_entity) = tree_index.get(entity) {
-        commands.entity(tree_entity).insert(ChildOf(root_container));
-    }
+    commands.entity(tree_node.0).insert(ChildOf(root_container));
 }
 
 /// When an entity's Name is removed, despawn its tree row.
 fn on_entity_removed(
     trigger: On<Despawn, Name>,
     mut commands: Commands,
-    tree_index: Res<TreeIndex>,
+    tree_nodes: Query<&TreeNode>,
 ) {
     let entity = trigger.event_target();
 
-    if let Some(tree_entity) = tree_index.get(entity)
-        && let Ok(mut ec) = commands.get_entity(tree_entity)
+    if let Ok(tree_entity) = tree_nodes.get(entity)
+        && let Ok(mut ec) = commands.get_entity(tree_entity.0)
     {
-        ec.despawn();
+        ec.try_despawn();
     }
 }
 
@@ -506,14 +451,14 @@ fn on_entity_removed(
 fn on_entity_hidden(
     trigger: On<Add, EditorHidden>,
     mut commands: Commands,
-    tree_index: Res<TreeIndex>,
+    tree_nodes: Query<&TreeNode>,
 ) {
     let entity = trigger.event_target();
 
-    if let Some(tree_entity) = tree_index.get(entity)
-        && let Ok(mut ec) = commands.get_entity(tree_entity)
+    if let Ok(tree_entity) = tree_nodes.get(entity)
+        && let Ok(mut ec) = commands.get_entity(tree_entity.0)
     {
-        ec.despawn();
+        ec.try_despawn();
     }
 }
 
@@ -582,7 +527,7 @@ fn on_tree_node_expanded(
                 continue;
             }
             // Skip children that already have tree rows
-            if world.resource::<TreeIndex>().contains(child) {
+            if world.entity(child).contains::<TreeNode>() {
                 continue;
             }
             let name = world
@@ -645,22 +590,19 @@ fn on_tree_row_clicked(
 fn on_entity_selected(
     trigger: On<Add, Selected>,
     mut commands: Commands,
-    tree_index: Res<TreeIndex>,
-    tree_nodes: Query<&Children, With<TreeNode>>,
+    children: Query<&Children>,
     tree_row_contents: Query<Entity, With<TreeRowContent>>,
     mut bg_query: Query<&mut BackgroundColor>,
     mut border_query: Query<&mut BorderColor>,
+    tree_nodes: Query<&TreeNode>,
 ) {
     let entity = trigger.event_target();
 
-    let Some(tree_entity) = tree_index.get(entity) else {
-        return;
-    };
-    let Ok(children) = tree_nodes.get(tree_entity) else {
+    let Ok(tree_entity) = tree_nodes.get(entity) else {
         return;
     };
 
-    for child in children.iter() {
+    for child in children.iter_descendants(tree_entity.0) {
         if tree_row_contents.contains(child) {
             if let Ok(mut ec) = commands.get_entity(child) {
                 ec.insert(TreeRowSelected);
@@ -671,7 +613,6 @@ fn on_entity_selected(
             if let Ok(mut border) = border_query.get_mut(child) {
                 *border = BorderColor::all(tokens::SELECTED_BORDER);
             }
-            return;
         }
     }
 }
@@ -680,22 +621,19 @@ fn on_entity_selected(
 fn on_entity_deselected(
     trigger: On<Remove, Selected>,
     mut commands: Commands,
-    tree_index: Res<TreeIndex>,
-    tree_nodes: Query<&Children, With<TreeNode>>,
+    children: Query<&Children>,
+    tree_nodes: Query<&TreeNode>,
     tree_row_contents: Query<Entity, With<TreeRowContent>>,
     mut bg_query: Query<&mut BackgroundColor>,
     mut border_query: Query<&mut BorderColor>,
 ) {
     let entity = trigger.event_target();
 
-    let Some(tree_entity) = tree_index.get(entity) else {
-        return;
-    };
-    let Ok(children) = tree_nodes.get(tree_entity) else {
+    let Ok(tree_entity) = tree_nodes.get(entity) else {
         return;
     };
 
-    for child in children.iter() {
+    for child in children.iter_descendants(tree_entity.0) {
         if tree_row_contents.contains(child) {
             if let Ok(mut ec) = commands.get_entity(child) {
                 ec.remove::<TreeRowSelected>();
@@ -706,7 +644,6 @@ fn on_entity_deselected(
             if let Ok(mut border) = border_query.get_mut(child) {
                 *border = BorderColor::all(Color::NONE);
             }
-            return;
         }
     }
 }
@@ -755,8 +692,8 @@ fn on_tree_row_dropped(
 fn on_tree_row_dropped_on_root(
     event: On<TreeRowDroppedOnRoot>,
     mut commands: Commands,
-    parent_query: Query<&ChildOf, Without<EditorEntity>>,
-    tree_index: Res<TreeIndex>,
+    ancestors: Query<&ChildOf>,
+    tree_nodes: Query<&TreeNode>,
     container: Option<Single<Entity, With<HierarchyTreeContainer>>>,
 ) {
     let Some(container) = container else {
@@ -764,8 +701,11 @@ fn on_tree_row_dropped_on_root(
         return;
     };
     let dragged = event.dragged_source;
+    let Ok(tree_entity) = tree_nodes.get(dragged) else {
+        return;
+    };
 
-    let old_parent = match parent_query.get(dragged) {
+    let old_parent = match ancestors.get(dragged) {
         Ok(child_of) => Some(child_of.0),
         Err(_) => return,
     };
@@ -788,11 +728,9 @@ fn on_tree_row_dropped_on_root(
     });
 
     // Move the tree row to the root container
-    if let Some(tree_entity) = tree_index.get(dragged) {
-        commands
-            .entity(tree_entity)
-            .insert(ChildOf(container_entity));
-    }
+    commands
+        .entity(tree_entity.0)
+        .insert(ChildOf(container_entity));
 }
 
 /// Open the hierarchy row context menu under the cursor (RMB).
@@ -1123,27 +1061,20 @@ fn no_rename_in_progress(rename_check: Query<(), With<InlineRenameInput>>) -> bo
     rename_check.is_empty()
 }
 
-fn entity_name(names: &Query<&Name>, entity: Entity) -> String {
-    names
-        .get(entity)
-        .map(|n| n.as_str().to_string())
-        .unwrap_or_default()
-}
-
 /// Resolve the label entity and its containing row for a scene entity's tree node.
 fn find_rename_targets(
-    source: Entity,
-    tree_index: &TreeIndex,
-    tree_nodes: &Query<&Children, With<TreeNode>>,
-    content_query: &Query<(Entity, &Children), With<TreeRowContent>>,
-    label_query: &Query<Entity, With<TreeRowLabel>>,
+    In(source): In<Entity>,
+    tree_nodes: Query<&TreeNode>,
+    children: Query<&Children>,
+    contents: Query<(Entity, &Children), With<TreeRowContent>>,
+    labels: Query<Entity, With<TreeRowLabel>>,
 ) -> Option<(Entity, Entity)> {
-    let tree_entity = tree_index.get(source)?;
-    let children = tree_nodes.get(tree_entity).ok()?;
-    for child in children.iter() {
-        if let Ok((content_e, content_children)) = content_query.get(child) {
+    let tree_entity = tree_nodes.get(source).ok()?;
+
+    for child in children.iter_descendants(tree_entity.0) {
+        if let Ok((content_e, content_children)) = contents.get(child) {
             for grandchild in content_children.iter() {
-                if label_query.contains(grandchild) {
+                if labels.contains(grandchild) {
                     return Some((grandchild, content_e));
                 }
             }
@@ -1185,17 +1116,13 @@ impl Command for RestoreLabel {
 )]
 pub fn rename_begin(
     params: In<OperatorParameters>,
-    mut commands: Commands,
-    tree_index: Res<TreeIndex>,
-    tree_nodes: Query<&Children, With<TreeNode>>,
-    content_query: Query<(Entity, &Children), With<TreeRowContent>>,
-    label_query: Query<Entity, With<TreeRowLabel>>,
-    names: Query<&Name>,
-    rename_inputs: Query<(), With<InlineRenameInput>>,
-    active: ActiveModalQuery,
+    world: &mut World,
+    active: &mut SystemState<ActiveModalQuery>,
+    rename_inputs: &mut QueryState<(), With<InlineRenameInput>>,
+    names: &mut QueryState<NameOrEntity>,
 ) -> OperatorResult {
-    if active.is_modal_running() {
-        return if rename_inputs.is_empty() {
+    if active.get(world).is_modal_running() {
+        return if rename_inputs.iter(world).next().is_none() {
             OperatorResult::Finished
         } else {
             OperatorResult::Running
@@ -1205,32 +1132,29 @@ pub fn rename_begin(
     let Some(source) = params.as_entity("entity") else {
         return OperatorResult::Cancelled;
     };
-    let Some((label_entity, content_entity)) = find_rename_targets(
-        source,
-        &tree_index,
-        &tree_nodes,
-        &content_query,
-        &label_query,
-    ) else {
+    let Ok(Some((label_entity, content_entity))) =
+        world.run_system_cached_with(find_rename_targets, source)
+    else {
         return OperatorResult::Cancelled;
     };
 
-    commands.entity(label_entity).insert(TreeRowInlineRename);
-    commands
-        .entity(label_entity)
-        .entry::<Node>()
-        .and_modify(|mut node| {
-            node.display = Display::None;
-        });
+    world.entity_mut(label_entity).insert(TreeRowInlineRename);
+    if let Some(mut node) = world.entity_mut(label_entity).get_mut::<Node>() {
+        node.display = Display::None;
+    }
 
-    commands.spawn((
+    let name = names
+        .get(world, source)
+        .map(|n| n.to_string())
+        .unwrap_or_default();
+    world.spawn((
         InlineRenameInput {
             label_entity,
             source_entity: source,
         },
         text_edit::text_edit(
             TextEditProps::default()
-                .with_default_value(entity_name(&names, source))
+                .with_default_value(name)
                 .allow_empty(),
         ),
         ChildOf(content_entity),
@@ -1241,12 +1165,15 @@ pub fn rename_begin(
 fn cancel_rename_begin(
     mut commands: Commands,
     rename_query: Query<(Entity, &InlineRenameInput)>,
-    names: Query<&Name>,
+    names: Query<NameOrEntity>,
     mut input_focus: ResMut<InputFocus>,
 ) {
     for (rename_entity, inline_rename) in &rename_query {
         input_focus.clear();
-        let original = entity_name(&names, inline_rename.source_entity);
+        let original = names
+            .get(inline_rename.source_entity)
+            .map(|n| n.to_string())
+            .unwrap_or_default();
         commands.queue(RestoreLabel {
             label_entity: inline_rename.label_entity,
             text: original,
@@ -1449,8 +1376,7 @@ fn toggle_show_all_button(
 /// detection. We only write when the font differs to keep bevy's
 /// `Changed<TextFont>` quiet for downstream consumers.
 fn style_game_spawned_rows(
-    game_spawned: Query<Entity, With<crate::pie::GameSpawned>>,
-    index: Res<jackdaw_widgets::tree_view::TreeIndex>,
+    game_spawned: Query<&TreeNode, With<crate::pie::GameSpawned>>,
     italic_font: Option<Res<jackdaw_feathers::icons::EditorFontItalic>>,
     children_q: Query<&Children>,
     row_content_q: Query<(), With<jackdaw_widgets::tree_view::TreeRowContent>>,
@@ -1461,9 +1387,7 @@ fn style_game_spawned_rows(
         return;
     };
     for source in &game_spawned {
-        let Some(row_entity) = index.get(source) else {
-            continue;
-        };
+        let row_entity = source.0;
         let Ok(row_children) = children_q.get(row_entity) else {
             continue;
         };
@@ -1527,6 +1451,7 @@ fn on_show_all_changed(show_all: Res<HierarchyShowAll>, mut commands: Commands) 
 pub fn clear_all_tree_rows(
     world: &mut World,
     container: &mut SystemState<Option<Single<Entity, With<HierarchyTreeContainer>>>>,
+    tree_nodes: &mut QueryState<Entity, With<TreeNode>>,
 ) {
     let Some(container) = container.get(world) else {
         // No tree container mounted (e.g. headless test); nothing to clear.
@@ -1546,7 +1471,10 @@ pub fn clear_all_tree_rows(
         }
     }
 
-    world.resource_mut::<TreeIndex>().clear();
+    let nodes = tree_nodes.iter(world).collect::<Vec<_>>();
+    for node in nodes {
+        world.entity_mut(node).remove::<TreeNode>();
+    }
 }
 
 /// Filter hierarchy tree rows based on the filter text input.

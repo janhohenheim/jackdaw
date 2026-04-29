@@ -5,7 +5,7 @@ use bevy::prelude::*;
 pub struct TreeView;
 
 /// Links a tree row UI entity to the source entity it represents
-#[derive(Component)]
+#[derive(Component, Copy, Clone)]
 #[relationship(relationship_target = TreeNodeSource)]
 pub struct TreeNode(pub Entity);
 
@@ -76,43 +76,6 @@ pub struct TreeRowVisibilityToggled {
 #[derive(Component)]
 pub struct TreeRowInlineRename;
 
-/// Maps source (scene) entities to their corresponding tree row UI entities.
-/// Maintained automatically by systems that react to `TreeNode` additions/removals.
-#[derive(Resource, Default)]
-pub struct TreeIndex {
-    /// source entity → tree row entity
-    map: HashMap<Entity, Entity>,
-}
-
-impl TreeIndex {
-    /// Get the tree row entity for a given source entity.
-    pub fn get(&self, source: Entity) -> Option<Entity> {
-        self.map.get(&source).copied()
-    }
-
-    /// Insert a mapping from source entity to tree row entity.
-    pub fn insert(&mut self, source: Entity, tree_row: Entity) {
-        self.map.insert(source, tree_row);
-    }
-
-    /// Remove the mapping for a source entity.
-    pub fn remove(&mut self, source: Entity) {
-        self.map.remove(&source);
-    }
-
-    /// Check if a source entity has a tree row.
-    pub fn contains(&self, source: Entity) -> bool {
-        self.map.contains_key(&source)
-    }
-
-    /// Remove all mappings.
-    pub fn clear(&mut self) {
-        self.map.clear();
-    }
-}
-
-use std::collections::HashMap;
-
 /// Tracks which tree row has keyboard focus (rendered with a focus ring).
 #[derive(Resource, Default)]
 pub struct TreeFocused(pub Option<Entity>);
@@ -170,32 +133,6 @@ pub struct TreeViewPlugin;
 
 impl Plugin for TreeViewPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<TreeIndex>()
-            .init_resource::<TreeFocused>()
-            .add_systems(PostUpdate, (maintain_tree_index,));
-    }
-}
-
-/// Keep `TreeIndex` in sync with `TreeNode` additions and removals.
-pub fn maintain_tree_index(
-    mut index: ResMut<TreeIndex>,
-    added: Query<(Entity, &TreeNode), Added<TreeNode>>,
-    mut removed: RemovedComponents<TreeNode>,
-) {
-    for (tree_row, tree_node) in &added {
-        index.insert(tree_node.0, tree_row);
-    }
-
-    for removed_entity in removed.read() {
-        // Scan the map to find which source entity maps to this removed tree row.
-        // This is O(n) but only runs on removal frames, not every frame.
-        let source = index
-            .map
-            .iter()
-            .find(|(_, tree_row)| **tree_row == removed_entity)
-            .map(|(source, _)| *source);
-        if let Some(source) = source {
-            index.remove(source);
-        }
+        app.init_resource::<TreeFocused>();
     }
 }
