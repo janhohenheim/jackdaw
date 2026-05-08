@@ -40,6 +40,7 @@ jobs:
         with:
           save-if: ${{ github.ref == 'refs/heads/main' }}
           cache-directories: ${{ env.LD_LIBRARY_PATH }}
+          shared-key: lints
 
       - name: Install dependencies
         run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libwayland-dev
@@ -120,8 +121,9 @@ jobs:
       - name: Populate target directory from cache
         uses: Swatinem/rust-cache@v2
         with:
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-          shared-key: template-${{ matrix.template }}
+          save-if: false
+          cache-directories: ${{ env.LD_LIBRARY_PATH }}
+          shared-key: lints
 
       - name: Scaffold ${{ matrix.template }}
         env:
@@ -219,6 +221,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           save-if: false
+          cache-directories: ${{ env.LD_LIBRARY_PATH }}
           shared-key: lints
 
       - name: Run clippy lints
@@ -276,6 +279,7 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           save-if: false
+          cache-directories: ${{ env.LD_LIBRARY_PATH }}
           shared-key: lints
 
       - name: Check documentation
