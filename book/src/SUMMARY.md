@@ -15,6 +15,7 @@
 - [Brushes](user-guide/brushes.md)
 - [Materials & Textures](user-guide/materials-textures.md)
 - [Terrain](user-guide/terrain.md)
+- [Physics](user-guide/physics.md)
 - [Scene Management](user-guide/scene-management.md)
 - [Keyboard Shortcuts](user-guide/keyboard-shortcuts.md)
 

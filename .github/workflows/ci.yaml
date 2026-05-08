@@ -136,6 +136,7 @@ jobs:
             --name "$name" \
             --destination "$RUNNER_TEMP" \
             --silent
+          cp -r "$checkout/.cargo" "$RUNNER_TEMP/"
           # Pin the scaffolded project's `jackdaw` / `jackdaw_runtime`
           # deps to THIS checkout so we test the template against
           # the PR under review, not against whatever's on crates.io
@@ -150,16 +151,16 @@ jobs:
           jackdaw_runtime = { path = "$checkout/crates/jackdaw_runtime" }
           EOF
 
-      - name: Compile ${{ matrix.template }}
+      - name: Run cargo check
         # No `--locked`: cargo-generate doesn't ship a Cargo.lock,
         # and the patched jackdaw deps would mismatch one anyway.
         run: |
           set -euxo pipefail
           name="test_$(echo "${{ matrix.template }}" | tr - _)"
           cd "$RUNNER_TEMP/$name"
-          cargo check --all-targets
+          cargo check --all-targets --target-dir "$GITHUB_WORKSPACE/target"
 
-      - name: Test ${{ matrix.template }} with editor feature
+      - name: Run tests
         # Game-static ships a smoke test that exercises the
         # editor's component picker against the project's own
         # `MyGamePlugin`. Skip for templates without a `tests/`
@@ -169,7 +170,7 @@ jobs:
           name="test_$(echo "${{ matrix.template }}" | tr - _)"
           cd "$RUNNER_TEMP/$name"
           if [[ -d tests ]]; then
-            cargo test --features editor
+            cargo nextest run --locked --workspace --lib --bins --tests --no-fail-fast --no-tests warn --features editor --target-dir "$GITHUB_WORKSPACE/target"
           else
             echo "no tests/ directory in scaffolded ${{ matrix.template }}; skipping"
           fi
