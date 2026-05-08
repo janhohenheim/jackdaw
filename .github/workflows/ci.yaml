@@ -151,14 +151,21 @@ jobs:
           jackdaw_runtime = { path = "$checkout/crates/jackdaw_runtime" }
           EOF
 
-      - name: Run cargo check
+      - name: Run cargo fmt
+        run: |
+          set -euxo pipefail
+          name="test_$(echo "${{ matrix.template }}" | tr - _)"
+          cd "$RUNNER_TEMP/$name"
+          cargo fmt --all -- --check
+
+      - name: Run cargo clippy
         # No `--locked`: cargo-generate doesn't ship a Cargo.lock,
         # and the patched jackdaw deps would mismatch one anyway.
         run: |
           set -euxo pipefail
           name="test_$(echo "${{ matrix.template }}" | tr - _)"
           cd "$RUNNER_TEMP/$name"
-          cargo check --all-targets --target-dir "$GITHUB_WORKSPACE/target"
+          cargo clippy --workspace --all-targets --target-dir "$GITHUB_WORKSPACE/target" -- --deny warnings
 
       - name: Run tests
         # Game-static ships a smoke test that exercises the
