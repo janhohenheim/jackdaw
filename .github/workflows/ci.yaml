@@ -58,10 +58,10 @@ jobs:
         run: cargo binstall cargo-nextest --locked --force
 
       - name: Run tests
-        run: cargo nextest run --locked --workspace --lib --bins --tests --no-fail-fast --no-tests warn
+        run: cargo nextest run --locked --workspace --lib --bins --tests --no-fail-fast --no-tests warn --features bevy/dynamic_linking
 
       - name: Run doctests
-        run: cargo test --locked --workspace --doc
+        run: cargo test --locked --workspace --doc --features bevy/dynamic_linking
 
   # The Windows dylib smoke job that previously ran here is removed
   # while the dylib path is experimental. Re-add when the dylib flow
@@ -170,7 +170,7 @@ jobs:
           set -euxo pipefail
           name="test_$(echo "${{ matrix.template }}" | tr - _)"
           cd "$RUNNER_TEMP/$name"
-          cargo clippy --workspace --all-targets --target-dir "$GITHUB_WORKSPACE/target" -- --deny warnings
+          cargo clippy --workspace --all-targets --target-dir "$GITHUB_WORKSPACE/target" --features bevy/dynamic_linking -- --deny warnings
 
       - name: Run tests
         # Game-static ships a smoke test that exercises the
@@ -182,7 +182,7 @@ jobs:
           name="test_$(echo "${{ matrix.template }}" | tr - _)"
           cd "$RUNNER_TEMP/$name"
           if [[ -d tests ]]; then
-            cargo nextest run --locked --workspace --lib --bins --tests --no-fail-fast --no-tests warn --features editor --target-dir "$GITHUB_WORKSPACE/target"
+            cargo nextest run --locked --workspace --lib --bins --tests --no-fail-fast --no-tests warn --features editor,bevy/dynamic_linking --target-dir "$GITHUB_WORKSPACE/target"
           else
             echo "no tests/ directory in scaffolded ${{ matrix.template }}; skipping"
           fi
@@ -225,7 +225,7 @@ jobs:
           shared-key: lints
 
       - name: Run clippy lints
-        run: cargo clippy --locked --workspace --all-targets -- --deny warnings
+        run: cargo clippy --locked --workspace --all-targets --features bevy/dynamic_linking -- --deny warnings
 
   # Check formatting.
   format:
@@ -325,4 +325,4 @@ jobs:
         run: cargo binstall wild-linker --locked --force
 
       - name: Run Bevy linter
-        run: bevy_lint --locked --workspace --all-targets
+        run: bevy_lint --locked --workspace --all-targets --features bevy/dynamic_linking
