@@ -94,7 +94,7 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@master
         with:
-          components: rustc-codegen-cranelift-preview,rustfmt
+          components: rustc-codegen-cranelift-preview, rustfmt, clippy
           toolchain: ${{ env.toolchain }}
 
       - name: Set LD_LIBRARY_PATH
